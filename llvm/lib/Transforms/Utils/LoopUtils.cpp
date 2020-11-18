@@ -646,9 +646,16 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
            "There should be a non-PHI instruction in exit block, else these "
            "instructions will have no parent.");
     for (auto *DVI : DeadDebugInst)
-      DIB.insertDbgValueIntrinsic(UndefValue::get(Builder.getInt32Ty()),
-                                  DVI->getVariable(), DVI->getExpression(),
-                                  DVI->getDebugLoc(), InsertDbgValueBefore);
+      if (auto* DAI = dyn_cast<DbgAssignIntrinsic>(DVI)) {
+        // Move it but don't undef it. Values that change through the loop
+        // should become undef naturally. Loop invariant values would be live
+        // through the loop, so keep their values.
+        DAI->moveBefore(InsertDbgValueBefore);
+      } else {
+        DIB.insertDbgValueIntrinsic(UndefValue::get(Builder.getInt32Ty()),
+                                    DVI->getVariable(), DVI->getExpression(),
+                                    DVI->getDebugLoc(), InsertDbgValueBefore);
+      }
   }
 
   // Remove the block from the reference counting scheme, so that we can

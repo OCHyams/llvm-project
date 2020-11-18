@@ -96,6 +96,7 @@ namespace llvm {
     SlotMapping *Slots;
 
     SmallVector<Instruction*, 64> InstsWithTBAATag;
+    DenseMap<MDNode *, SmallVector<Instruction *, 2>> TempDIAssignIDAttachments;
 
     // Type resolution handling data structures.  The location is set when we
     // have processed a use of the type but not a definition yet.

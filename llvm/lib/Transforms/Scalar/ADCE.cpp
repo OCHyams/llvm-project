@@ -544,6 +544,10 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
       continue;
 
     if (auto *DII = dyn_cast<DbgInfoIntrinsic>(&I)) {
+      // Never remove a dbg.assign because it may hold information about a
+      // store which isn't itself dead.
+      if (isa<DbgAssignIntrinsic>(DII))
+        continue;
       // Check if the scope of this variable location is alive.
       if (AliveScopes.count(DII->getDebugLoc()->getScope()))
         continue;

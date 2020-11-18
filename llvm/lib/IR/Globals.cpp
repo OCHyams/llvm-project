@@ -421,6 +421,22 @@ GlobalVariable::GlobalVariable(Module &M, Type *Ty, bool constant,
     M.getGlobalList().push_back(this);
 }
 
+GlobalVariable::~GlobalVariable() {
+  // Copied from Instruction::~Instruction():
+  // Replace any extant metadata uses of this instruction with undef to
+  // preserve debug info accuracy. Some alternatives include:
+  // - Treat Instruction like any other Value, and point its extant metadata
+  //   uses to an empty ValueAsMetadata node. This makes extant dbg.value uses
+  //   trivially dead (i.e. fair game for deletion in many passes), leading to
+  //   stale dbg.values being in effect for too long.
+  // - Call salvageDebugInfoOrMarkUndef. Not needed to make instruction removal
+  //   correct. OTOH results in wasted work in some common cases (e.g. when all
+  //   instructions in a BasicBlock are deleted).
+  if (isUsedByMetadata())
+    ValueAsMetadata::handleRAUW(this, UndefValue::get(getType()));
+  dropAllReferences();
+}
+
 void GlobalVariable::removeFromParent() {
   getParent()->getGlobalList().remove(getIterator());
 }

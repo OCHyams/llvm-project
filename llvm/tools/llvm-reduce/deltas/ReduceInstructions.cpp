@@ -25,9 +25,12 @@ static void extractInstrFromModule(Oracle &O, Module &Program) {
       // Removing the terminator would make the block invalid. Only iterate over
       // instructions before the terminator.
       InitInstToKeep.push_back(BB.getTerminator());
-      for (auto &Inst : make_range(BB.begin(), std::prev(BB.end())))
+      for (auto &Inst : make_range(BB.begin(), std::prev(BB.end()))) {
         if (O.shouldKeep())
           InitInstToKeep.push_back(&Inst);
+        if (Inst.hasMetadata(LLVMContext::MD_DIAssignID))
+          InitInstToKeep.push_back(&Inst);
+      }
     }
 
   // We create a vector first, then convert it to a set, so that we don't have

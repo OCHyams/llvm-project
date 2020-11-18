@@ -1307,14 +1307,11 @@ void Instruction::dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs) {
   if (!Value::hasMetadata())
     return; // Nothing to remove!
 
-  if (KnownIDs.empty()) {
-    // Just drop our entry at the store.
-    clearMetadata();
-    return;
-  }
-
   SmallSet<unsigned, 4> KnownSet;
   KnownSet.insert(KnownIDs.begin(), KnownIDs.end());
+  // XXX @OCH Hack: DIAssignID is special. We rarely want to drop it, so make
+  // it difficult to drop accidentally.
+  KnownSet.insert(LLVMContext::MD_DIAssignID);
 
   auto &MetadataStore = getContext().pImpl->ValueMetadata;
   auto &Info = MetadataStore[this];
@@ -1329,6 +1326,24 @@ void Instruction::dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs) {
   }
 }
 
+void Instruction::updateDIAssignIDMapping(DIAssignID *ID) {
+  auto &IDToInstrs = getContext().pImpl->AssignmentIDToInstrs;
+  // Unmap this instruction from its current ID.
+  if (auto *CurrentID =
+          cast_or_null<DIAssignID>(getMetadata(LLVMContext::MD_DIAssignID))) {
+    auto InstrsIt = IDToInstrs.find(CurrentID);
+    assert(InstrsIt != IDToInstrs.end() && "bit out of sync with map 1");
+
+    bool Erased = InstrsIt->second.erase(this);
+    (void)Erased;
+    assert(Erased && "bit out of sync with map 2");
+  }
+
+  // Map this instruction to ID.
+  if (ID)
+    IDToInstrs[ID].insert(this);
+}
+
 void Instruction::setMetadata(unsigned KindID, MDNode *Node) {
   if (!Node && !hasMetadata())
     return;
@@ -1337,6 +1352,15 @@ void Instruction::setMetadata(unsigned KindID, MDNode *Node) {
   if (KindID == LLVMContext::MD_dbg) {
     DbgLoc = DebugLoc(Node);
     return;
+  }
+
+  // Update Metadata to Instruction(s) mapping for DIAssignID.
+  if (KindID == LLVMContext::MD_DIAssignID) {
+    // The DIAssignID tracking infrastructure doesn't support RAUWing temporary
+    // nodes with DIAssignIDs. The cast_or_null below would also catch this, but
+    // having a dedicated assert helps make this obvious.
+    assert((!Node || !Node->isTemporary()) && "Temporary DIAssignID invalid");
+    updateDIAssignIDMapping(cast_or_null<DIAssignID>(Node));
   }
 
   Value::setMetadata(KindID, Node);

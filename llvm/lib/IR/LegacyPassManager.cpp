@@ -19,6 +19,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/IR/PrintPasses.h"
+#include "llvm/IR/StructuralHash.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -50,6 +52,9 @@ enum PassDebugLevel {
   Disabled, Arguments, Structure, Executions, Details
 };
 } // namespace
+
+// A hacked-in verify-each.
+static cl::opt<bool> VerifyEach("coffee-verify-each", cl::init(false));
 
 static cl::opt<enum PassDebugLevel> PassDebugging(
     "debug-pass", cl::Hidden,
@@ -1431,8 +1436,15 @@ bool FPPassManager::runOnFunction(Function &F) {
 #ifdef EXPENSIVE_CHECKS
       uint64_t RefHash = StructuralHash(F);
 #endif
-      LocalChanged |= FP->runOnFunction(F);
-
+      if (FP->runOnFunction(F)) {
+        LocalChanged = true;
+        if (VerifyEach && verifyFunction(F, &errs())) {
+          errs() << "Function pass " << FP->getPassName()
+                 << " failed verifier checks\n"
+                 << F << "\n";
+          assert(false && "COFFEE: verifyFunction failure");
+        }
+      }
 #if defined(EXPENSIVE_CHECKS) && !defined(NDEBUG)
       if (!LocalChanged && (RefHash != StructuralHash(F))) {
         llvm::errs() << "Pass modifies its input and doesn't report it: "
@@ -1467,6 +1479,7 @@ bool FPPassManager::runOnFunction(Function &F) {
     if (LocalChanged)
       removeNotPreservedAnalysis(FP);
     recordAvailableAnalysis(FP);
+
     removeDeadPasses(FP, F.getName(), ON_FUNCTION_MSG);
   }
 
@@ -1546,8 +1559,15 @@ MPPassManager::runOnModule(Module &M) {
       uint64_t RefHash = StructuralHash(M);
 #endif
 
-      LocalChanged |= MP->runOnModule(M);
-
+      if (MP->runOnModule(M)) {
+        LocalChanged = true;
+        if (VerifyEach && verifyModule(M, &errs())) {
+          errs() << "Module pass " << MP->getPassName()
+                 << " failed verifier checks\n"
+                 << M << "\n";
+          assert(false && "COFFEE: verifyModule failure");
+        }
+      }
 #ifdef EXPENSIVE_CHECKS
       assert((LocalChanged || (RefHash == StructuralHash(M))) &&
              "Pass modifies its input and doesn't report it.");

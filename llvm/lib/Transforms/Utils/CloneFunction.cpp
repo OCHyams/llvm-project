@@ -59,6 +59,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
     Instruction *NewInst = I.clone();
     if (I.hasName())
       NewInst->setName(I.getName() + NameSuffix);
+
     NewBB->getInstList().push_back(NewInst);
     VMap[&I] = NewInst; // Add instruction map to value.
 
@@ -382,8 +383,12 @@ void PruningFunctionCloner::CloneBlock(
     Instruction *NewInst = II->clone();
 
     // Eagerly remap operands to the newly cloned instruction, except for PHI
-    // nodes for which we defer processing until we update the CFG.
-    if (!isa<PHINode>(NewInst)) {
+    // nodes for which we defer processing until we update the CFG. Also skip
+    // debug intrinsics because we should preserve use-before-defs, which are
+    // well(-ish) defined and explicitly well defined for assignment
+    // tracking. To preserve use-before-defs we must remap debug intrinsic
+    // operands after all values have been mapped.
+    if (!isa<PHINode>(NewInst) && !isa<DbgVariableIntrinsic>(NewInst)) {
       RemapInstruction(NewInst, VMap,
                        ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges);
 
@@ -521,6 +526,15 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
   else {
     StartingBB = &OldFunc->getEntryBlock();
     StartingInst = &StartingBB->front();
+  }
+
+  // Collect debug intrinsics for remapping later.
+  SmallVector<const DbgVariableIntrinsic *, 8> DbgIntrinsics;
+  for (const auto &BB : *OldFunc) {
+    for (const auto &I : BB) {
+      if (const auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
+        DbgIntrinsics.push_back(DVI);
+    }
   }
 
   // Clone the entry block, and anything recursively reachable from it.
@@ -694,6 +708,19 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
       VMap[OrigV] = I;
   }
 
+  // Remap debug intrinsic operands now that all values have been mapped.
+  // Doing this now (late) preserves use-before-defs in debug intrinsics. If
+  // we didn't do this, ValueAsMetadata(use-before-def) operands would be
+  // replaced by empty metadata. This would signal later cleanup passes to
+  // remove the debug intrinsics, introducing false locations (bad).
+  for (const auto *DVI : DbgIntrinsics) {
+    if (DbgVariableIntrinsic *NewDVI =
+            cast_or_null<DbgVariableIntrinsic>(VMap.lookup(DVI)))
+      RemapInstruction(NewDVI, VMap,
+                       ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
+                       TypeMapper, Materializer);
+  }
+
   // Simplify conditional branches and switches with a constant operand. We try
   // to prune these out when cloning, but if the simplification required
   // looking through PHI nodes, those are only available after forming the full
@@ -763,7 +790,7 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
   // any return instructions which survived folding. We have to do this here
   // because we can iteratively remove and merge returns above.
   for (Function::iterator I = cast<BasicBlock>(VMap[StartingBB])->getIterator(),
-                          E = NewFunc->end();
+         E = NewFunc->end();
        I != E; ++I)
     if (ReturnInst *RI = dyn_cast<ReturnInst>(I->getTerminator()))
       Returns.push_back(RI);

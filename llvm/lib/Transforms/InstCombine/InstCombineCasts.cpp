@@ -16,9 +16,11 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <numeric>
 using namespace llvm;
 using namespace PatternMatch;
@@ -164,6 +166,12 @@ Instruction *InstCombinerImpl::PromoteCastOfAllocation(BitCastInst &CI,
   New->setAlignment(AI.getAlign());
   New->takeName(&AI);
   New->setUsedWithInAlloca(AI.isUsedWithInAlloca());
+  New->setMetadata(LLVMContext::MD_DIAssignID,
+                   AI.getMetadata(LLVMContext::MD_DIAssignID));
+
+  // Update the linked debug users.
+  for (auto *DAI : at::getAssignmentMarkers(&AI))
+    DAI->replaceUsesOfWith(&AI, New);
 
   // If the allocation has multiple real uses, insert a cast and change all
   // things that used it to use the new cast.  This will also hack on CI, but it

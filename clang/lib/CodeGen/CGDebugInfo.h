@@ -496,6 +496,14 @@ public:
                                                   unsigned ArgNo,
                                                   CGBuilderTy &Builder);
 
+  /// Add DIAssignID metadata to each store instruction and emit
+  /// dbg.assign intrinsics.
+  void EmitCoffeeChatIntrinsics(llvm::Function &F);
+
+  /// Create new DIAssignID metadata and add a reference to the store
+  /// instruction.
+  llvm::DIAssignID *EmitAssignID(llvm::Instruction &SI);
+
   /// Emit call to \c llvm.dbg.declare for the block-literal argument
   /// to a block invocation function.
   void EmitDeclareOfBlockLiteralArgVariable(const CGBlockInfo &block,

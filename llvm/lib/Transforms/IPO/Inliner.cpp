@@ -43,6 +43,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -568,6 +569,8 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
           CG[Callee]->getNumReferences() == 0) {
         LLVM_DEBUG(dbgs() << "    -> Deleting dead function: "
                           << Callee->getName() << "\n");
+        replaceDbgUsesWithUndef(Callee);
+
         CallGraphNode *CalleeNode = CG[Callee];
 
         // Remove any call graph edges from the callee to its callees.
@@ -997,6 +1000,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
           // finish inlining and call graph updates.
           // Note that after this point, it is an error to do anything other
           // than use the callee's address or delete it.
+          replaceDbgUsesWithUndef(&Callee);
           Callee.dropAllReferences();
           assert(!is_contained(DeadFunctions, &Callee) &&
                  "Cannot put cause a function to become dead twice!");

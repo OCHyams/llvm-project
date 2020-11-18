@@ -1,3 +1,13 @@
+;; XFAILING due 'fix' in f5fc7030c8a417ce8319c14b95a375fe4d854d47
+;; This test checks for an 'empty' debug intrinsic after the inliner has run.
+;; This behaviour is bad because empty intrinics are dropped by clean up
+;; passes. Debug intrinsics represent source level assignments, removing them
+;; changes the description of the original program and may produce
+;; misleading debugging information, don't do this!
+;; f5fc7030c8a417ce8319c14b95a375fe4d854d47 re-adds the missing information
+;; to the intrinsic in the entry block.
+
+; XFAIL:*
 ; RUN: opt -inline -S < %s | FileCheck %s
 ; RUN: opt -passes='cgscc(inline)' -S < %s | FileCheck %s
 

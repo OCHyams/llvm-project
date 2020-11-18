@@ -36,6 +36,7 @@ namespace llvm {
   class LLVMContext;
   class Module;
   class Value;
+  class DbgAssignIntrinsic;
 
   class DIBuilder {
     Module &M;
@@ -903,6 +904,21 @@ namespace llvm {
     Instruction *insertDeclare(llvm::Value *Storage, DILocalVariable *VarInfo,
                                DIExpression *Expr, const DILocation *DL,
                                Instruction *InsertBefore);
+
+    /// Insert a new llvm.dbg.assign intrinsic call.
+    /// \param LinkedInstr   Must have a DIAssignID which will be used to link
+    ///                      the dbg.assign. DebugLoc taken from this
+    ///                      instruction.
+    /// \param Val           The Value Component of this dbg.assign.
+    /// \param SrcVar        Variable's debug info descriptor.
+    /// \param Expr          A complex location expression. NOTE: currently
+    ///                      this only describes the Value Component, except
+    ///                      the FragmentInfo part, which applies to both.
+    /// \param Dest          The Destination Component (store location).
+    DbgAssignIntrinsic *insertDbgAssign(Instruction *LinkedInstr, Value *Val,
+                                        DILocalVariable &SrcVar,
+                                        DIExpression *DIExpr,
+                                        Value *Dest);
 
     /// Insert a new llvm.dbg.label intrinsic call.
     /// \param LabelInfo    Label's debug info descriptor.

@@ -1047,6 +1047,13 @@ public:
     new(&rootLeaf()) RootLeaf();
   }
 
+  IntervalMap(IntervalMap const& RHS) : IntervalMap(RHS.allocator) {
+    for (auto It = RHS.begin(), End = RHS.end(); It != End; ++It)
+      insert(It.start(), It.stop(), It.value());
+  }
+
+  IntervalMap &operator=(IntervalMap const& RHS) = delete;
+
   ~IntervalMap() {
     clear();
     rootLeaf().~RootLeaf();

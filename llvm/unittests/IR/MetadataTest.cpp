@@ -915,6 +915,39 @@ TEST_F(MDNodeTest, deleteTemporaryWithTrackingRef) {
   EXPECT_EQ(nullptr, Ref.get());
 }
 
+typedef MetadataTest DIAssignIDTest;
+
+// FIXME: This is ripped right out of TBAATest.cpp. Is there a good place to
+// merge common code for unitttests?
+static StoreInst *getFunctionWithSingleStore(Module *M, StringRef Name) {
+  auto &C = M->getContext();
+  FunctionType *FTy = FunctionType::get(Type::getVoidTy(C), {});
+  auto *F = Function::Create(FTy, Function::ExternalLinkage, Name, M);
+  auto *BB = BasicBlock::Create(C, "entry", F);
+  auto *IntType = Type::getInt32Ty(C);
+  auto *PtrType = Type::getInt32PtrTy(C);
+  auto *SI = new StoreInst(ConstantInt::get(IntType, 42),
+                           ConstantPointerNull::get(PtrType), BB);
+  ReturnInst::Create(C, nullptr, BB);
+
+  return SI;
+}
+
+TEST_F(DIAssignIDTest, CreateSetGet) {
+  // Create a new ID.
+  DIAssignID *ID = DIAssignID::getDistinct(Context);
+  EXPECT_FALSE(ID == nullptr);
+
+  // Set ID on instruction.
+  StoreInst *SI = getFunctionWithSingleStore(&M, "fun");
+  SI->setMetadata(LLVMContext::MD_DIAssignID, ID);
+
+  // Get the ID.
+  Metadata *Found = SI->getMetadata(LLVMContext::MD_DIAssignID);
+  EXPECT_TRUE(isa<DIAssignID>(Found));
+  EXPECT_TRUE(ID == Found);
+}
+
 typedef MetadataTest DILocationTest;
 
 TEST_F(DILocationTest, Overflow) {

@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/TypeMetadataUtils.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
@@ -463,6 +464,10 @@ PreservedAnalyses GlobalDCEPass::run(Module &M, ModuleAnalysisManager &MAM) {
 // might make it deader.
 //
 bool GlobalDCEPass::RemoveUnusedGlobalValue(GlobalValue &GV) {
+  // @OCH: Instruction::~Instruction auto-undefs dbg uses. I wonder why it's
+  // not handled in the Value dtor instead? Then we wouldn't need to scatter
+  // these calls everywhere for values not produced by instructions.
+  replaceDbgUsesWithUndef(&GV);
   if (GV.use_empty())
     return false;
   GV.removeDeadConstantUsers();

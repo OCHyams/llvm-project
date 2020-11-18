@@ -870,6 +870,7 @@ MetadataLoader::MetadataLoaderImpl::lazyLoadModuleMetadataBlock() {
       case bitc::METADATA_TEMPLATE_VALUE:
       case bitc::METADATA_GLOBAL_VAR:
       case bitc::METADATA_LOCAL_VAR:
+      case bitc::METADATA_ASSIGN_ID:
       case bitc::METADATA_LABEL:
       case bitc::METADATA_EXPRESSION:
       case bitc::METADATA_OBJC_PROPERTY:
@@ -1952,6 +1953,18 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       return error("Invalid record");
 
     break;
+  }
+  case bitc::METADATA_ASSIGN_ID: {
+    if(Record.size() != 1)
+      return error("Invalid DIAssignID record.");
+
+    IsDistinct = Record[0] & 1;
+    if(!IsDistinct)
+      return error("Invalid DIAssignID record. Must be distinct");
+
+    MetadataList.assignValue(DIAssignID::getDistinct(Context), NextMetadataNo);
+    NextMetadataNo++;
+    break; 
   }
   case bitc::METADATA_LOCAL_VAR: {
     // 10th field is for the obseleted 'inlinedAt:' field.

@@ -1457,6 +1457,12 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // Emit the standard function epilogue.
   FinishFunction(BodyRange.getEnd());
 
+  // Apply Coffee Chat debuginfo method. Effectively a pseudo-pass to annotate
+  // store instructions with DIAssignID and emit dbg.assign instrinsics.
+  if(CGM.getCodeGenOpts().DebugCoffeeChat) {
+    getDebugInfo()->EmitCoffeeChatIntrinsics(*CurFn);
+  }
+
   // If we haven't marked the function nothrow through other means, do
   // a quick pass now to see if we can.
   if (!CurFn->doesNotThrow())

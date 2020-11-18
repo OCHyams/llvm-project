@@ -753,6 +753,12 @@ public:
   /// count, but a deallocation before that does.
   bool canBeFreed() const;
 
+  /// Strip off pointer casts and GEPs.
+  ///
+  /// Returns the original pointer value.  If this is called on a non-pointer
+  /// value, it returns 'this'.
+  const Value *stripOffsets() const;
+
   /// Returns the number of bytes known to be dereferenceable for the
   /// pointer value.
   ///

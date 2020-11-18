@@ -1078,9 +1078,41 @@ Instruction *DIBuilder::insertDbgIntrinsic(llvm::Function *IntrinsicFn,
   return B.CreateCall(IntrinsicFn, Args);
 }
 
-Instruction *DIBuilder::insertLabel(DILabel *LabelInfo, const DILocation *DL,
-                                    BasicBlock *InsertBB,
-                                    Instruction *InsertBefore) {
+DbgAssignIntrinsic *DIBuilder::insertDbgAssign(Instruction *LinkedInstr, Value *Val,
+                                               DILocalVariable &SrcVar,
+                                               DIExpression *DIExpr,
+                                               Value *Dest) {
+  LLVMContext &Ctx = LinkedInstr->getContext();
+  Module *M = LinkedInstr->getModule();
+  Function *Fun =
+      Intrinsic::getDeclaration(M, Intrinsic::dbg_assign);
+  auto *StoredVal =
+      MetadataAsValue::get(Ctx, ValueAsMetadata::get(Val));
+  auto *Destination =
+      MetadataAsValue::get(Ctx, ValueAsMetadata::get(Dest));
+  auto *Link = LinkedInstr->getMetadata(LLVMContext::MD_DIAssignID);
+  assert(Link && "Requires linked instruction");
+
+  std::array<Value *, 5> Args = {
+      StoredVal,
+      MetadataAsValue::get(Ctx, &SrcVar),
+      MetadataAsValue::get(Ctx, DIExpr),
+      MetadataAsValue::get(Ctx, Link),
+      Destination};
+
+  IRBuilder<> B(Ctx);
+  // The line:col doesn't matter but scope should match the variable's scope.
+  DILocation *DL = DILocation::get(Ctx, 0, 0, SrcVar.getScope());
+
+  B.SetCurrentDebugLocation(DL);
+  auto *DVI = cast<DbgAssignIntrinsic>(B.CreateCall(Fun, Args));
+  DVI->insertAfter(LinkedInstr);
+  return DVI;
+}
+
+Instruction *DIBuilder::insertLabel(
+    DILabel *LabelInfo, const DILocation *DL,
+    BasicBlock *InsertBB, Instruction *InsertBefore) {
   assert(LabelInfo && "empty or invalid DILabel* passed to dbg.label");
   assert(DL && "Expected debug loc");
   assert(DL->getScope()->getSubprogram() ==

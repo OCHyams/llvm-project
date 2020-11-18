@@ -1,7 +1,7 @@
-; RUN: llvm-extract -func=a --recursive %s -S | FileCheck --check-prefix=CHECK-AB %s
-; RUN: llvm-extract -func=a --recursive --delete %s -S | FileCheck --check-prefix=CHECK-CD %s
-; RUN: llvm-extract -func=d --recursive %s -S | FileCheck --check-prefix=CHECK-CD %s
-; RUN: llvm-extract -func=e --recursive %s -S | FileCheck --check-prefix=CHECK-CD %s
+; RUN: llvm-extract -coffee-verify-each=false  -func=a --recursive %s -S | FileCheck --check-prefix=CHECK-AB %s
+; RUN: llvm-extract -coffee-verify-each=false  -func=a --recursive --delete %s -S | FileCheck --check-prefix=CHECK-CD %s
+; RUN: llvm-extract -coffee-verify-each=false  -func=d --recursive %s -S | FileCheck --check-prefix=CHECK-CD %s
+; RUN: llvm-extract -coffee-verify-each=false  -func=e --recursive %s -S | FileCheck --check-prefix=CHECK-CD %s
 
 ; CHECK-AB: define void @a
 ; CHECK-AB: define void @b

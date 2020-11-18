@@ -6116,6 +6116,9 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     DAG.AddDbgLabel(SDV);
     return;
   }
+  case Intrinsic::dbg_assign: {
+    llvm_unreachable("dbg.assigns are converted to dbg.values before ISel");
+  }
   case Intrinsic::dbg_value: {
     const DbgValueInst &DI = cast<DbgValueInst>(I);
     assert(DI.getVariable() && "Missing variable");

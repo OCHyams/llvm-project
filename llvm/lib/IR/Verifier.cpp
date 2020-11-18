@@ -58,6 +58,9 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/ADT/ilist.h"
+#include "llvm/Analysis/CFG.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -69,6 +72,7 @@
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -112,6 +116,14 @@
 #include <utility>
 
 using namespace llvm;
+// If false ignore coffee chat verifier failures.
+static cl::opt<bool> CoffeeVerify("coffee-verify", cl::init(true));
+// If true, and -coffee-verify=true, then apply strict Assignment Tracking
+// checks. These checks are overly strict; almost all undesirable scenarios are
+// rejected but OTOH some reasonable scenarios that should be accepted are
+// not. i.e. A pass that fails a very-strict verifier check isn't necessarily
+// doing anything wrong.
+static cl::opt<bool> CoffeeStrict("coffee-strict", cl::init(false));
 
 static cl::opt<bool> VerifyNoAliasScopeDomination(
     "verify-noalias-scope-decl-dom", cl::Hidden, cl::init(false),
@@ -279,6 +291,7 @@ class Verifier : public InstVisitor<Verifier>, VerifierSupport {
   friend class InstVisitor<Verifier>;
 
   DominatorTree DT;
+  PostDominatorTree PDT;
 
   /// When verifying a basic block, keep track of all of the
   /// instructions we have seen so far.
@@ -364,9 +377,10 @@ public:
     // out-of-date dominator tree and makes it significantly more complex to run
     // this code outside of a pass manager.
     // FIXME: It's really gross that we have to cast away constness here.
-    if (!F.empty())
+    if (!F.empty()) {
       DT.recalculate(const_cast<Function &>(F));
-
+      PDT.recalculate(const_cast<Function &>(F));
+    }
     for (const BasicBlock &BB : F) {
       if (!BB.empty() && BB.back().isTerminator())
         continue;
@@ -391,7 +405,6 @@ public:
     SiblingFuncletInfo.clear();
     verifyNoAliasScopeDecl();
     NoAliasScopeDecls.clear();
-
     return !Broken;
   }
 
@@ -465,6 +478,7 @@ private:
   void visitAnnotationMetadata(MDNode *Annotation);
   void visitAliasScopeMetadata(const MDNode *MD);
   void visitAliasScopeListMetadata(const MDNode *MD);
+  void visitDIAssignIDMetadata(Instruction &I, MDNode *MD);
 
   template <class Ty> bool isValidMetadataArray(const MDTuple &N);
 #define HANDLE_SPECIALIZED_MDNODE_LEAF(CLASS) void visit##CLASS(const CLASS &N);
@@ -585,6 +599,15 @@ private:
 };
 
 } // end anonymous namespace
+
+/// We know that cond should be true, if not print an error message.
+#define CoffeeAssert(C, ...)                                                   \
+  do {                                                                         \
+    if (CoffeeVerify && !(C)) {                                                \
+      CheckFailed(__VA_ARGS__);                                                \
+      return;                                                                  \
+    }                                                                          \
+  } while (false)
 
 /// We know that cond should be true, if not print an error message.
 #define Assert(C, ...) \
@@ -1449,6 +1472,13 @@ void Verifier::visitDILocalVariable(const DILocalVariable &N) {
            "local variable requires a valid scope", &N, N.getRawScope());
   if (auto Ty = N.getType())
     AssertDI(!isa<DISubroutineType>(Ty), "invalid type", &N, N.getType());
+}
+
+void Verifier::visitDIAssignID(const DIAssignID &N) {
+  AssertDI(!N.getNumOperands(),
+            "DIAssignID has no arguments", &N);
+    AssertDI(N.isDistinct(),
+            "DIAssignID must be distinct", &N);
 }
 
 void Verifier::visitDILabel(const DILabel &N) {
@@ -4452,6 +4482,85 @@ void Verifier::visitAliasScopeListMetadata(const MDNode *MD) {
   }
 }
 
+static std::string addContext(Instruction &I, const std::string &Msg) {
+  return "[" + std::string(I.getFunction()->getName()) + "] " + Msg;
+}
+
+static bool doesDomExist(DominatorTree &DT, PostDominatorTree &PDT,
+                         const Instruction *A, const Instruction *B) {
+  if (A->getFunction() != B->getFunction())
+    return false;
+  return DT.dominates(A, B) || DT.dominates(B, A) || PDT.dominates(A, B) ||
+         PDT.dominates(B, A);
+}
+
+void Verifier::visitDIAssignIDMetadata(Instruction &I, MDNode *MD) {
+  assert(I.hasMetadata(LLVMContext::MD_DIAssignID));
+
+  // If a !DIAssignID is attached to an instruction, that instruction
+  // _must_ be linked to at least one dbg.assign intrinsic.
+  CoffeeAssert(
+      !at::getAssignmentMarkers(&I).empty(),
+      addContext(I,
+                 "!DIAssignID should be used by at least one llvm.dbg.assign "
+                 "intrinsic"),
+      MD, I);
+
+  // !DIAssignID may only be _used_ by dbg.assign intrinsics.
+  auto *AsValue = MetadataAsValue::getIfExists(Context, MD);
+  assert(AsValue && "ID has users so should MetadataAsValue(ID) must exist?");
+  for (auto *User : AsValue->users()) {
+    CoffeeAssert(
+        isa<DbgAssignIntrinsic>(User),
+        addContext(
+            cast<Instruction>(*User),
+            "!DIAssignID should only be used by llvm.dbg.assign intrinsics"),
+        MD, User);
+    DbgAssignIntrinsic *DAI = cast<DbgAssignIntrinsic>(User);
+    if (CoffeeStrict) {
+      // There exists a link between I and the dbg.assign. Check that the
+      // addresses line up!
+      Value *ExpectedDest =
+          [&I]() {
+            if (auto *SI = dyn_cast<StoreInst>(&I))
+              return SI->getPointerOperand();
+            if (auto *MI = dyn_cast<MemIntrinsic>(&I))
+              return MI->getDest();
+            if (auto *AI = dyn_cast<AllocaInst>(&I))
+              return cast<Value>(AI);
+            llvm_unreachable("unexpectedly linked instruction");
+          }()
+              ->stripPointerCasts();
+      CoffeeAssert(ExpectedDest == DAI->getAddress()->stripPointerCasts() ||
+                       isa<UndefValue>(DAI->getAddress()),
+                   addContext(cast<Instruction>(*User),
+                              "Expected linked instr address to match instrs"),
+                   I, MD, DAI);
+    }
+    if (CoffeeStrict) {
+      // Check that I either doms or postdoms DAI, or vice versa. This
+      // check rejects some valid programs but has caught some undesirable
+      // ones so keep it around for now. May wish to remove this in future.
+      //
+      // This lets us find cases where a store in a store+dbg.assign pair has
+      // become orphened accidently because the store has the old DIAssignID
+      // but the dbg.assign has a new one. If this happens, the store will not
+      // be "linked" to anything and the verifier will complain.
+      CoffeeAssert(doesDomExist(DT, PDT, DAI, &I),
+                   addContext(*DAI, "DAI has no dominance relationship with I"),
+                   DAI, I);
+    }
+  }
+
+  // There are a limited number of instructions that we'd expect to see carry a
+  // !DIAssignID attachment.
+  bool ExpectedInstTy =
+      isa<AllocaInst>(I) || isa<StoreInst>(I) || isa<MemIntrinsic>(I);
+  CoffeeAssert(ExpectedInstTy,
+               addContext(I, "!DIAssignID on unexpected instruction kind"), MD,
+               I);
+}
+
 /// verifyInstruction - Verify that an instruction is well formed.
 ///
 void Verifier::visitInstruction(Instruction &I) {
@@ -4638,6 +4747,9 @@ void Verifier::visitInstruction(Instruction &I) {
   if (MDNode *Annotation = I.getMetadata(LLVMContext::MD_annotation))
     visitAnnotationMetadata(Annotation);
 
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_DIAssignID))
+    visitDIAssignIDMetadata(I, MD);
+
   if (MDNode *N = I.getDebugLoc().getAsMDNode()) {
     AssertDI(isa<DILocation>(N), "invalid !dbg metadata attachment", &I, N);
     visitMDNode(*N, AreDebugLocsAllowed::Yes);
@@ -4785,9 +4897,13 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::dbg_addr: // llvm.dbg.addr
     visitDbgIntrinsic("addr", cast<DbgVariableIntrinsic>(Call));
     break;
+  case Intrinsic::dbg_assign: // llvm.dbg.assign
+    visitDbgIntrinsic("assign", cast<DbgVariableIntrinsic>(Call));
+    break;
   case Intrinsic::dbg_value: // llvm.dbg.value
     visitDbgIntrinsic("value", cast<DbgVariableIntrinsic>(Call));
     break;
+
   case Intrinsic::dbg_label: // llvm.dbg.label
     visitDbgLabelIntrinsic("label", cast<DbgLabelInst>(Call));
     break;
@@ -5623,11 +5739,23 @@ void Verifier::visitDbgIntrinsic(StringRef Kind, DbgVariableIntrinsic &DII) {
                (isa<MDNode>(MD) && !cast<MDNode>(MD)->getNumOperands()),
            "invalid llvm.dbg." + Kind + " intrinsic address/value", &DII, MD);
   AssertDI(isa<DILocalVariable>(DII.getRawVariable()),
-         "invalid llvm.dbg." + Kind + " intrinsic variable", &DII,
-         DII.getRawVariable());
+           "invalid llvm.dbg." + Kind + " intrinsic variable", &DII,
+           DII.getRawVariable());
   AssertDI(isa<DIExpression>(DII.getRawExpression()),
-         "invalid llvm.dbg." + Kind + " intrinsic expression", &DII,
-         DII.getRawExpression());
+           "invalid llvm.dbg." + Kind + " intrinsic expression", &DII,
+           DII.getRawExpression());
+
+  if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&DII)) {
+    CoffeeAssert(
+        isa<DIAssignID>(DAI->getAssignId()),
+        addContext(DII, "invalid llvm.dbg.assign intrinsic ID (4th arg)"), &DII,
+        DAI->getAssignId());
+    auto *Addr = cast<MetadataAsValue>(DII.getArgOperand(4))->getMetadata();
+    CoffeeAssert(
+        isa<ValueAsMetadata>(Addr),
+        addContext(DII, "invalid llvm.dbg.assign intrinsic address (5th arg)"),
+        &DII, Addr);
+  }
 
   // Ignore broken !dbg attachments; they're checked elsewhere.
   if (MDNode *N = DII.getDebugLoc().getAsMDNode())

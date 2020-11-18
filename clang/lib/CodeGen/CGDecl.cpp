@@ -1386,7 +1386,7 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
   // to describe this array.
   unsigned NameIdx = 0;
   for (auto &VlaSize : Dimensions) {
-    llvm::Metadata *MD;
+    llvm::Metadata *MD = nullptr;
     if (auto *C = dyn_cast<llvm::ConstantInt>(VlaSize.NumElts))
       MD = llvm::ConstantAsMetadata::get(C);
     else {
@@ -1404,7 +1404,7 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
       ArtificialDecl->setImplicit();
 
       MD = DI->EmitDeclareOfAutoVariable(ArtificialDecl, VlaSize.NumElts,
-                                         Builder);
+                                          Builder);
     }
     assert(MD && "No Size expression debug node created");
     DI->registerVLASizeExpression(VlaSize.Type, MD);

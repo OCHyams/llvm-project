@@ -54,6 +54,8 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -473,6 +475,44 @@ memoryIsNotModifiedBetween(Instruction *FirstI, Instruction *SecondI,
   }
   return true;
 }
+static void shortenAssignment(Instruction *Inst, uint64_t OldOffsetInBits,
+                              uint64_t OldSizeInBits, uint64_t NewSizeInBits,
+                              bool IsOverwriteEnd) {
+  DIExpression::FragmentInfo DeadFragment;
+  DeadFragment.SizeInBits = OldSizeInBits - NewSizeInBits;
+  DeadFragment.OffsetInBits =
+      OldOffsetInBits + (IsOverwriteEnd ? NewSizeInBits : 0);
+
+  auto CreateDeadExpr = [Inst, DeadFragment]() {
+    // FIXME: Should this be using the DIExpression in the Alloca's
+    // dbg.assign for the variable, since that could also contain a fragment?
+    return *DIExpression::createFragmentExpression(
+        DIExpression::get(Inst->getContext(), None), DeadFragment.OffsetInBits,
+        DeadFragment.SizeInBits);
+  };
+
+  // Grab a dbg.assign for each variable to clone.
+  DenseMap<DebugVariable, DbgAssignIntrinsic *> Vars;
+  for (auto *DAI : at::getAssignmentMarkers(Inst)) {
+    if (auto FragInfo = DAI->getExpression()->getFragmentInfo()) {
+      if (!DIExpression::fragmentsOverlap(*FragInfo, DeadFragment))
+        continue;
+    }
+    // Fragments overlap: insert a new dbg.assign for this dead part.
+    // Insert dbg.assign for the dead part.
+    auto *NewAssign = cast<DbgAssignIntrinsic>(DAI->clone());
+    NewAssign->insertAfter(DAI);
+    NewAssign->setExpression(CreateDeadExpr());
+    // Set the value component to undef if we're dropping any computations
+    // from the fragment.
+    if (DAI->getExpression()->getNumElements() != 0) {
+      if (!(DAI->getExpression()->getNumElements() == 3 &&
+            DAI->getExpression()->isFragment()))
+        NewAssign->setValue(UndefValue::get(DAI->getValue()->getType()));
+    }
+    NewAssign->setAddress(UndefValue::get(DAI->getAddress()->getType()));
+  }
+}
 
 static bool tryToShorten(Instruction *DeadI, int64_t &DeadStart,
                          uint64_t &DeadSize, int64_t KillingStart,
@@ -565,11 +605,16 @@ static bool tryToShorten(Instruction *DeadI, int64_t &DeadStart,
     DeadIntrinsic->setDest(NewDestGEP);
   }
 
+
+  // Update attached dbg.assign intrinsics.
+  // Assume 8-bit byte.
+  shortenAssignment(DeadI, DeadStart * 8, DeadSize * 8, NewSize * 8,
+                    IsOverwriteEnd);
+  
   // Finally update start and size of dead access.
   if (!IsOverwriteEnd)
     DeadStart += ToRemoveSize;
   DeadSize = NewSize;
-
   return true;
 }
 

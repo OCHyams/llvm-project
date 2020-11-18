@@ -218,6 +218,9 @@ static bool runSCCP(Function &F, const DataLayout &DL,
       LLVM_DEBUG(dbgs() << "  BasicBlock Dead:" << BB);
 
       ++NumDeadBlocks;
+      // FIXME: @OCH Unecessary quadratic complexity. This fn iterates over F
+      // on every call. Fix this when there's time to.
+      detatchAssignIds(F, {&BB});
       NumInstRemoved += removeAllNonTerminatorAndEHPadInstructions(&BB).first;
 
       MadeChanges = true;

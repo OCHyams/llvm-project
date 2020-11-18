@@ -522,12 +522,22 @@ public:
   /// currently inserted into a function.
   void dropLocation();
 
+  /// Merge the DIAssignID metadata from this instruction and those attached to
+  /// instructions in \p SourceInstructions. This process performs a RAUW on
+  /// the MetadataAsValue uses of the merged DIAssignID nodes.  Not every
+  /// instruction in \p SourceInstructions needs to have DIAssignID
+  /// metadata. If none of them do then nothing happens.
+  void mergeDIAssignID(ArrayRef<const Instruction *> SourceInstructions);
+
 private:
   // These are all implemented in Metadata.cpp.
   MDNode *getMetadataImpl(unsigned KindID) const;
   MDNode *getMetadataImpl(StringRef Kind) const;
   void
   getAllMetadataImpl(SmallVectorImpl<std::pair<unsigned, MDNode *>> &) const;
+  // Update the LLVMContext ID to Instruction(s) mapping. If ID is nullptr then
+  // clear the mapping.
+  void updateDIAssignIDMapping(DIAssignID *ID);
 
 public:
   //===--------------------------------------------------------------------===//

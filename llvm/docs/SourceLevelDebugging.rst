@@ -251,6 +251,43 @@ directly, not its address.  Note that the value operand of this intrinsic may
 be indirect (i.e, a pointer to the source variable), provided that interpreting
 the complex expression derives the direct value.
 
+``llvm.dbg.assign``
+^^^^^^^^^^^^^^^^^^
+
+.. code-block:: llvm
+
+  void @llvm.dbg.assign(metadata, metadata, metadata, metadata)
+
+This intrinsic is used to track assignments to source variables that have a
+stack home. Args:
+  0. stored value
+  1. `local variable <LangRef.html#dilocalvariable>`_
+  2. `complex expression <LangRef.html#diexpression>`_ (for arg 0)
+  3. DIAssignID metadata attached to the assigning instruction
+  4. assignment destination (variable stack home)
+
+`DbgAssignIntrinsic` inherits from `DbgValueInst` and has the same arg pattern
+for the first 3 args so that we can treat `llvm.dbg.addsign` as
+`llvm.dbg.value` in llvm until we need to make a distinction later at
+ISel. When we get to ISel we will choose whether to insert a `DBG_VALUE`
+describing either the value (direct) or address (indirect) based on whether the
+store token is still valid.
+
+A frontend should generate one `llvm.dbg.assign` for each assignment to a
+variable, positioned after the store, treating an `alloca` as a store of
+`undef`. The first operand should be the value being stored, wrapped in
+`MetadataAsValue(ValueAsMetadata())`. The second operand should be the
+`DILocalVariable` for the variable being assigned to. Currently, dbg.assign
+intrinsics only have one `DIExpression` even though we are tracking two
+locations. This will be changed! But for now, this means the third operand must
+encode the size and offset of the assignment as a `DW_OP_LLVM_fragment`. If
+this isn't possible then fall back to using a `dbg.declare` instead. Attach a
+distinct `DIAssignID` metadata tag to the store performing the assigment and
+use this wrapped in `MetadataAsValue()` as the fourth operand. The final
+operand is the destination of the store, wrapped in
+`MetadataAsValue(ValueAsMetadata())`.
+
+
 Object lifetimes and scoping
 ============================
 

@@ -602,7 +602,8 @@ enum PointerStripKind {
   PSK_ZeroIndicesSameRepresentation,
   PSK_ForAliasAnalysis,
   PSK_InBoundsConstantIndices,
-  PSK_InBounds
+  PSK_InBounds,
+  PSK_Everything,
 };
 
 template <PointerStripKind StripKind> static void NoopCallback(const Value *) {}
@@ -638,6 +639,8 @@ static const Value *stripPointerCastsAndOffsets(
         if (!GEP->isInBounds())
           return V;
         break;
+      case PSK_Everything:
+        break; // No checks.
       }
       V = GEP->getPointerOperand();
     } else if (Operator::getOpcode(V) == Instruction::BitCast) {
@@ -835,6 +838,10 @@ bool Value::canBeFreed() const {
     return false;
   }
   return true;
+}
+
+const Value *Value::stripOffsets() const {
+  return stripPointerCastsAndOffsets<PSK_Everything>(this);
 }
 
 uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,

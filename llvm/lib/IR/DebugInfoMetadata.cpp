@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "LLVMContextImpl.h"
 #include "MetadataImpl.h"
 #include "llvm/ADT/SmallSet.h"
@@ -32,6 +33,10 @@ cl::opt<bool> EnableFSDiscriminator(
 
 const DIExpression::FragmentInfo DebugVariable::DefaultFragment = {
     std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint64_t>::min()};
+
+DebugVariable::DebugVariable(DbgVariableIntrinsic *DVI): Variable(DVI->getVariable()),
+        Fragment(DVI->getExpression()->getFragmentInfo()),
+        InlinedAt(DVI->getDebugLoc().getInlinedAt()) {}
 
 DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
                        unsigned Column, ArrayRef<Metadata *> MDs,
@@ -1077,6 +1082,11 @@ DIExpression *DIExpression::getImpl(LLVMContext &Context,
                                     StorageType Storage, bool ShouldCreate) {
   DEFINE_GETIMPL_LOOKUP(DIExpression, (Elements));
   DEFINE_GETIMPL_STORE_NO_OPS(DIExpression, (Elements));
+}
+
+//TODO: remove ID from macros in DebugInfoMetadata.h
+DIAssignID *DIAssignID::getImpl(LLVMContext &Context, StorageType Storage, bool ShouldCreate) {
+  return new (0u) DIAssignID(Context, Storage);
 }
 
 unsigned DIExpression::ExprOperand::getSize() const {

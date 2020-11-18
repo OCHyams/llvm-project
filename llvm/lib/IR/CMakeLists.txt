@@ -68,6 +68,7 @@ add_llvm_component_library(LLVMCore
 
   LINK_LIBS
   ${LLVM_PTHREAD_LIB}
+  LLVMAnalysis
 
   DEPENDS
   intrinsics_gen

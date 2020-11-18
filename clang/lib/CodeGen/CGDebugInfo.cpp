@@ -34,13 +34,16 @@
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/ModuleMap.h"
 #include "clang/Lex/PreprocessorOptions.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -4507,7 +4510,6 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
         IPD->getParameterKind() == ImplicitParamDecl::ObjCSelf)
       Flags |= llvm::DINode::FlagObjectPointer;
   }
-
   // Note: Older versions of clang used to emit byval references with an extra
   // DW_OP_deref, because they referenced the IR arg directly instead of
   // referencing an alloca. Newer versions of LLVM don't treat allocas
@@ -4557,7 +4559,9 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
             Scope, FieldName, Unit, Line, FieldTy, CGM.getLangOpts().Optimize,
             Flags | llvm::DINode::FlagArtificial, FieldAlign);
 
-        // Insert an llvm.dbg.declare into the current block.
+        // Emit a dbg.declare. We will delete dbg.decalres later if we are
+        // able to use dbg.assigns instead. This way we get to fall back to
+        // using the dbg.declare if we haven't got dbg.assign support yet.
         DBuilder.insertDeclare(Storage, D, DBuilder.createExpression(Expr),
                                llvm::DILocation::get(CGM.getLLVMContext(), Line,
                                                      Column, Scope,
@@ -4626,12 +4630,15 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
       D = DBuilder.createAutoVariable(Scope, Name, Unit, Line, Ty,
                                       CGM.getLangOpts().Optimize, Flags, Align);
   }
+
   // Insert an llvm.dbg.declare into the current block.
+  // Emit a dbg.declare. We will delete dbg.decalres later if we are
+  // able to use dbg.assigns instead. This way we get to fall back to
+  // using the dbg.declare if we haven't got dbg.assign support yet.
   DBuilder.insertDeclare(Storage, D, DBuilder.createExpression(Expr),
                          llvm::DILocation::get(CGM.getLLVMContext(), Line,
                                                Column, Scope, CurInlinedAt),
                          Builder.GetInsertBlock());
-
   return D;
 }
 
@@ -4668,6 +4675,47 @@ void CGDebugInfo::EmitLabel(const LabelDecl *D, CGBuilderTy &Builder) {
                        llvm::DILocation::get(CGM.getLLVMContext(), Line, Column,
                                              Scope, CurInlinedAt),
                        Builder.GetInsertBlock());
+}
+
+llvm::DenseMap<const llvm::AllocaInst *, llvm::DILocalVariable *>
+collectLocalVariables(llvm::Function &F) {
+  llvm::DenseMap<const llvm::AllocaInst *, llvm::DILocalVariable *> Locals;
+  for (auto &B : F) {
+    for (auto &I : B) {
+      if (auto *Alloca = dyn_cast<llvm::AllocaInst>(&I)) {
+        auto Declares = llvm::FindDbgDeclareUses(Alloca);
+        // Skip allocas with no declares and ones with multiple. FIXME: Allocas
+        // with multiple variables are not yet supported.
+        if (Declares.size() == 1) {
+          auto *TheDeclare = Declares[0];
+          // If the dbg.declare has a non-zero expression, skip that for now
+          // because we can't encode offsets to the Address component of the
+          // dbg.assigns we want to create.
+          if (TheDeclare->getExpression()->getNumElements() > 0)
+            continue;
+          Locals[Alloca] = TheDeclare->getVariable();
+        }
+      }
+    }
+  }
+  return Locals;
+}
+
+void CGDebugInfo::EmitCoffeeChatIntrinsics(llvm::Function &F) {
+  auto Locals = collectLocalVariables(F);
+  auto DL = std::make_unique<llvm::DataLayout>(F.getParent());
+  llvm::DenseSet<const llvm::AllocaInst *> FailedToTrack;
+  llvm::at::trackAssignments(F.begin(), F.end(), Locals, *DL, &FailedToTrack);
+  // Look at each Alloca - if there's a dbg.assign delete the dbg.declare.
+  for (auto Pair : Locals) {
+    const llvm::AllocaInst *Alloca = Pair.first;
+    if (!llvm::at::getAssignmentMarkers(Alloca).empty()) {
+      auto Declares =
+          llvm::FindDbgDeclareUses(const_cast<llvm::AllocaInst *>(Alloca));
+      assert(Declares.size() == 1);
+      Declares[0]->eraseFromParent();
+    }
+  }
 }
 
 llvm::DIType *CGDebugInfo::CreateSelfType(const QualType &QualTy,

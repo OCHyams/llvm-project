@@ -78,6 +78,18 @@
 using namespace llvm;
 using ProfileCount = Function::ProfileCount;
 
+#define DEBUG_TYPE "inlinefunc"
+static cl::opt<bool> NewInlinedStoreTracking("track-inlined-stores",
+                                             cl::init(true));
+static cl::opt<bool> DebugInlinedstoreTracking("debug-track-inlined-stores",
+                                               cl::init(false));
+#define COFFEE_DEBUG(x)                                                        \
+  do {                                                                         \
+    if (DebugInlinedstoreTracking) {                                           \
+      x;                                                                       \
+    }                                                                          \
+  } while (false)
+
 static cl::opt<bool>
 EnableNoAliasConversion("enable-noalias-to-md-conversion", cl::init(true),
   cl::Hidden,
@@ -1558,6 +1570,105 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
   }
 }
 
+/// Find Alloca and linked DbgAssignIntrinsic for locals escaped by \p CB.
+static DenseMap<const AllocaInst *, DILocalVariable *>
+collectEscapedLocals(const DataLayout &DL, const CallBase &CB) {
+  DenseMap<const AllocaInst *, DILocalVariable *> EscapedLocals;
+
+  COFFEE_DEBUG(
+      errs() << "# Finding caller local variables for pointer parameters\n");
+  for (const Value *Arg : CB.args()) {
+    COFFEE_DEBUG(errs() << "INSPECT: " << *Arg << "\n");
+
+    if (!Arg->getType()->isPointerTy()) {
+      COFFEE_DEBUG(errs() << " | SKIP: Not a pointer\n");
+      continue;
+    }
+
+    const Instruction *I = dyn_cast<Instruction>(Arg);
+    if (!I) {
+      COFFEE_DEBUG(errs() << " | SKIP: Not result of instruction\n");
+      continue;
+    }
+
+    // Walk back to the base storage.
+    assert(Arg->getType()->isPtrOrPtrVectorTy());
+    APInt TmpOffset(DL.getIndexTypeSizeInBits(Arg->getType()), 0, false);
+    const AllocaInst *Base = dyn_cast<AllocaInst>(
+        Arg->stripAndAccumulateConstantOffsets(DL, TmpOffset, true));
+    if (!Base) {
+      COFFEE_DEBUG(errs() << " | SKIP: Couldn't walk back to base storage\n");
+      continue;
+    }
+
+    assert(Base);
+    COFFEE_DEBUG(errs() << " | BASE: " << *Base << "\n");
+
+    DbgAssignIntrinsic *Def = nullptr;
+    for (auto *DAI : at::getAssignmentMarkers(Base)) {
+      // Skip variables from inlined functions.
+      if (DAI->getVariable()->getScope()->getSubprogram() !=
+          CB.getFunction()->getSubprogram())
+        continue;
+      // Don't exit after finding a match - let's double check that our
+      // assumption that there's one local variable associated with the
+      // alloca holds.
+      assert(Def == nullptr);
+      Def = DAI;
+      // FIXME: Actually, do exit. The assertion above does fire occasionally
+      // so this whole process needs an update.
+      break;
+    }
+
+    if (!Def) {
+      COFFEE_DEBUG(errs() << " | SKIP: No local vars associated with BASE\n");
+      continue;
+    }
+
+    assert(Def);
+    COFFEE_DEBUG(errs() << " > DEF : " << *Def << "\n");
+    EscapedLocals[Base] = Def->getVariable();
+  }
+  return EscapedLocals;
+}
+
+static void trackInlinedStores(Function::iterator Start, Function::iterator End,
+                               const CallBase &CB) {
+  COFFEE_DEBUG(errs() << "\n### trackInlinedStores into "
+                      << Start->getParent()->getName() << " from "
+                      << CB.getCalledFunction()->getName() << "\n");
+
+  std::unique_ptr<DataLayout> DL = std::make_unique<DataLayout>(CB.getModule());
+  at::trackAssignments(Start, End, collectEscapedLocals(*DL, CB), *DL,
+                       /*FailedToTrack=*/nullptr, DebugInlinedstoreTracking);
+}
+
+/// Update inlined instructions' DIAssignID metadata. We need to do this
+/// otherwise a function inlined more than once into the same function
+/// will cause DIAssignID to be shared by many instructions.
+static void fixupAssignments(Function::iterator Start, Function::iterator End) {
+  // Map {Old, New} metadata. Not used directly - use GetNewID.
+  DenseMap<DIAssignID *, DIAssignID *> Map;
+  auto GetNewID = [&Map](Metadata *Old) {
+    DIAssignID *OldID = cast<DIAssignID>(Old);
+    if (DIAssignID *NewID = Map.lookup(OldID))
+      return NewID;
+    DIAssignID *NewID = DIAssignID::getDistinct(OldID->getContext());
+    Map[OldID] = NewID;
+    return NewID;
+  };
+  // Loop over all the inlined instructions. If we find a DIAssignID
+  // attachment or use, replace it with a new version.
+  for (auto BBI = Start; BBI != End; ++BBI) {
+    for (Instruction &I : *BBI) {
+      if (auto *ID = I.getMetadata(LLVMContext::MD_DIAssignID))
+        I.setMetadata(LLVMContext::MD_DIAssignID, GetNewID(ID));
+      else if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&I))
+        DAI->setAssignId(GetNewID(DAI->getAssignId()));
+    }
+  }
+}
+
 /// Update the block frequencies of the caller after a callee has been inlined.
 ///
 /// Each block cloned into the caller has its block frequency scaled by the
@@ -2033,10 +2144,22 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     fixupLineNumbers(Caller, FirstNewBlock, &CB,
                      CalledFunc->getSubprogram() != nullptr);
 
+    // [AT-Inliner] Fixup debug intrinsics of AnonPtrTarget variables to
+    // refer to caller local variables instead, if possible.
+    // REMOVED: Old strategy.
+    //
+    // [AT-Inliner] Simplified alternative strategy.
+    if (NewInlinedStoreTracking)
+      trackInlinedStores(FirstNewBlock, Caller->end(), CB);
+
+    // Update DIAssignID metadata attachments and uses so that they are
+    // unique to this inlined instance.
+    fixupAssignments(FirstNewBlock, Caller->end());
+
     // Now clone the inlined noalias scope metadata.
     SAMetadataCloner.clone();
     SAMetadataCloner.remap(FirstNewBlock, Caller->end());
-
+    
     // Add noalias metadata if necessary.
     AddAliasScopeMetadata(CB, VMap, DL, CalleeAAR, InlinedFunctionInfo);
 

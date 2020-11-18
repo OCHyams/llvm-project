@@ -64,9 +64,7 @@ public:
   GlobalVariable(const GlobalVariable &) = delete;
   GlobalVariable &operator=(const GlobalVariable &) = delete;
 
-  ~GlobalVariable() {
-    dropAllReferences();
-  }
+  ~GlobalVariable();
 
   // allocate space for exactly one operand
   void *operator new(size_t s) {

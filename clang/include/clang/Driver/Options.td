@@ -5284,6 +5284,10 @@ def ehcontguard : Flag<["-"], "ehcontguard">,
 def fdenormal_fp_math_f32_EQ : Joined<["-"], "fdenormal-fp-math-f32=">,
    Group<f_Group>;
 
+def debug_coffee_chat : Flag<["-"], "debug-coffee-chat">,
+    HelpText<"Enable assignment tracking for debug info">,
+    MarshallingInfoFlag<CodeGenOpts<"DebugCoffeeChat">>;
+
 //===----------------------------------------------------------------------===//
 // Dependency Output Options
 //===----------------------------------------------------------------------===//

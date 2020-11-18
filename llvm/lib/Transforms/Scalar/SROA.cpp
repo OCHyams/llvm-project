@@ -115,6 +115,149 @@ STATISTIC(NumVectorized, "Number of vectorized aggregates");
 /// GEPs.
 static cl::opt<bool> SROAStrictInbounds("sroa-strict-inbounds", cl::init(false),
                                         cl::Hidden);
+/// FIXME: Is this assumption ok? I think other place in llvm assume an 8
+/// it byte.
+constexpr uint64_t ByteWidth = 8;
+static uint64_t bitsToBytes(uint64_t Bits) {
+  assert(Bits % 8 == 0 && "unexpected bit count");
+  return Bits / ByteWidth;
+}
+static uint64_t bytesToBits(uint64_t Bytes) {
+  assert(Bytes <= (UINT64_MAX / ByteWidth) && "too many bytes");
+  return Bytes * ByteWidth;
+}
+
+static DebugVariable getVariable(const DbgVariableIntrinsic *DII) {
+  return DebugVariable(DII->getVariable(),
+                       DII->getExpression()->getFragmentInfo(),
+                       DII->getDebugLoc().getInlinedAt());
+}
+
+/// Return true if A and B have any overlap.
+static bool intersects(DIExpression::FragmentInfo A,
+                       DIExpression::FragmentInfo B) {
+  auto ALeft = A.OffsetInBits;
+  auto BLeft = B.OffsetInBits;
+  auto ARight = ALeft + A.SizeInBits;
+  auto BRight = BLeft + B.SizeInBits;
+  assert(A.SizeInBits);
+  assert(B.SizeInBits);
+
+  if (A == B || ALeft == BLeft)
+    return true;
+
+  if (ALeft < BLeft)
+    return (ARight > BLeft);
+
+  assert(ALeft > BLeft);
+  return (ALeft < BRight);
+}
+
+/// This set contains all dbg.assign intrinsics that immediately follow the
+/// instruction they're linked to before SROA runs.
+DenseSet<DbgAssignIntrinsic *> DbgFollowsDef;
+static bool assignFollowsInst(DbgAssignIntrinsic *DAI, Instruction *Inst) {
+  DebugVariable Var = getVariable(DAI);
+  DebugVariable Aggr{Var.getVariable(), None, Var.getInlinedAt()};
+  // Look at the instructions between DAI and Instr.
+  auto It = ++Inst->getIterator();
+  auto End = DAI->getIterator();
+  for (; It != End; ++It) {
+    auto *DVI = dyn_cast<DbgVariableIntrinsic>(&*It);
+    // Check if there're any intervening non-debug instructions.
+    if (!DVI)
+      return false;
+    // Check if this debug intrinsics describe the same aggregate variable. If
+    // not then this one isn't a problem.
+    if (!(Aggr == DebugVariable(DVI->getVariable(), None,
+                                DVI->getDebugLoc().getInlinedAt())))
+      continue;
+    // Check if there's a fragment overlap. We don't want to move assignments to
+    // the same variables through eachother.
+    auto Frag1 = Var.getFragmentOrDefault();
+    auto Frag2 = getVariable(DVI).getFragmentOrDefault();
+    if (intersects(Frag1, Frag2))
+      return false;
+  }
+  return true;
+}
+
+/// Find linked dbg.assign and generate a new one with the correct
+/// FragmentInfo. Link Inst to the new dbg.assign.  If Value is nullptr the
+/// value component is copied from the old dbg.assign to the new.
+static void migrateDebugInfo(AllocaInst *OldAlloca,
+                             uint64_t RelativeOffsetInBytes,
+                             uint64_t SliceSizeInBytes, Instruction *OldInst,
+                             Instruction *Inst, Value *Dest, Value *Value,
+                             const DataLayout &DL) {
+  uint64_t RelativeOffset = bytesToBits(RelativeOffsetInBytes);
+  uint64_t SliceSize = bytesToBits(SliceSizeInBytes);
+
+  LLVM_DEBUG(dbgs() << "  migrateDebugInfo\n");
+  LLVM_DEBUG(dbgs() << "    OldAlloca: " << *OldAlloca << "\n");
+  LLVM_DEBUG(dbgs() << "    RelativeOffset: " << RelativeOffset << "\n");
+  LLVM_DEBUG(dbgs() << "    SliceSize: " << SliceSize << "\n");
+  LLVM_DEBUG(dbgs() << "    OldInst: " << *OldInst << "\n");
+  LLVM_DEBUG(dbgs() << "    Inst: " << *Inst << "\n");
+  LLVM_DEBUG(dbgs() << "    Dest: " << *Dest << "\n");
+  if (Value)
+    LLVM_DEBUG(dbgs() << "    Value: " << *Value << "\n");
+
+  // The new inst needs a DIAssignID unique metadata tag (if OldInst has
+  // one). It shouldn't already have one: assert this assumption.
+  assert(!Inst->getMetadata(LLVMContext::MD_DIAssignID));
+  DIAssignID *NewID = nullptr;
+
+  for (DbgAssignIntrinsic *DbgAssign : at::getAssignmentMarkers(OldInst)) {
+    LLVM_DEBUG(dbgs() << "      existing dbg.assign is: " << *DbgAssign
+                      << "\n");
+    auto *Expr = DbgAssign->getExpression();
+    DIBuilder DIB(*OldInst->getModule(), /*AllowUnresolved*/ false);
+    assert(OldAlloca->isStaticAlloca());
+    uint64_t AllocaSize = *OldAlloca->getAllocationSizeInBits(DL);
+
+    // Check if the dbg.assign already describes a fragment.
+    uint64_t CurrentFragSize = [AllocaSize, DbgAssign, Expr]() {
+      if (auto FI = Expr->getFragmentInfo())
+        return FI->SizeInBits;
+      if (auto VarSize = DbgAssign->getVariable()->getSizeInBits())
+        return *VarSize;
+      // The variable type has an unspecified size. This can happen in the
+      // case of DW_TAG_unspecified_type types, e.g.  std::nullptr_t. Because
+      // there is no fragment and we do not know the size of the variable type,
+      // we'll guess by looking at the alloca.
+      return AllocaSize;
+    }();
+    bool MakeNewFragment = CurrentFragSize != SliceSize;
+    assert(MakeNewFragment || RelativeOffset == 0);
+
+    assert(SliceSize <= AllocaSize);
+    if (MakeNewFragment) {
+      assert(RelativeOffset + SliceSize <= CurrentFragSize);
+      if (auto E = DIExpression::createFragmentExpression(Expr, RelativeOffset,
+                                                          SliceSize))
+        Expr = *E;
+      else
+        llvm_unreachable("Failed to create fragment expr!");
+    }
+
+    if (!NewID)
+      NewID = DIAssignID::getDistinct(Inst->getContext());
+    Inst->setMetadata(LLVMContext::MD_DIAssignID, NewID);
+    Value = Value ? Value : DbgAssign->getValue();
+    auto *NewAssign =
+        DIB.insertDbgAssign(Inst, Value, *DbgAssign->getVariable(), Expr, Dest);
+    // If the old dbg.assign was placed exactly after the old instruction then
+    // leave the new one where it is (placed after the new instruction by
+    // insertDbgAssign) otherwise move it after the old one.
+    if (DbgFollowsDef.count(DbgAssign) == 0)
+      NewAssign->moveAfter(DbgAssign);
+
+    NewAssign->setDebugLoc(DbgAssign->getDebugLoc());
+    LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign
+                      << "\n");
+  }
+}
 
 namespace {
 
@@ -2285,6 +2428,7 @@ class llvm::sroa::AllocaSliceRewriter
   // original alloca.
   uint64_t NewBeginOffset = 0, NewEndOffset = 0;
 
+  uint64_t RelativeOffset = 0;
   uint64_t SliceSize = 0;
   bool IsSplittable = false;
   bool IsSplit = false;
@@ -2348,8 +2492,14 @@ public:
     NewBeginOffset = std::max(BeginOffset, NewAllocaBeginOffset);
     NewEndOffset = std::min(EndOffset, NewAllocaEndOffset);
 
+    RelativeOffset = NewBeginOffset - BeginOffset;
     SliceSize = NewEndOffset - NewBeginOffset;
-
+    LLVM_DEBUG(dbgs() << "   Begin:(" << BeginOffset << ", " << EndOffset
+                      << ") NewBegin:(" << NewBeginOffset << ", "
+                      << NewEndOffset << ") NewAllocaBegin:("
+                      << NewAllocaBeginOffset << ", " << NewAllocaEndOffset
+                      << ")\n");
+    assert(IsSplit || RelativeOffset == 0);
     OldUse = I->getUse();
     OldPtr = cast<Instruction>(OldUse->get());
 
@@ -2587,6 +2737,11 @@ private:
 
   bool rewriteVectorizedStoreInst(Value *V, StoreInst &SI, Value *OldOp,
                                   AAMDNodes AATags) {
+    // Capture V now because if it's a scalar it'll get rewritten so that the
+    // store is a vector store. We still want to know the original value being
+    // stored for debug info since we can't index a vector value in a
+    // DIExpression.
+    Value *OrigV = V;
     if (V->getType() != VecTy) {
       unsigned BeginIndex = getIndex(NewBeginOffset);
       unsigned EndIndex = getIndex(NewEndOffset);
@@ -2612,6 +2767,9 @@ private:
       Store->setAAMetadata(AATags.shift(NewBeginOffset - BeginOffset));
     Pass.DeadInsts.push_back(&SI);
 
+    // NOTE: Careful to use OrigV rather than V.
+    migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &SI, Store,
+                     Store->getPointerOperand(), OrigV, DL);
     LLVM_DEBUG(dbgs() << "          to: " << *Store << "\n");
     return true;
   }
@@ -2634,6 +2792,10 @@ private:
                              LLVMContext::MD_access_group});
     if (AATags)
       Store->setAAMetadata(AATags.shift(NewBeginOffset - BeginOffset));
+
+    migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &SI, Store,
+                     Store->getPointerOperand(), Store->getValueOperand(), DL);
+
     Pass.DeadInsts.push_back(&SI);
     LLVM_DEBUG(dbgs() << "          to: " << *Store << "\n");
     return true;
@@ -2706,6 +2868,10 @@ private:
       NewSI->setAtomic(SI.getOrdering(), SI.getSyncScopeID());
     if (NewSI->isAtomic())
       NewSI->setAlignment(SI.getAlign());
+
+    migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &SI, NewSI,
+                     NewSI->getPointerOperand(), NewSI->getValueOperand(), DL);
+
     Pass.DeadInsts.push_back(&SI);
     deleteIfTriviallyDead(OldOp);
 
@@ -2762,7 +2928,11 @@ private:
       assert(NewBeginOffset == BeginOffset);
       II.setDest(getNewAllocaSlicePtr(IRB, OldPtr->getType()));
       II.setDestAlignment(getSliceAlign());
-
+      // In theory we should call migrateDebugInfo here. However, we do not
+      // emit dbg.assign intrinsics for mem intrinsics storing through non-
+      // constant geps, or storing a variable number of bytes.
+      assert(at::getAssignmentMarkers(&II).empty() &&
+             "COFFEE: Unexpected link to non-const GEP");
       deleteIfTriviallyDead(OldPtr);
       return false;
     }
@@ -2795,11 +2965,15 @@ private:
     if (!CanContinue) {
       Type *SizeTy = II.getLength()->getType();
       Constant *Size = ConstantInt::get(SizeTy, NewEndOffset - NewBeginOffset);
-      CallInst *New = IRB.CreateMemSet(
+      MemIntrinsic *New = cast<MemIntrinsic>(IRB.CreateMemSet(
           getNewAllocaSlicePtr(IRB, OldPtr->getType()), II.getValue(), Size,
-          MaybeAlign(getSliceAlign()), II.isVolatile());
+          MaybeAlign(getSliceAlign()), II.isVolatile()));
       if (AATags)
         New->setAAMetadata(AATags.shift(NewBeginOffset - BeginOffset));
+
+      migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &II, New,
+                       New->getRawDest(), nullptr, DL);
+
       LLVM_DEBUG(dbgs() << "          to: " << *New << "\n");
       return false;
     }
@@ -2871,6 +3045,10 @@ private:
                            LLVMContext::MD_access_group});
     if (AATags)
       New->setAAMetadata(AATags.shift(NewBeginOffset - BeginOffset));
+
+    migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &II, New,
+                     New->getPointerOperand(), V, DL);
+
     LLVM_DEBUG(dbgs() << "          to: " << *New << "\n");
     return !II.isVolatile();
   }
@@ -2901,8 +3079,22 @@ private:
       if (IsDest) {
         II.setDest(AdjustedPtr);
         II.setDestAlignment(SliceAlign);
-      }
-      else {
+
+        // Update dbg.assign intrinsics.
+        if (isa<Constant>(II.getLength())) {
+          assert((NewBeginOffset - NewAllocaBeginOffset == 0 ||
+                  at::getAssignmentMarkers(&II).empty()) &&
+                 "COFFEE: Unkown situation");
+          for (auto *DAI : at::getAssignmentMarkers(&II))
+            DAI->setAddress(AdjustedPtr);
+        } else {
+          // At the moment, we do not emit dbg.assign intrinsics for mem
+          // intrinsics storing through non- constant geps, or storing a
+          // variable number of bytes.
+          assert(at::getAssignmentMarkers(&II).empty() &&
+                 "COFFEE: Unexpected link to non-const GEP");
+        }
+      } else {
         II.setSource(AdjustedPtr);
         II.setSourceAlignment(SliceAlign);
       }
@@ -2991,6 +3183,11 @@ private:
                                        Size, II.isVolatile());
       if (AATags)
         New->setAAMetadata(AATags.shift(NewBeginOffset - BeginOffset));
+
+      // TODO @OCH: The front end __could__ emit (SrcPtr DW_OP_deref) for the
+      // Value part of memcpys. Lets not do that for now though.
+      migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &II, New, DestPtr,
+                       nullptr, DL);
       LLVM_DEBUG(dbgs() << "          to: " << *New << "\n");
       return false;
     }
@@ -3069,6 +3266,9 @@ private:
                              LLVMContext::MD_access_group});
     if (AATags)
       Store->setAAMetadata(AATags.shift(NewBeginOffset - BeginOffset));
+
+    migrateDebugInfo(&OldAI, RelativeOffset, SliceSize, &II, Store, DstPtr, Src,
+                     DL);
     LLVM_DEBUG(dbgs() << "          to: " << *Store << "\n");
     return !II.isVolatile();
   }
@@ -3406,12 +3606,13 @@ private:
 
   struct StoreOpSplitter : public OpSplitter<StoreOpSplitter> {
     StoreOpSplitter(Instruction *InsertionPoint, Value *Ptr, Type *BaseTy,
-                    AAMDNodes AATags, Align BaseAlign, const DataLayout &DL,
+                    AAMDNodes AATags, StoreInst *AggStore, Align BaseAlign, const DataLayout &DL,
                     IRBuilderTy &IRB)
         : OpSplitter<StoreOpSplitter>(InsertionPoint, Ptr, BaseTy, BaseAlign,
                                       DL, IRB),
-          AATags(AATags) {}
+          AATags(AATags), AggStore(AggStore) {}
     AAMDNodes AATags;
+    StoreInst *AggStore;
     /// Emit a leaf store of a single value. This is called at the leaves of the
     /// recursive emission to actually produce stores.
     void emitFunc(Type *Ty, Value *&Agg, Align Alignment, const Twine &Name) {
@@ -3433,6 +3634,25 @@ private:
           GEPOperator::accumulateConstantOffset(BaseTy, GEPIndices, DL, Offset))
         Store->setAAMetadata(AATags.shift(Offset.getZExtValue()));
 
+      // migrateDebugInfo requires the base Alloca. Walk to it from this gep.
+      // If we cannot (because there's an intervening non-const or unbounded
+      // gep) then we wouldn't expect to see dbg.assign intrinsics linked to
+      // this instruction.
+      APInt OffsetInBytes(DL.getTypeSizeInBits(Ptr->getType()), false);
+      Value *Base = InBoundsGEP->stripAndAccumulateInBoundsConstantOffsets(
+          DL, OffsetInBytes);
+      if (auto *OldAI = dyn_cast<AllocaInst>(Base)) {
+        uint64_t SizeInBits =
+            DL.getTypeSizeInBits(Store->getValueOperand()->getType());
+        migrateDebugInfo(OldAI, OffsetInBytes.getZExtValue(),
+                         bitsToBytes(SizeInBits), AggStore, Store,
+                         Store->getPointerOperand(), Store->getValueOperand(),
+                         DL);
+      } else {
+        assert(at::getAssignmentMarkers(Store).empty() &&
+               "COFFEE: unexpected debug.assign linked to store through "
+               "unbounded GEP");
+      }
       LLVM_DEBUG(dbgs() << "          to: " << *Store << "\n");
     }
   };
@@ -3446,7 +3666,7 @@ private:
 
     // We have an aggregate being stored, split it apart.
     LLVM_DEBUG(dbgs() << "    original: " << SI << "\n");
-    StoreOpSplitter Splitter(&SI, *U, V->getType(), SI.getAAMetadata(),
+    StoreOpSplitter Splitter(&SI, *U, V->getType(), SI.getAAMetadata(), &SI,
                              getAdjustedAlignment(&SI, 0), DL, IRB);
     Splitter.emitSplitOps(V->getType(), V, V->getName() + ".fca");
     Visited.erase(&SI);
@@ -4061,7 +4281,8 @@ bool SROAPass::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
             getAdjustedAlignment(SI, PartOffset),
             /*IsVolatile*/ false);
         PStore->copyMetadata(*SI, {LLVMContext::MD_mem_parallel_loop_access,
-                                   LLVMContext::MD_access_group});
+                                   LLVMContext::MD_access_group,
+                                   LLVMContext::MD_DIAssignID});
         LLVM_DEBUG(dbgs() << "      +" << PartOffset << ":" << *PStore << "\n");
       }
 
@@ -4503,6 +4724,9 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
   TinyPtrVector<DbgVariableIntrinsic *> DbgDeclares = FindDbgAddrUses(&AI);
+  /// TODO @OCH: Use migrateDebugInfo?
+  for (auto *DbgAssign : at::getAssignmentMarkers(&AI))
+    DbgDeclares.push_back(DbgAssign);
   for (DbgVariableIntrinsic *DbgDeclare : DbgDeclares) {
     auto *Expr = DbgDeclare->getExpression();
     DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
@@ -4566,8 +4790,23 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
           OldDII->eraseFromParent();
       }
 
-      DIB.insertDeclare(Fragment.Alloca, DbgDeclare->getVariable(), FragmentExpr,
-                        DbgDeclare->getDebugLoc(), &AI);
+      if (auto *DbgAssign = dyn_cast<DbgAssignIntrinsic>(DbgDeclare)) {
+        // This alloca needs a DIAssignID unique metadata tag.  It shouldn't
+        // alrady have one: assert this assumption.
+        assert(!Fragment.Alloca->getMetadata(LLVMContext::MD_DIAssignID));
+        // TODO: @OCH Make a wrapper for this.
+        Fragment.Alloca->setMetadata(LLVMContext::MD_DIAssignID,
+                                     DIAssignID::getDistinct(AI.getContext()));
+        auto *NewAssign = DIB.insertDbgAssign(
+            Fragment.Alloca, DbgAssign->getValue(), *DbgAssign->getVariable(),
+            FragmentExpr, Fragment.Alloca);
+        NewAssign->setDebugLoc(DbgAssign->getDebugLoc());
+        LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign
+                          << "\n");
+      } else {
+        DIB.insertDeclare(Fragment.Alloca, DbgDeclare->getVariable(),
+                          FragmentExpr, DbgDeclare->getDebugLoc(), &AI);
+      }
     }
   }
   return Changed;
@@ -4685,6 +4924,11 @@ bool SROAPass::deleteDeadInstructions(
         OldDII->eraseFromParent();
     }
 
+    for (DbgAssignIntrinsic *DAI : at::getAssignmentMarkers(I)) {
+      LLVM_DEBUG(dbgs() << "   And deleting: " << *DAI << "\n");
+      DAI->eraseFromParent();
+    }
+
     I->replaceAllUsesWith(UndefValue::get(I->getType()));
 
     for (Use &Operand : I->operands())
@@ -4726,6 +4970,18 @@ PreservedAnalyses SROAPass::runImpl(Function &F, DominatorTree &RunDT,
   DT = &RunDT;
   AC = &RunAC;
 
+  // Init helper set DbgFollowsDef. This set contains all dbg.assign intrinsics
+  // that immediately follow the instruction they're linked to before SROA
+  // runs.
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      for (auto *DAI : at::getAssignmentMarkers(&I)) {
+        if (assignFollowsInst(DAI, &I))
+          DbgFollowsDef.insert(DAI);
+      }
+    }
+  }
+
   BasicBlock &EntryBB = F.getEntryBlock();
   for (BasicBlock::iterator I = EntryBB.begin(), E = std::prev(EntryBB.end());
        I != E; ++I) {
@@ -4765,6 +5021,8 @@ PreservedAnalyses SROAPass::runImpl(Function &F, DominatorTree &RunDT,
     Worklist = PostPromotionWorklist;
     PostPromotionWorklist.clear();
   } while (!Worklist.empty());
+
+  DbgFollowsDef.clear();
 
   if (!Changed)
     return PreservedAnalyses::all();

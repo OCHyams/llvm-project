@@ -1,4 +1,4 @@
-; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -amdgpu-rewrite-out-arguments < %s | FileCheck %s
+; RUN: opt -coffee-verify-each=false -S -mtriple=amdgcn-amd-amdhsa -amdgpu-rewrite-out-arguments < %s | FileCheck %s
 
 ; CHECK: %void_one_out_arg_i32_1_use = type { i32 }
 ; CHECK: %void_one_out_arg_i32_1_use_align = type { i32 }

@@ -16,18 +16,22 @@
 #ifndef LLVM_IR_DEBUGINFO_H
 #define LLVM_IR_DEBUGINFO_H
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Analysis/PostDominators.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Dominators.h"
 
 namespace llvm {
 
 class DbgDeclareInst;
 class DbgValueInst;
-class DbgVariableIntrinsic;
 class Instruction;
 class Module;
 
@@ -45,6 +49,12 @@ void findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V);
 
 /// Finds the debug info intrinsics describing a value.
 void findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgInsts, Value *V);
+
+/// Replace all the uses of an SSA value in @llvm.dbg intrinsics with
+/// undef. This is useful for signaling that a variable, e.g. has been
+/// found dead and hence it's unavailable at a given program point.
+/// Returns true if the dbg values have been changed.
+bool replaceDbgUsesWithUndef(Value *V);
 
 /// Find subprogram that is enclosing this scope.
 DISubprogram *getDISubprogram(const MDNode *Scope);
@@ -159,6 +169,39 @@ private:
   SmallPtrSet<const MDNode *, 32> NodesSeen;
 };
 
+// Assignment Tracking (at).
+namespace at {
+using IVecTy = SmallVector<Instruction *, 2>;
+using AVecTy = SmallVector<DbgAssignIntrinsic *, 2>;
+IVecTy getAssignmentInsts(DIAssignID *ID, const Function *F);
+IVecTy getAssignmentInsts(const DbgAssignIntrinsic *DAI);
+inline IVecTy getAssignmentInsts(const DbgAssignIntrinsic *DAI) {
+  return getAssignmentInsts(cast<DIAssignID>(DAI->getAssignId()),
+                            DAI->getFunction());
+}
+AVecTy getAssignmentMarkers(DIAssignID *ID, const Function *F);
+AVecTy getAssignmentMarkers(const Instruction *Inst);
+inline AVecTy getAssignmentMarkers(const Instruction *Inst) {
+  if (auto *ID = Inst->getMetadata(LLVMContext::MD_DIAssignID))
+    return getAssignmentMarkers(cast<DIAssignID>(ID), Inst->getFunction());
+  else
+    return {};
+}
+/// Replace all uses (and attachments) of \p Old with \p New in \p F
+void RAUW(DIAssignID *Old, DIAssignID *New, const Function *F);
+/// Remove all Assignment Tracking related intrinsics and metadata from \p F.
+void deleteAll(Function *F);
+
+/// Track assignments to \p Vars between \p Start and \p End. If \p FailedToTrack
+/// is non-null then allocas with untrackable stores (due ot prototype limitations)
+/// get no debug intrinsics at all, and an entry is added.
+void trackAssignments(
+    Function::iterator Start, Function::iterator End,
+    const DenseMap<const AllocaInst *, DILocalVariable *> &Vars,
+    const DataLayout &DL,
+    DenseSet<const AllocaInst *> *FailedToTrack = nullptr,
+    bool DebugPrints = false);
+} // namespace at
 } // end namespace llvm
 
 #endif // LLVM_IR_DEBUGINFO_H

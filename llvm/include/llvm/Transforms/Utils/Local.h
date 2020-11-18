@@ -42,6 +42,8 @@ class BasicBlock;
 class BranchInst;
 class CallBase;
 class CallInst;
+class DbgAssignIntrinsic;
+class DbgDeclareInst;
 class DbgVariableIntrinsic;
 class DIBuilder;
 class DomTreeUpdater;
@@ -144,12 +146,6 @@ bool RecursivelyDeleteDeadPHINode(PHINode *PN,
 /// instructions in other blocks as well in this block.
 bool SimplifyInstructionsInBlock(BasicBlock *BB,
                                  const TargetLibraryInfo *TLI = nullptr);
-
-/// Replace all the uses of an SSA value in @llvm.dbg intrinsics with
-/// undef. This is useful for signaling that a variable, e.g. has been
-/// found dead and hence it's unavailable at a given program point.
-/// Returns true if the dbg values have been changed.
-bool replaceDbgUsesWithUndef(Instruction *I);
 
 //===----------------------------------------------------------------------===//
 //  Control Flow Graph Restructuring.
@@ -278,6 +274,8 @@ void insertDebugValuesForPHIs(BasicBlock *BB,
 bool replaceDbgDeclare(Value *Address, Value *NewAddress, DIBuilder &Builder,
                        uint8_t DIExprFlags, int Offset);
 
+bool replaceDbgUsesWithUndef(Instruction *I);
+
 /// Replaces multiple llvm.dbg.value instructions when the alloca it describes
 /// is replaced with a new value. If Offset is non-zero, a constant displacement
 /// is added to the expression (after the mandatory Deref). Offset can be
@@ -340,6 +338,10 @@ Value *salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
 /// or deleted. Returns true if any debug users were updated.
 bool replaceAllDbgUsesWith(Instruction &From, Value &To, Instruction &DomPoint,
                            DominatorTree &DT);
+
+/// Remove any DIAssignID attachments from instructions in Fn if they're only
+/// referenced from within BBs in DelSet.
+void detatchAssignIds(Function &Fn, const DenseSet<BasicBlock *> &DelSet);
 
 /// Remove all instructions from a basic block other than its terminator
 /// and any present EH pad instructions. Returns a pair where the first element

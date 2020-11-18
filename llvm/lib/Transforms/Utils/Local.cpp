@@ -604,6 +604,8 @@ bool llvm::replaceDbgUsesWithUndef(Instruction *I) {
   for (auto *DII : DbgUsers) {
     Value *Undef = UndefValue::get(I->getType());
     DII->replaceVariableLocationOp(I, Undef);
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII))
+      DAI->replaceUsesOfWith(I, Undef);
   }
   return !DbgUsers.empty();
 }
@@ -1109,6 +1111,41 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
   }
 
   LLVM_DEBUG(dbgs() << "Killing Trivial BB: \n" << *BB);
+
+  // Sink dbg.assign intrinsics and make them undef.
+  {
+    SmallVector<DbgAssignIntrinsic *, 2> ToSink;
+    SmallVector<DbgAssignIntrinsic *, 2> ToErase;
+    // Don't touch Seen directly, use IsFirstCopyOf.
+    using IDTuple = std::tuple<DebugVariable, Metadata *, Value *>;
+    DenseSet<IDTuple> Seen;
+    auto IsFirstCopyOf = [&Seen](DbgAssignIntrinsic *DAI) {
+      auto ID = std::make_tuple(DebugVariable(DAI), DAI->getAssignId(),
+                                DAI->getAddress());
+      return Seen.insert(ID).second;
+    };
+
+    // Scan backwards because we're going to ignore earlier duplicates. This
+    // doesn't remove redundant dbg.assigns optimally but helps a lot cheaply.
+    for (auto &I : reverse(*BB)) {
+      if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&I)) {
+        if (IsFirstCopyOf(DAI))
+          ToSink.push_back(DAI);
+        else
+          ToErase.push_back(DAI);
+      }
+    }
+
+    // Reverse ToSink to get original insertion order.
+    for (auto *DAI : reverse(ToSink)) {
+      LLVM_DEBUG(dbgs() << "   Sinking & making undef: " << *DAI << "\n");
+      DAI->setValue(UndefValue::get(DAI->getValue()->getType()));
+      DAI->removeFromParent();
+      DAI->insertBefore(Succ->getFirstNonPHI());
+    }
+    for (auto *DAI: ToErase)
+      DAI->eraseFromParent();
+  }
 
   SmallVector<DominatorTree::UpdateType, 32> Updates;
   if (DTU) {
@@ -1759,13 +1796,41 @@ void llvm::salvageDebugInfoForDbgValues(
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
+    // Handle dbg.assign address component first.
+    bool DbgAssignAddrSalvaged = false;
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII)) {
+      if (DAI->getAddress() == &I) {
+        DbgAssignAddrSalvaged = true;
+        uint64_t CurrentLocOps = 0; // dbg.assign cannot be variadic (yet).
+        SmallVector<Value *, 4> AdditionalValues;
+        SmallVector<uint64_t, 16> Ops;
+        Value *NewV =
+            salvageDebugInfoImpl(I, CurrentLocOps, Ops, AdditionalValues);
+        if (!NewV)
+          break; // Salvage failed.
+
+        DIExpression *SalvagedExpr = DIExpression::appendOpsToArg(
+            DAI->getExpression(), Ops, 0, /*StackValue=*/false);
+        // Salvaging the Address component is only supported if the
+        // DIExpression wouldn't need to change at all since we currently
+        // don't have a DIExpression for the Address component.
+        if (SalvagedExpr == DAI->getExpression() && AdditionalValues.empty())
+          DAI->setAddress(NewV);
+        else
+          DAI->setAddress(UndefValue::get(I.getType()));
+      }
+      // Continue unless the value component also uses `I`.
+      if (DAI->getValue() != &I)
+        continue;
+    }
+
     // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
     // are implicitly pointing out the value as a DWARF memory location
     // description.
     bool StackValue = isa<DbgValueInst>(DII);
     auto DIILocation = DII->location_ops();
     assert(
-        is_contained(DIILocation, &I) &&
+        (is_contained(DIILocation, &I) || DbgAssignAddrSalvaged) &&
         "DbgVariableIntrinsic must use salvaged instruction as its location");
     SmallVector<Value *, 4> AdditionalValues;
     // `I` may appear more than once in DII's location ops, and each use of `I`
@@ -1791,10 +1856,14 @@ void llvm::salvageDebugInfoForDbgValues(
     if (!Op0)
       break;
 
+    bool IsValidSalvageExpr =
+        SalvagedExpr->getNumElements() <= MaxExpressionSize;
     DII->replaceVariableLocationOp(&I, Op0);
-    bool IsValidSalvageExpr = SalvagedExpr->getNumElements() <= MaxExpressionSize;
     if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DII->setExpression(SalvagedExpr);
+    } else if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII)) {
+      // Failed to salvage dbg.assign value component.
+      DAI->setValue(UndefValue::get(I.getType()));
     } else if (isa<DbgValueInst>(DII) && IsValidSalvageExpr &&
                DII->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
@@ -1816,7 +1885,13 @@ void llvm::salvageDebugInfoForDbgValues(
 
   for (auto *DII : DbgUsers) {
     Value *Undef = UndefValue::get(I.getType());
-    DII->replaceVariableLocationOp(&I, Undef);
+    // dbg.assign intrinsics have two possible uses so be careful to undef the
+    // correct one(s).
+    // FIXME: Fold replaceUsesOfWith into replaceVariableLocationOp?
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII))
+      DAI->replaceUsesOfWith(&I, Undef);
+    else
+      DII->replaceVariableLocationOp(&I, Undef);
   }
 }
 
@@ -2099,6 +2174,51 @@ bool llvm::replaceAllDbgUsesWith(Instruction &From, Value &To,
 
   // TODO: Floating-point conversions, vectors.
   return false;
+}
+
+void llvm::detatchAssignIds(Function &Fn,
+                            const DenseSet<BasicBlock *> &DelSet) {
+  if (DelSet.empty())
+    return;
+  // If the only references to a DIAssignID come from inside a BB to be
+  // deleted then we must also delete the DIAssignID to satisify the verifier.
+  //
+  // First determine which DIAssignIDs are only used in BBs that will be
+  // deleted, and also collect up a vector of {id, attached-to-inst} pairs.
+  //
+  // Currently the is {ID: Instruction} mapping is 1:1 , but that can (likely
+  // will) change soon. The vector<pairs> works now and in that eventuality.
+  SmallVector<std::pair<DIAssignID *, Instruction *>, 4> IDInstPairs;
+  DenseSet<DIAssignID *> IDOutDelSet;
+  DenseSet<DIAssignID *> IDInDelSet;
+  for (auto *BB : DelSet)
+    assert(BB->getParent() == &Fn && "COFFEE: Oops, DetatchDeadBlocks BBs "
+                                     "parent match assumption failed");
+
+  for (auto &BB : Fn) {
+    for (Instruction &I : BB) {
+      if (auto *ID = cast_or_null<DIAssignID>(
+              I.getMetadata(LLVMContext::MD_DIAssignID))) {
+        IDInstPairs.push_back({ID, &I});
+      } else if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&I)) {
+        auto *ID = cast<DIAssignID>(DAI->getAssignId());
+        if (DelSet.contains(DAI->getParent()))
+          IDInDelSet.insert(ID);
+        else
+          IDOutDelSet.insert(ID);
+      }
+    }
+  }
+  // Now remove the DIAssignID attachments from instructions if they are only
+  // referenced from within BBs that are about to be deleted.
+  for (auto Pair : IDInstPairs) {
+    DIAssignID *ID = Pair.first;
+    Instruction *I = Pair.second;
+    if (DelSet.contains(I->getParent()))
+      continue; // This inst is getting deleted anyway.
+    if (IDInDelSet.contains(ID) && !IDOutDelSet.contains(ID))
+      I->setMetadata(LLVMContext::MD_DIAssignID, nullptr);
+  }
 }
 
 std::pair<unsigned, unsigned>
@@ -2518,6 +2638,9 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
         break;
       case LLVMContext::MD_dbg:
         llvm_unreachable("getAllMetadataOtherThanDebugLoc returned a MD_dbg");
+      case LLVMContext::MD_DIAssignID:
+        K->mergeDIAssignID(J);
+        break;
       case LLVMContext::MD_tbaa:
         K->setMetadata(Kind, MDNode::getMostGenericTBAA(JMD, KMD));
         break;
@@ -2837,13 +2960,21 @@ void llvm::hoistAllInstructionsInto(BasicBlock *DomBlock, Instruction *InsertPt,
     Instruction *I = &*II;
     I->dropUndefImplyingAttrsAndUnknownMetadata();
     if (I->isUsedByMetadata())
-      dropDebugUsers(*I);
-    if (I->isDebugOrPseudoInst()) {
-      // Remove DbgInfo and pseudo probe Intrinsics.
+      replaceDbgUsesWithUndef(I);
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(I)) {
+      // Hoist dbg.assign intrinsics but make their Value component undef; we
+      // have no way to encode the conditional value currently. The destination
+      // component, however, is still valid.
+      DAI->setValue(UndefValue::get(DAI->getValue()->getType()));
+    } else if (I->isDebugOrPseudoInst()) {
+      // Remove DbgInfo Intrinsics.
+      // @OCH I don't think this is right; instead we should insert an undef in
+      // DomBlock.
       II = I->eraseFromParent();
       continue;
+    } else {
+      I->setDebugLoc(InsertPt->getDebugLoc());
     }
-    I->setDebugLoc(InsertPt->getDebugLoc());
     ++II;
   }
   DomBlock->getInstList().splice(InsertPt->getIterator(), BB->getInstList(),

@@ -45,6 +45,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
@@ -56,6 +57,12 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "mem2reg"
+
+/// Remove all variable locations for variables fully promoted by mem2reg. This
+/// applies to both dbg.assigns and "normal" debug intrinsics. The point of this
+/// flag is to minimise noise in comparing variable locations with and without
+/// the prototype by focusing on those that would be LowerDbgDeclare'd.
+cl::opt<bool> StripPromotedVars("mem2reg-strip-vars", cl::init(false));
 
 STATISTIC(NumLocalPromoted, "Number of alloca's promoted within one block");
 STATISTIC(NumSingleStore,   "Number of alloca's promoted with a single store");
@@ -102,6 +109,86 @@ bool llvm::isAllocaPromotable(const AllocaInst *AI) {
 
 namespace {
 
+// Keep track of the dbg.declare intrinsics inserted for the Coffee Chat
+// Mem2Reg hack (search for Mem2RegHack). We will use this to prevent "fake"
+// dbg.declare intrinsics from being converted to dbg.values when removing
+// stores. The Mem2RegHack only needs dbg.values inserted for newly introduced
+// PHIs. We alreday track the debug info for the store in dbg.assigns.
+static DenseSet<DbgVariableIntrinsic *> FakeDbgDeclares;
+
+enum class VariableOverlap { None, Partial, Exact };
+static VariableOverlap getVariableOverlapInfo(DebugVariable One,
+                                              DebugVariable Two) {
+  // Check if One and Two refer to the same variable and instance.
+  if (One.getVariable() == Two.getVariable() &&
+      One.getInlinedAt() == Two.getInlinedAt()) {
+    // Check that if the fragments match exactly.
+    if (One.getFragmentOrDefault() == Two.getFragmentOrDefault())
+      return VariableOverlap::Exact;
+    // Now check for any overlap.
+    if (DIExpression::fragmentsOverlap(One.getFragmentOrDefault(),
+                                       Two.getFragmentOrDefault()))
+      return VariableOverlap::Partial;
+  }
+
+  // One and Two do not refer to the same variable and instance, or they do but
+  // there is no fragment overlap.
+  return VariableOverlap::None;
+}
+
+/// Returns true if all dbg.assign intrinsics for \p Var agree that it lives
+/// in \p Alloca.
+static bool variableLivesInAlloca(DebugVariable Var, AllocaInst *Alloca) {
+  // Get the DILocalVariable MetadataAsValue so we can loop over its users.
+  auto *MDV = MetadataAsValue::get(
+      Alloca->getContext(), const_cast<DILocalVariable *>(Var.getVariable()));
+  for (auto UI = MDV->user_begin(), E = MDV->user_end(); UI != E; UI++) {
+    DbgVariableIntrinsic *DVI = dyn_cast<DbgVariableIntrinsic>(*UI);
+    // Check if UI is a dbg.* intrinsic. If it is not then we don't care about
+    // it, skip to next instruction.
+    if (!DVI)
+      continue;
+
+    // Get the variable instance that this dbg.* is referring to.
+    DebugVariable ThisVar(DVI->getVariable(),
+                          DVI->getExpression()->getFragmentInfo(),
+                          DVI->getDebugLoc().getInlinedAt());
+    switch (getVariableOverlapInfo(Var, ThisVar)) {
+    case VariableOverlap::None:
+      // Skip this this dbg.* becayse it refers to another part of the
+      // variable.
+      continue;
+    case VariableOverlap::Partial:
+      // Partial overlaps are rare and make this function much more complex so
+      // just bail if we see this.
+      return false;
+    case VariableOverlap::Exact:
+      // The dbg.* intrinsic refers to Var exactly.
+
+      // Note that we cast<> here because we expect all dbg.* intrinsics to be
+      // dbg.assigns. The only time this isn't the case is A) just before ISel,
+      // and B) while performing this hack. Because mem2reg only works on
+      // definitely-promotable allocas we know this alloca will be removed in
+      // this pass. In future passes there will be a mix of dbg.* but it
+      // doesn't matter because the alloca won't exist, so we won't hit this
+      // code path again. Any other cause of mixed dbg.* is unexpected so a
+      // cast failure is useful.
+      DbgAssignIntrinsic *DAI = cast<DbgAssignIntrinsic>(DVI);
+
+      // An unlinked dbg.assign intrinsics means that the destination component
+      // is invalid; the variable no longer lives at this address for this
+      // assignment.
+      if (DAI->getAssignIdMetadataAsValue()->user_empty())
+        return false;
+
+      // Finally, check if the alloca is the variable's home.
+      if (DAI->getAddress()->stripInBoundsConstantOffsets() != Alloca)
+        return false;
+    }
+  }
+  return true;
+}
+
 struct AllocaInfo {
   using DbgUserVec = SmallVector<DbgVariableIntrinsic *, 1>;
 
@@ -127,7 +214,6 @@ struct AllocaInfo {
   /// by the rest of the pass to reason about the uses of this alloca.
   void AnalyzeAlloca(AllocaInst *AI) {
     clear();
-
     // As we scan the uses of the alloca instruction, keep track of stores,
     // and decide whether all of the loads and stores to the alloca are within
     // the same basic block.
@@ -154,6 +240,65 @@ struct AllocaInfo {
     }
 
     findDbgUsers(DbgUsers, AI);
+
+    // Returns a Map of variables to any one of their dbg.assign intrinsics
+    // using AI if all its dbg.* intrinsics are dbg.assigns.
+    auto FindUniqueVariablesUsingOnlyAssigns =
+        [&]() -> DenseMap<DebugVariable, DbgAssignIntrinsic *> {
+      DenseMap<DebugVariable, DbgAssignIntrinsic *> Vars;
+      DenseSet<DebugVariable> VarsWithOtherDbgIntrinsics;
+      for (auto *DU : DbgUsers) {
+        DebugVariable Var(DU->getVariable(), DU->getExpression(),
+                          DU->getDebugLoc().getInlinedAt());
+        if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DU))
+          Vars.insert(std::make_pair(Var, DAI));
+        else
+          VarsWithOtherDbgIntrinsics.insert(Var);
+      }
+      for (auto Var : VarsWithOtherDbgIntrinsics)
+        Vars.erase(Var);
+      return Vars;
+    };
+
+    // Mem2RegHack
+    // We need mem2reg to track merged variables for the Coffee Chat model in
+    // the same way that it does for the current debug info model. Currently,
+    // we insert a dbg.value after inserting a PHI to track a newly created SSA
+    // value merge if the alloca we're promoting has a dbg.declare.  To "trick"
+    // mem2reg into doing the same thing for variables described by dbg.assign
+    // intrinsics we will add a temporary dbg.declare for each variable given
+    // that (A) all the dbg.* intrinsics for the variables are dbg.assigns, and
+    // (B) that all the dbg.assign intrinsics agree that the alloca is the
+    // variable's home.
+    //
+    // This gives us Bug Parity with the existing model (unused merged values
+    // get no dbg.value(undef) for example -- see PR48719 for more info).
+    for (auto Pair : FindUniqueVariablesUsingOnlyAssigns()) {
+      // Grab the variable info from any of the dbg.assign intrinsics.
+      DebugVariable Var = Pair.first;
+      DbgAssignIntrinsic *DAI = Pair.second;
+      // If all the dbg.assign intrinsics for this variable agree that this
+      // variable lives on the stack then we can safely insert a dbg.declare
+      // for it.
+      if (variableLivesInAlloca(Var, AI)) {
+        DIBuilder DIB(*DAI->getModule(), /*AllowUnresolved*/ false);
+        // Create a new DebugLoc. Use the scope of the variable plus the
+        // dbg.assign's inlined-at info.  This ensures that we don't
+        // accidently give the dbg.declare a DebugLoc with a nested
+        // scope. Otherwise future optimisations (e.g. ADCE) may legally
+        // remove the inerted dbg.values which copy this DebugLoc if no
+        // instructions with the scope exist.
+        DebugLoc DL = DILocation::get(
+            AI->getContext(), 0, 0, Var.getVariable()->getScope(),
+            const_cast<DILocation *>(Var.getInlinedAt()));
+        Instruction *InsertBefore = AI->getNextNonDebugInstruction();
+        auto *NewDeclare = cast<DbgDeclareInst>(DIB.insertDeclare(
+            AI, DAI->getVariable(), DAI->getExpression(), DL, InsertBefore));
+        assert(NewDeclare);
+        DbgUsers.push_back(NewDeclare);
+        FakeDbgDeclares.insert(NewDeclare);
+      }
+    }
   }
 };
 
@@ -262,6 +407,8 @@ struct PromoteMem2Reg {
 
   /// Lazily compute the number of predecessors a block has.
   DenseMap<const BasicBlock *, unsigned> BBNumPreds;
+
+  DenseSet<DebugVariable> PromotedVariables;
 
 public:
   PromoteMem2Reg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
@@ -424,7 +571,8 @@ static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
   for (DbgVariableIntrinsic *DII : Info.DbgUsers) {
     if (DII->isAddressOfVariable()) {
       DIBuilder DIB(*AI->getModule(), /*AllowUnresolved*/ false);
-      ConvertDebugDeclareToDebugValue(DII, Info.OnlyStore, DIB);
+      if (!FakeDbgDeclares.contains(DII))
+        ConvertDebugDeclareToDebugValue(DII, Info.OnlyStore, DIB);
       DII->eraseFromParent();
     } else if (DII->getExpression()->startsWithDeref()) {
       DII->eraseFromParent();
@@ -526,7 +674,8 @@ static bool promoteSingleBlockAlloca(AllocaInst *AI, const AllocaInfo &Info,
     for (DbgVariableIntrinsic *DII : Info.DbgUsers) {
       if (DII->isAddressOfVariable()) {
         DIBuilder DIB(*AI->getModule(), /*AllowUnresolved*/ false);
-        ConvertDebugDeclareToDebugValue(DII, SI, DIB);
+        if (!FakeDbgDeclares.contains(DII))
+          ConvertDebugDeclareToDebugValue(DII, SI, DIB);
       }
     }
     SI->eraseFromParent();
@@ -544,9 +693,27 @@ static bool promoteSingleBlockAlloca(AllocaInst *AI, const AllocaInfo &Info,
   return true;
 }
 
-void PromoteMem2Reg::run() {
-  Function &F = *DT.getRoot()->getParent();
+static void
+deleteDebugIntrinsics(Function &Fn,
+                      const DenseSet<DebugVariable> &PromotedVariables) {
+  if (!StripPromotedVars)
+    return; // Do not strip intrinsics.
+  SmallVector<DbgVariableIntrinsic *, 4> ToRemove;
+  for (auto &BB : Fn) {
+    for (auto &I : BB) {
+      auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I);
+      if (DVI && PromotedVariables.contains(DebugVariable(DVI)))
+        ToRemove.push_back(DVI);
+    }
+  }
+  for (auto *DVI : ToRemove)
+    DVI->eraseFromParent();
+}
 
+void PromoteMem2Reg::run() {
+  PromotedVariables.clear();
+  FakeDbgDeclares.clear();
+  Function &F = *DT.getRoot()->getParent();
   AllocaDbgUsers.resize(Allocas.size());
 
   AllocaInfo Info;
@@ -575,6 +742,9 @@ void PromoteMem2Reg::run() {
     // Calculate the set of read and write-locations for each alloca.  This is
     // analogous to finding the 'uses' and 'definitions' of each variable.
     Info.AnalyzeAlloca(AI);
+
+    for (auto *DVI : Info.DbgUsers)
+      PromotedVariables.insert(DebugVariable(DVI));
 
     // If there is only a single store to this value, replace any loads of
     // it that are directly dominated by the definition with the value stored.
@@ -637,8 +807,10 @@ void PromoteMem2Reg::run() {
       QueuePhiNode(BB, AllocaNum, CurrentVersion);
   }
 
-  if (Allocas.empty())
+  if (Allocas.empty()) {
+    deleteDebugIntrinsics(F, PromotedVariables);
     return; // All of the allocas must have been trivial!
+  }
 
   LBI.clear();
 
@@ -776,6 +948,7 @@ void PromoteMem2Reg::run() {
   }
 
   NewPhiNodes.clear();
+  deleteDebugIntrinsics(F, PromotedVariables);
 }
 
 /// Determine which blocks the value is live in.
@@ -925,6 +1098,9 @@ NextIteration:
         IncomingVals[AllocaNo] = APN;
         for (DbgVariableIntrinsic *DII : AllocaDbgUsers[AllocaNo])
           if (DII->isAddressOfVariable())
+            // Always do this, even FakeDbgDeclares contains DII; the essence
+            // of the Coffee Chat Mem2Reg hack is that we want to insert
+            // dbg.values for PHIs when fully promoting. Do that now.
             ConvertDebugDeclareToDebugValue(DII, APN, DIB);
 
         // Get the next phi node.
@@ -986,7 +1162,8 @@ NextIteration:
       IncomingLocs[AllocaNo] = SI->getDebugLoc();
       for (DbgVariableIntrinsic *DII : AllocaDbgUsers[ai->second])
         if (DII->isAddressOfVariable())
-          ConvertDebugDeclareToDebugValue(DII, SI, DIB);
+          if (!FakeDbgDeclares.contains(DII))
+            ConvertDebugDeclareToDebugValue(DII, SI, DIB);
       BB->getInstList().erase(SI);
     }
   }

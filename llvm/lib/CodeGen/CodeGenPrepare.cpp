@@ -405,6 +405,7 @@ class TypePromotionTransaction;
     bool optimizeExtractElementInst(Instruction *Inst);
     bool dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT);
     bool fixupDbgValue(Instruction *I);
+    bool fixupDbgAssign(Instruction *I);
     bool placeDbgValues(Function &F);
     bool placePseudoProbes(Function &F);
     bool canFormExtLd(const SmallVectorImpl<Instruction *> &MovedExts,
@@ -1198,6 +1199,7 @@ static bool SinkCast(CastInst *CI) {
 
   /// InsertedCasts - Only insert a cast in each block once.
   DenseMap<BasicBlock*, CastInst*> InsertedCasts;
+  SmallVector<Instruction *, 4> UpdatedUsers;
 
   bool MadeChange = false;
   for (Value::user_iterator UI = CI->user_begin(), E = CI->user_end();
@@ -1244,6 +1246,29 @@ static bool SinkCast(CastInst *CI) {
     TheUse = InsertedCast;
     MadeChange = true;
     ++NumCastUses;
+    UpdatedUsers.push_back(User);
+  }
+
+  for (auto *User : UpdatedUsers) {
+    // We'll need to update the debug uses too.
+    // TODO: @OCH Fix this in latest main (for dbg.declare/value) too?
+    for (auto *DAI : at::getAssignmentMarkers(User)) {
+      Value *NewValue = InsertedCasts.lookup(DAI->getParent());
+      // The dbg.assign may not be in the same block, and that block
+      // may have not have a cast of its own.
+      if (!NewValue) {
+        NewValue = CI->stripPointerCasts();
+        // FIXME: Unsure how to handle casts that are not removed by
+        // stripPointerCassts (e.g. inttoptr). For now, skip them,
+        // which will result in the use being replaced by undef.
+        //
+        // If DAI is dominated by User, we could use the cast that was inserted
+        // into User's block.
+        if (NewValue == CI)
+          continue;
+      }
+      DAI->replaceUsesOfWith(CI, NewValue);
+    }
   }
 
   // If we removed all uses, nuke the cast.
@@ -2225,6 +2250,8 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
       return optimizeFunnelShift(II);
     case Intrinsic::dbg_value:
       return fixupDbgValue(II);
+    case Intrinsic::dbg_assign:
+      return fixupDbgAssign(II);
     case Intrinsic::vscale: {
       // If datalayout has no special restrictions on vector data layout,
       // replace `llvm.vscale` by an equivalent constant expression
@@ -2893,7 +2920,6 @@ class TypePromotionTransaction {
       // Record the debug uses separately. They are not in the instruction's
       // use list, but they are replaced by RAUW.
       findDbgValues(DbgValues, Inst);
-
       // Now, we can replace the uses.
       Inst->replaceAllUsesWith(New);
     }
@@ -5435,7 +5461,12 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
       SunkAddr = Builder.CreateIntToPtr(Result, Addr->getType(), "sunkaddr");
   }
 
+  // Update the linked debug users.
+  for (auto *DAI : at::getAssignmentMarkers(MemoryInst))
+    DAI->replaceUsesOfWith(Repl, SunkAddr);
+
   MemoryInst->replaceUsesOfWith(Repl, SunkAddr);
+
   // Store the newly computed address into the cache. In the case we reused a
   // value, this should be idempotent.
   SunkAddrs[Addr] = WeakTrackingVH(SunkAddr);
@@ -8008,6 +8039,42 @@ bool CodeGenPrepare::fixupDbgValue(Instruction *I) {
   return AnyChange;
 }
 
+// Some CGP optimizations may move or alter what's computed in a block. Check
+// whether a dbg.assign intrinsic could be pointed at a more appropriate
+// operand.
+bool CodeGenPrepare::fixupDbgAssign(Instruction *I) {
+  assert(isa<DbgAssignIntrinsic>(I));
+  DbgAssignIntrinsic &DAI = *cast<DbgAssignIntrinsic>(I);
+
+  std::string OldStr;
+  raw_string_ostream Old(OldStr);
+  LLVM_DEBUG(Old << DAI);
+
+  auto GetSunkAddr = [this](Value *Location) {
+    // Does this dbg.value refer to a sunk address calculation?
+    WeakTrackingVH SunkAddrVH = SunkAddrs[Location];
+    Value *V = SunkAddrVH.pointsToAliveValue() ? SunkAddrVH : nullptr;
+    return V;
+  };
+
+  bool Changed = false;
+  if (auto *Addr = GetSunkAddr(DAI.getValue())) {
+    Changed = true;
+    DAI.setValue(Addr);
+  }
+
+  if (auto *Addr = GetSunkAddr(DAI.getAddress())) {
+    Changed = true;
+    DAI.setAddress(Addr);
+  }
+
+  if (Changed)
+    LLVM_DEBUG(dbgs() << "fixupDbgAssign from: " << OldStr << "\n"
+                      << "                 to: " << DAI << "\n");
+
+  return Changed;
+}
+
 // A llvm.dbg.value may be using a value before its definition, due to
 // optimizations in this pass and others. Scan for such dbg.values, and rescue
 // them by moving the dbg.value to immediately after the value definition.
@@ -8041,6 +8108,11 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
         if (isa<PHINode>(VI) && VI->getParent()->getTerminator()->isEHPad())
           continue;
 
+        // Don't move dbg.assign intrinsics as they handle use before def
+        // elegantly.
+        if (isa<DbgAssignIntrinsic>(DVI))
+          continue;
+
         // If the defining instruction dominates the dbg.value, we do not need
         // to move the dbg.value.
         if (DT.dominates(VI, DVI))
@@ -8058,15 +8130,15 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
           break;
         }
 
-        LLVM_DEBUG(dbgs() << "Moving Debug Value before :\n"
-                          << *DVI << ' ' << *VI);
-        DVI->removeFromParent();
-        if (isa<PHINode>(VI))
-          DVI->insertBefore(&*VI->getParent()->getFirstInsertionPt());
-        else
-          DVI->insertAfter(VI);
-        MadeChange = true;
-        ++NumDbgValueMoved;
+      LLVM_DEBUG(dbgs() << "Moving Debug Value before :\n"
+                        << *DVI << ' ' << *VI);
+      DVI->removeFromParent();
+      if (isa<PHINode>(VI))
+        DVI->insertBefore(&*VI->getParent()->getFirstInsertionPt());
+      else
+        DVI->insertAfter(VI);
+      MadeChange = true;
+      ++NumDbgValueMoved;
       }
     }
   }

@@ -35,6 +35,8 @@
 #include <iterator>
 #include <vector>
 
+namespace llvm { class DbgVariableIntrinsic; }
+
 // Helper macros for defining get() overrides.
 #define DEFINE_MDNODE_GET_UNPACK_IMPL(...) __VA_ARGS__
 #define DEFINE_MDNODE_GET_UNPACK(ARGS) DEFINE_MDNODE_GET_UNPACK_IMPL ARGS
@@ -210,6 +212,7 @@ public:
     case DIImportedEntityKind:
     case DIModuleKind:
     case DIGenericSubrangeKind:
+    case DIAssignIDKind:
       return true;
     }
   }
@@ -287,6 +290,40 @@ public:
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == GenericDINodeKind;
+  }
+};
+
+/// Assign-Id
+/// Used to track the value and location for each store isntruction.
+/// To be used as an argument for a dbg.assign intrinsic.
+/// DIAssignID has no arguments of its own.
+class DIAssignID : public MDNode {
+  friend class LLVMContextImpl;
+  friend class MDNode;
+
+  DIAssignID(LLVMContext &C, StorageType Storage)
+      : MDNode(C, DIAssignIDKind, Storage, None) {}
+
+  ~DIAssignID() { dropAllReferences(); }
+
+  static DIAssignID *getImpl(LLVMContext &Context, StorageType Storage, bool ShouldCreate = true);
+
+  TempDIAssignID cloneImpl() const {
+    return getTemporary(getContext());
+  }
+
+public:
+  // This node has no operands to replace, disallow.
+  void replaceOperandWith(unsigned I, Metadata *New) = delete;
+  static DIAssignID *getDistinct(LLVMContext &Context) {                
+    return getImpl(Context, Distinct);
+  }
+  static TempDIAssignID getTemporary(LLVMContext &Context) {
+    return TempDIAssignID(getImpl(Context, Temporary));
+  }
+
+  static bool classof(const Metadata *MD) {
+    return MD->getMetadataID() == DIAssignIDKind;
   }
 };
 
@@ -3690,6 +3727,7 @@ class DebugVariable {
   static const FragmentInfo DefaultFragment;
 
 public:
+  DebugVariable(DbgVariableIntrinsic *DVI);
   DebugVariable(const DILocalVariable *Var, Optional<FragmentInfo> FragmentInfo,
                 const DILocation *InlinedAt)
       : Variable(Var), Fragment(FragmentInfo), InlinedAt(InlinedAt) {}

@@ -26,6 +26,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -1043,6 +1044,23 @@ template <> struct MDNodeKeyImpl<DIGlobalVariable> {
   }
 };
 
+//TODO: Add context argument
+template <> struct MDNodeKeyImpl<DIAssignID> {
+   unsigned int ID;
+
+  MDNodeKeyImpl(unsigned int ID): ID(ID) {}
+  MDNodeKeyImpl(const DIAssignID *N): ID(N->getMetadataID()) {}
+
+  bool isKeyOf(const DIAssignID *RHS) const {
+    return ID == RHS->getMetadataID();
+  }
+
+  // TODO: do we need to hash? 
+  unsigned getHashValue() const {
+    return hash_combine(ID);
+  }
+};
+
 template <> struct MDNodeKeyImpl<DILocalVariable> {
   Metadata *Scope;
   MDString *Name;
@@ -1486,6 +1504,11 @@ public:
 
   /// Collection of metadata used in this context.
   DenseMap<const Value *, MDAttachments> ValueMetadata;
+
+  // Map DIAssignID -> Instructions with that attachment.
+  // Managed by Instruction via Instruction::updateDIAssignIDMapping.
+  // Query using the at:: functions defined in DebugInfo.h.
+  DenseMap<DIAssignID *, SmallSet<Instruction *, 2>> AssignmentIDToInstrs;
 
   /// Collection of per-GlobalObject sections used in this context.
   DenseMap<const GlobalObject *, StringRef> GlobalObjectSections;

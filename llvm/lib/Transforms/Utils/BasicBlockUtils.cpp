@@ -63,6 +63,16 @@ void llvm::detachDeadBlocks(
     ArrayRef<BasicBlock *> BBs,
     SmallVectorImpl<DominatorTree::UpdateType> *Updates,
     bool KeepOneInputPHIs) {
+  // Update (soon to be) dangling DIAssignID metadata attachments.
+  // FIXME: @OCH This is unfortunate/annoying.
+  {
+    DenseMap<Function *, DenseSet<BasicBlock *>> FnBlocks;
+    for (auto *BB: BBs)
+      FnBlocks[BB->getParent()].insert(BB);
+    for (auto Pair: FnBlocks)
+      detatchAssignIds(*Pair.first, Pair.second);
+  }
+
   for (auto *BB : BBs) {
     // Loop through all of our successors and make sure they know that one
     // of their predecessors is going away.
@@ -369,6 +379,8 @@ static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
     if (DbgValueInst *DVI = dyn_cast<DbgValueInst>(&I)) {
+      if (isa<DbgAssignIntrinsic>(DVI))
+        continue;
       DebugVariable Key(DVI->getVariable(),
                         DVI->getExpression(),
                         DVI->getDebugLoc()->getInlinedAt());
@@ -417,6 +429,8 @@ static bool removeRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
       VariableMap;
   for (auto &I : *BB) {
     if (DbgValueInst *DVI = dyn_cast<DbgValueInst>(&I)) {
+      if (isa<DbgAssignIntrinsic>(DVI))
+        continue;
       DebugVariable Key(DVI->getVariable(),
                         NoneType(),
                         DVI->getDebugLoc()->getInlinedAt());

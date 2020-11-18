@@ -3939,6 +3939,11 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock,
     if (!SunkVariables.insert(DbgUserVariable).second)
       continue;
 
+    // Do not update dbg.assign intrinsics, they should be able to handle this
+    // kind of thing without any help.
+    if (isa<DbgAssignIntrinsic>(User))
+      continue;
+
     DIIClones.emplace_back(cast<DbgVariableIntrinsic>(User->clone()));
     if (isa<DbgDeclareInst>(User) && isa<CastInst>(I))
       DIIClones.back()->replaceVariableLocationOp(I, I->getOperand(0));
@@ -4232,6 +4237,7 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
           continue;
         }
 
+      auto DbgAssigns = at::getAssignmentMarkers(&Inst);
       // See if we can constant fold its operands.
       for (Use &U : Inst.operands()) {
         if (!isa<ConstantVector>(U) && !isa<ConstantExpr>(U))
@@ -4246,6 +4252,15 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
           LLVM_DEBUG(dbgs() << "IC: ConstFold operand of: " << Inst
                             << "\n    Old = " << *C
                             << "\n    New = " << *FoldRes << '\n');
+          // Update debug intrinsics that might be using the same
+          // constant. Otherwise the debug use may be the only remaining use of
+          // the (unfolded) constant which makes it liable to be cleaned up
+          // later by another pass. Such change will at best reduce variable
+          // location coverage unecessarily, and at worst delete the use,
+          // causing the debug intrinsic to be considered dead, thus
+          // introducing variable location inaccuracies.
+          for (auto *DAI: DbgAssigns)
+            DAI->replaceUsesOfWith(C, FoldRes);
           U = FoldRes;
           MadeIRChange = true;
         }

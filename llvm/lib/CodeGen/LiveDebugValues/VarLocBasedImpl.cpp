@@ -1968,21 +1968,27 @@ bool VarLocBasedLDV::join(
   }
 
   // Filter out DBG_VALUES that are out of scope.
+#if 0
+  // Actually, don't. This can unecessarily shorten the lifetime of variables
+  // in nested scopes if blocks from the outer scope are mixed in along the
+  // control flow path. We'll strip out extraneous locations after the
+  // DbgEntityHistoryCalculator runs.
   VarLocSet KillSet(Alloc);
   bool IsArtificial = ArtificialBlocks.count(&MBB);
   if (!IsArtificial) {
     for (uint64_t ID : InLocsT) {
       LocIndex Idx = LocIndex::fromRawInteger(ID);
       if (!VarLocIDs[Idx].dominates(LS, MBB)) {
-        KillSet.set(ID);
+        KillSet.set(ID); // try not doing this
         LLVM_DEBUG({
           auto Name = VarLocIDs[Idx].Var.getVariable()->getName();
-          dbgs() << "  killing " << Name << ", it doesn't dominate MBB\n";
+          dbgs() << "  (not) killing " << Name << ", it doesn't dominate MBB\n";
         });
       }
     }
   }
   InLocsT.intersectWithComplement(KillSet);
+#endif
 
   // As we are processing blocks in reverse post-order we
   // should have processed at least one predecessor, unless it

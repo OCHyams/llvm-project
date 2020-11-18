@@ -90,6 +90,7 @@ public:
     case Intrinsic::assume:
     case Intrinsic::sideeffect:
     case Intrinsic::pseudoprobe:
+    case Intrinsic::dbg_assign:
     case Intrinsic::dbg_declare:
     case Intrinsic::dbg_value:
     case Intrinsic::dbg_label:
@@ -124,6 +125,7 @@ static inline bool isDbgInfoIntrinsic(Intrinsic::ID ID) {
   case Intrinsic::dbg_value:
   case Intrinsic::dbg_addr:
   case Intrinsic::dbg_label:
+  case Intrinsic::dbg_assign:
     return true;
   default:
     return false;
@@ -226,10 +228,12 @@ public:
 
   bool hasArgList() const { return isa<DIArgList>(getRawLocation()); }
 
-  /// Does this describe the address of a local variable. True for dbg.addr
-  /// and dbg.declare, but not dbg.value, which describes its value.
+  /// Does this describe the address of a local variable. True for dbg.addr and
+  /// dbg.declare, but not dbg.value, which describes its value, or dbg.assign,
+  /// which is special.
   bool isAddressOfVariable() const {
-    return getIntrinsicID() != Intrinsic::dbg_value;
+    return getIntrinsicID() != Intrinsic::dbg_value &&
+      getIntrinsicID() != Intrinsic::dbg_assign;
   }
 
   void setUndef() {
@@ -288,6 +292,7 @@ public:
     case Intrinsic::dbg_declare:
     case Intrinsic::dbg_value:
     case Intrinsic::dbg_addr:
+    case Intrinsic::dbg_assign:
       return true;
     default:
       return false;
@@ -297,7 +302,7 @@ public:
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
   /// @}
-private:
+protected:
   void setArgOperand(unsigned i, Value *v) {
     DbgInfoIntrinsic::setArgOperand(i, v);
   }
@@ -358,7 +363,33 @@ public:
   /// \name Casting methods
   /// @{
   static bool classof(const IntrinsicInst *I) {
-    return I->getIntrinsicID() == Intrinsic::dbg_value;
+    return I->getIntrinsicID() == Intrinsic::dbg_value ||
+           I->getIntrinsicID() == Intrinsic::dbg_assign;
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+  /// @}
+};
+
+/// This represents the llvm.dbg.value instruction.
+class DbgAssignIntrinsic : public DbgValueInst {
+public:
+  Value *getAddress() const;
+  MetadataAsValue *getAssignIdMetadataAsValue() const {
+    return cast<MetadataAsValue>(getArgOperand(3));
+  }
+  Metadata *getAssignId() const {
+    return getAssignIdMetadataAsValue()->getMetadata();
+  }
+  void setAssignId(DIAssignID *New);
+  void setAddress(Value *V);
+  void setValue(Value *V);
+  void replaceUsesOfWith(Value *From, Value *To);
+  /// \name Casting methods
+  /// @{
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::dbg_assign;
   }
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));

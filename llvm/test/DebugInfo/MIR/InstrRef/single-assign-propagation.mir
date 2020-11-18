@@ -2,10 +2,13 @@
 # RUN:       -experimental-debug-variable-locations=true \
 # RUN:     | FileCheck %s -implicit-check-not=DBG_VALUE \
 # RUN:        --check-prefixes=CHECK,COMMON
-# RUN: llc %s -march=x86-64 -run-pass=livedebugvalues -o - \
-# RUN:       -experimental-debug-variable-locations=false \
-# RUN:     | FileCheck %s -implicit-check-not=DBG_VALUE \
-# RUN:        --check-prefixes=VARLOC,COMMON
+# NOTE Test for experimental-debug-variable-locations=false removed because
+#      this behaviour has explictly been disabled in order to allow more valid
+#      locations to be propagated.
+# XXX: llc %s -march=x86-64 -run-pass=livedebugvalues -o - \
+# XXX:       -experimental-debug-variable-locations=false \
+# XXX:     | FileCheck %s -implicit-check-not=DBG_VALUE \
+# XXX:        --check-prefixes=VARLOC,COMMON
 #
 # This test is designed to stimulate a simplification of variable-value
 # propagation in InstrRefBasedLDV. When we only have a single assignment of

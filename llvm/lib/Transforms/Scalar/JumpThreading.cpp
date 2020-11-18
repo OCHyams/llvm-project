@@ -2396,6 +2396,20 @@ void JumpThreadingPass::threadEdge(BasicBlock *BB,
   DenseMap<Instruction *, Value *> ValueMapping =
       cloneInstructions(BB->begin(), std::prev(BB->end()), NewBB, PredBB);
 
+  // FIXME: @OCH The easiest thing to do right now to satisfy the verifier is
+  // to just remove the DIAssignID attachments from any cloned instructions,
+  // which is what we're doing here.
+  //
+  // This will likely reduce coverage, but should never be "incorrect".
+  //
+  // We should be able to remove this when the multi-instr-id backend is
+  // implemented.
+#if 0
+  // The new backend is up and running so we no longer need this.
+  for (auto &I : *NewBB)
+    I.setMetadata(LLVMContext::MD_DIAssignID, nullptr);
+#endif
+
   // We didn't copy the terminator from BB over to NewBB, because there is now
   // an unconditional jump to SuccBB.  Insert the unconditional jump.
   BranchInst *NewBI = BranchInst::Create(SuccBB, NewBB);

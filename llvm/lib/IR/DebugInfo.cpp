@@ -12,12 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm-c/DebugInfo.h"
+#include "LLVMContextImpl.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DIBuilder.h"
@@ -37,6 +39,7 @@
 #include <utility>
 
 using namespace llvm;
+using namespace llvm::at;
 using namespace llvm::dwarf;
 
 /// Finds all intrinsics declaring local variables as living in the memory that
@@ -104,25 +107,42 @@ void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
     return;
-  // TODO: If this value appears multiple times in a DIArgList, we should still
-  // only add the owning DbgValueInst once; use this set to track ArgListUsers.
-  // This behaviour can be removed when we can automatically remove duplicates.
+
   SmallPtrSet<DbgVariableIntrinsic *, 4> EncounteredDbgValues;
-  if (auto *L = LocalAsMetadata::getIfExists(V)) {
-    if (auto *MDV = MetadataAsValue::getIfExists(V->getContext(), L)) {
-      for (User *U : MDV->users())
-        if (DbgVariableIntrinsic *DII = dyn_cast<DbgVariableIntrinsic>(U))
-          DbgUsers.push_back(DII);
-    }
-    for (Metadata *AL : L->getAllArgListUsers()) {
-      if (auto *MDV = MetadataAsValue::getIfExists(V->getContext(), AL)) {
-        for (User *U : MDV->users())
-          if (DbgVariableIntrinsic *DII = dyn_cast<DbgVariableIntrinsic>(U))
+  auto AddWrappedValueUsers =
+      [&DbgUsers, &EncounteredDbgValues](MetadataAsValue *WrappedV) {
+        if (!WrappedV)
+          return;
+
+        for (User *U : WrappedV->users()) {
+          if (DbgVariableIntrinsic *DII = dyn_cast<DbgVariableIntrinsic>(U)) {
             if (EncounteredDbgValues.insert(DII).second)
               DbgUsers.push_back(DII);
-      }
-    }
+          }
+        }
+      };
+
+  if (auto *C = dyn_cast<Constant>(V)) {
+    if (auto *CM = ConstantAsMetadata::getIfExists(C))
+      AddWrappedValueUsers(MetadataAsValue::getIfExists(V->getContext(), CM));
+  } else if (auto *LM = LocalAsMetadata::getIfExists(V)) {
+    AddWrappedValueUsers(MetadataAsValue::getIfExists(V->getContext(), LM));
+    for (Metadata *AL : LM->getAllArgListUsers())
+      AddWrappedValueUsers(MetadataAsValue::getIfExists(V->getContext(), AL));
   }
+}
+
+bool llvm::replaceDbgUsesWithUndef(Value *V) {
+  SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
+  findDbgUsers(DbgUsers, V);
+  for (auto *DII : DbgUsers) {
+    Value *Undef = UndefValue::get(V->getType());
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII))
+      DAI->replaceUsesOfWith(V, Undef);
+    else
+      DII->setUndef();
+  }
+  return !DbgUsers.empty();
 }
 
 DISubprogram *llvm::getDISubprogram(const MDNode *Scope) {
@@ -813,6 +833,33 @@ unsigned llvm::getDebugMetadataVersionFromModule(const Module &M) {
 void Instruction::applyMergedLocation(const DILocation *LocA,
                                       const DILocation *LocB) {
   setDebugLoc(DILocation::getMergedLocation(LocA, LocB));
+}
+
+void Instruction::mergeDIAssignID(
+    ArrayRef<const Instruction *> SourceInstructions) {
+  // Replace all uses (and attachments) of all the DIAssignIDs
+  // on SourceInstructions with a single merged value.
+  Function *Fn = getFunction();
+  assert(Fn && "Rethink this approach");
+  // Collect up the DIAssignID tags.
+  SmallVector<DIAssignID *, 4> IDs;
+  for (const Instruction *I : SourceInstructions) {
+    if (auto *MD = I->getMetadata(LLVMContext::MD_DIAssignID))
+      IDs.push_back(cast<DIAssignID>(MD));
+    assert(Fn == I->getFunction() && "Rethink this approach");
+  }
+
+  // Add this instruction's assign-id too, if it has one.
+  if (auto *MD = getMetadata(LLVMContext::MD_DIAssignID))
+    IDs.push_back(cast<DIAssignID>(MD));
+
+  if (IDs.empty())
+    return; // No DIAssignID tags to process.
+
+  DIAssignID *NewID = DIAssignID::getDistinct(getContext());
+  for (DIAssignID *OldID : IDs)
+    at::RAUW(OldID, NewID, Fn);
+  setMetadata(LLVMContext::MD_DIAssignID, NewID);
 }
 
 void Instruction::updateLocationAfterHoist() { dropLocation(); }
@@ -1613,5 +1660,306 @@ LLVMMetadataKind LLVMGetMetadataKind(LLVMMetadataRef Metadata) {
 #include "llvm/IR/Metadata.def"
   default:
     return (LLVMMetadataKind)LLVMGenericDINodeMetadataKind;
+  }
+}
+
+IVecTy at::getAssignmentInsts(DIAssignID *ID, const Function *F) {
+  assert(ID && "Expected non-null ID");
+  LLVMContext &Ctx = F->getContext();
+  auto &Map = Ctx.pImpl->AssignmentIDToInstrs;
+
+  auto MapIt = Map.find(ID);
+  if (MapIt == Map.end())
+    return {};
+
+  IVecTy Result;
+  std::copy_if(
+      MapIt->second.begin(), MapIt->second.end(), std::back_inserter(Result),
+      [F](Instruction *I) { return I->getFunction() == F; });
+  return Result;
+}
+
+AVecTy at::getAssignmentMarkers(DIAssignID *ID, const Function *F) {
+  assert(ID && "Expected non-null ID");
+  LLVMContext &Ctx = ID->getContext();
+
+  auto *IDAsValue = MetadataAsValue::getIfExists(Ctx, ID);
+
+  // The ID is only used wrapped in MetadataAsValue(ID), so lets check that
+  // ones of those already exists first.
+  if (!IDAsValue)
+    return {};
+
+  AVecTy Result;
+  for (User *U : IDAsValue->users()) {
+    auto *DAI = cast<DbgAssignIntrinsic>(U);
+    if (DAI->getFunction() == F)
+      Result.push_back(DAI);
+  }
+  return Result;
+}
+
+void at::RAUW(DIAssignID *Old, DIAssignID *New, const Function *F) {
+  // Replace uses.
+  // Check if there are no uses (because the MetadataAsValue doesn't exist).
+  if (auto *OldIDAsValue =
+          MetadataAsValue::getIfExists(Old->getContext(), Old)) {
+    auto *NewIDAsValue = MetadataAsValue::get(Old->getContext(), New);
+    OldIDAsValue->replaceUsesWithIf(NewIDAsValue, [F](Use &U) {
+      return cast<Instruction>(U.getUser())->getFunction() == F;
+    });
+  }
+
+  // Replace attachments.
+  for (auto *I : getAssignmentInsts(Old, F))
+    I->setMetadata(LLVMContext::MD_DIAssignID, New);
+}
+
+void at::deleteAll(Function *F) {
+  SmallVector<DbgAssignIntrinsic *, 12> ToDelete;
+  for (BasicBlock &BB : *F) {
+    for (Instruction &I : BB) {
+      if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&I))
+        ToDelete.push_back(DAI);
+      else
+        I.setMetadata(LLVMContext::MD_DIAssignID, nullptr);
+    }
+  }
+  for (auto *DAI : ToDelete)
+    DAI->eraseFromParent();
+}
+
+struct AssignmentInfo {
+  const AllocaInst *Base;  ///< The Alloca. Nullptr if no backing alloca.
+  uint64_t OffsetInBits;   ///< Offset into the alloca.
+  uint64_t SizeInBits;     ///< Bits written into the alloca.
+  bool StoreToWholeAlloca; ///< Does this store to the whole alloca?
+
+  static AssignmentInfo create(const DataLayout &DL, const AllocaInst *Base,
+                               uint64_t Offset, uint64_t Size) {
+    AssignmentInfo Info;
+    Info.Base = Base;
+    Info.OffsetInBits = Offset;
+    Info.SizeInBits = Size;
+    Info.StoreToWholeAlloca =
+        !Offset && Size == DL.getTypeSizeInBits(Base->getAllocatedType());
+    return Info;
+  }
+
+  bool operator==(const AssignmentInfo &O) {
+    return std::tie(Base, OffsetInBits, SizeInBits, StoreToWholeAlloca) ==
+           std::tie(O.Base, O.OffsetInBits, O.SizeInBits, O.StoreToWholeAlloca);
+  }
+  bool operator!=(const AssignmentInfo &O) { return !(*this == O); }
+};
+
+static Optional<AssignmentInfo> getAssignmentInfoImpl(const DataLayout &DL,
+                                                      const Value *StoreDest,
+                                                      uint64_t SizeInBits) {
+  const Value *Base = StoreDest;
+  uint64_t OffsetInBytes = 0;
+
+  // Remove inline casts.
+  Base = Base->stripPointerCasts();
+  while (!isa<AllocaInst>(Base)) {
+    if (const auto *GEP = dyn_cast<GetElementPtrInst>(Base)) {
+      Base = GEP->getOperand(0);
+      // Get fragment size and offset.
+      APInt TmpOffset(DL.getIndexTypeSizeInBits(GEP->getType()), 0);
+      if (!GEP->accumulateConstantOffset(DL, TmpOffset)) {
+        // We can't use a non-const offset, bail. This is a limitation of the
+        // prototype - FIXME: need to work out how to encode this situation.
+        return None;
+      }
+      uint64_t LimitedOffset = TmpOffset.getLimitedValue();
+      // Check for a limit we can't encode and wrapping.
+      if (LimitedOffset == UINT64_MAX ||
+          LimitedOffset + OffsetInBytes < OffsetInBytes)
+        return None;
+      OffsetInBytes += TmpOffset.getLimitedValue();
+    } else if (const auto *Cast = dyn_cast<BitCastInst>(Base)) {
+      Base = Cast->getOperand(0);
+    } else {
+      // Can't look through this instruction.
+      return None;
+    }
+  }
+
+  const auto *Alloca = cast<AllocaInst>(Base);
+  // Assume an 8 bit byte. Can DL tell us the true size of a byte?
+  return AssignmentInfo::create(DL, Alloca, OffsetInBytes * 8, SizeInBits);
+}
+
+static Optional<AssignmentInfo> getAssignmentInfo(const DataLayout &DL, const MemIntrinsic *I) {
+  const Value *StoreDest = I->getOperand(0);
+  // Assume 8 bit bytes.
+  auto *ConstOffset = dyn_cast<ConstantInt>(I->getOperand(2));
+  if (!ConstOffset)
+    // We can't use a non-const offset, bail.
+    return None;
+  uint64_t SizeInBits = 8 * ConstOffset->getZExtValue();
+  return getAssignmentInfoImpl(DL, StoreDest, SizeInBits);
+}
+
+static Optional<AssignmentInfo> getAssignmentInfo(const DataLayout &DL, const StoreInst *SI) {
+  const Value *StoreDest = SI->getPointerOperand();
+  uint64_t SizeInBits = DL.getTypeSizeInBits(SI->getValueOperand()->getType());
+  return getAssignmentInfoImpl(DL, StoreDest, SizeInBits);
+}
+
+static Optional<AssignmentInfo> getAssignmentInfo(const DataLayout &DL, const AllocaInst *AI) {
+  uint64_t SizeInBits = DL.getTypeSizeInBits(AI->getAllocatedType());
+  return getAssignmentInfoImpl(DL, AI, SizeInBits);
+}
+
+static CallInst *emitDbgAssign(AssignmentInfo Info, Value &Val, Value &Dest,
+                               Instruction &StoreLikeInst,
+                               DILocalVariable &SrcVar, DIBuilder &DIB) {
+  auto *ID = StoreLikeInst.getMetadata(LLVMContext::MD_DIAssignID);
+  assert(ID && "Store instruction must have DIAssignID metadata");
+
+  DIExpression *DIE = DIExpression::get(StoreLikeInst.getContext(), None);
+  if (!Info.StoreToWholeAlloca) {
+    auto R = DIExpression::createFragmentExpression(DIE, Info.OffsetInBits,
+                                                    Info.SizeInBits);
+    if (!R)
+      assert(false && "unexpected createFragmentExpression failure");
+    DIE = R.getValue();
+  }
+  return DIB.insertDbgAssign(&StoreLikeInst, &Val, SrcVar, DIE, &Dest);
+}
+
+void at::trackAssignments(
+    Function::iterator Start, Function::iterator End,
+    const DenseMap<const AllocaInst *, DILocalVariable *> &Vars,
+    const DataLayout &DL,
+    DenseSet<const AllocaInst *> *FailedToTrack, bool DebugPrints) {
+#define COFFEE_DEBUG(x)                                                        \
+  do {                                                                         \
+    if (DebugPrints) {                                                         \
+      x;                                                                       \
+    }                                                                          \
+  } while (false)
+
+  // Early-exit if there are no interesting variables.
+  if (Vars.empty())
+    return;
+
+  auto &Ctx = Start->getContext();
+  auto &Module = *Start->getModule();
+
+  // Keep track of the intrinsics we insert in case we need to remove any later
+  // due to being unable to track a particular store.
+  // {Base : [(Intrinsic, InstWithNewID)]}
+  DenseMap<const AllocaInst *,
+           SmallVector<std::pair<DbgAssignIntrinsic *, Instruction *>, 4>>
+      Inserted;
+
+  // Undef type doesn't matter, so long as it isn't void. Let's just use i1.
+  auto *Undef = UndefValue::get(Type::getInt1Ty(Ctx));
+  DIBuilder DIB(Module, /*AllowUnresolved*/ false);
+
+  // Scan the inlined instructions: track assignments to caller local variables.
+  COFFEE_DEBUG(errs() << "# Scanning instructions\n");
+  for (auto BBI = Start; BBI != End; ++BBI) {
+    for (Instruction &I : *BBI) {
+      // Skip debug intrinsics as we're just looking for stores.
+      if (isa<DbgInfoIntrinsic>(&I))
+        continue;
+
+      Optional<AssignmentInfo> Info = None;
+      Value *ValueComponent = nullptr;
+      Value *DestComponent = nullptr;
+      if (auto *AI = dyn_cast<AllocaInst>(&I)) {
+        // We want to track the variable's stack home from its alloca's
+        // position onwards so we treat it as an assignment (where the stored
+        // value is Undef).
+        Info = getAssignmentInfo(DL, AI);
+        ValueComponent = Undef;
+        DestComponent = AI;
+      } else if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        Info = getAssignmentInfo(DL, SI);
+        ValueComponent = SI->getValueOperand();
+        DestComponent = SI->getPointerOperand();
+      } else if (auto *MI = dyn_cast<MemCpyInst>(&I)) {
+        Info = getAssignmentInfo(DL, MI);
+        // May not be able to represent this value easily.
+        ValueComponent = Undef;
+        DestComponent = MI->getOperand(0);
+      } else if (auto *MI = dyn_cast<MemSetInst>(&I)) {
+        Info = getAssignmentInfo(DL, MI);
+        // If we're zero-initing then we can easly just say 0 for entire
+        // struct. Otherwise state that we can't describe the value with undef.
+        auto *ConstValue = dyn_cast<ConstantInt>(MI->getOperand(1));
+        if (ConstValue && ConstValue->isZero())
+          ValueComponent = ConstValue;
+        else
+          ValueComponent = Undef;
+        DestComponent = MI->getOperand(0);
+      } else {
+        // Not a store-like instruction.
+        continue;
+      }
+
+      assert(ValueComponent && DestComponent);
+      COFFEE_DEBUG(errs() << "SCAN: Is store-like: " << I << "\n");
+
+      // Check if getAssignmentInfo failed to understand this store.
+      if (!Info.hasValue()) {
+        if (FailedToTrack) {
+          if (const AllocaInst *Base =
+                  dyn_cast<AllocaInst>(DestComponent->stripOffsets())) {
+            if (Vars.count(Base))
+              FailedToTrack->insert(Base);
+          }
+        }
+        // FIXME: Alternative strategy (for inlining): link but make dest undef.
+        COFFEE_DEBUG(
+            errs()
+            << " | SKIP: Untrackable store (e.g. through non-const gep)\n");
+        continue;
+      }
+      COFFEE_DEBUG(errs() << " | BASE: " << *Info->Base << "\n");
+
+      //  Check if the store destination is a local variable with debug info.
+      auto LocalIt = Vars.find(Info->Base);
+      if (LocalIt == Vars.end()) {
+        COFFEE_DEBUG(
+            errs()
+            << " | SKIP: Base value not associated with local variable\n");
+        continue;
+      }
+
+      DILocalVariable *LocalVar = LocalIt->second;
+      DIAssignID *ID =
+          cast_or_null<DIAssignID>(I.getMetadata(LLVMContext::MD_DIAssignID));
+      Instruction *CreatedNewIDFor = nullptr;
+      if (!ID) {
+        ID = DIAssignID::getDistinct(Ctx);
+        I.setMetadata(LLVMContext::MD_DIAssignID, ID);
+        CreatedNewIDFor = &I;
+      }
+
+      auto *Assign = emitDbgAssign(*Info, *ValueComponent, *DestComponent, I,
+                                   *LocalVar, DIB);
+      Inserted[Info->Base].push_back(
+          std::make_pair(cast<DbgAssignIntrinsic>(Assign), CreatedNewIDFor));
+      (void)Assign;
+      COFFEE_DEBUG(errs() << " > INSERT: " << *Assign << "\n");
+    }
+  }
+
+  // Strip intrinsics that we added for variables using an alloca that has a
+  // store that we failed to understand.
+  if (FailedToTrack) {
+    for (const AllocaInst *Alloca : *FailedToTrack) {
+      for (auto Pair : Inserted[Alloca]) {
+        auto *DAI = Pair.first;
+        auto *Inst = Pair.second;
+        DAI->eraseFromParent();
+        if (Inst)
+          Inst->setMetadata(LLVMContext::MD_DIAssignID, nullptr);
+      }
+    }
   }
 }
