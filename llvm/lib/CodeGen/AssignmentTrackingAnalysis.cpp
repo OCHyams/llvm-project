@@ -725,6 +725,15 @@ class MemLocFragmentFill {
       LLVM_DEBUG(dbgs() << "- Insert DEF into now-empty space\n");
       FragMap.insert(StartBit, EndBit, Base);
     }
+
+    // After coalescing has happened we can get a new frag size. This may
+    // eclipse other locs we've just inserted; redundant locs will be cleaned
+    // up later.
+    auto NewFrag = FragMap.find(StartBit);
+    LLVM_DEBUG(dbgs() << "- Insert loc for bits " << NewFrag.start() << " to "
+                      << NewFrag.stop() << "\n");
+    insertMemLoc(BB, Before, Var, NewFrag.start(), NewFrag.stop(), Base,
+                 VarLoc.DL);
   }
 
   bool skipVariable(const DILocalVariable *V) { return !V->getSizeInBits(); }
@@ -860,8 +869,10 @@ public:
 
         for (auto FragMemLoc : FragMemLocs) {
           DIExpression *Expr = DIExpression::get(Ctx, std::nullopt);
-          Expr = *DIExpression::createFragmentExpression(
-              Expr, FragMemLoc.OffsetInBits, FragMemLoc.SizeInBits);
+          if (FragMemLoc.SizeInBits !=
+              *Aggregates[FragMemLoc.Var].first->getSizeInBits())
+            Expr = *DIExpression::createFragmentExpression(
+                Expr, FragMemLoc.OffsetInBits, FragMemLoc.SizeInBits);
           Expr = DIExpression::prepend(Expr, DIExpression::DerefAfter,
                                        FragMemLoc.OffsetInBits / 8);
           DebugVariable Var(Aggregates[FragMemLoc.Var].first, Expr,
