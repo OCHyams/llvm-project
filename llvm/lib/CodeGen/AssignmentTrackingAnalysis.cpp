@@ -972,7 +972,7 @@ public:
   using UntaggedStoreAssignmentMap =
       DenseMap<const Instruction *,
                SmallVector<std::pair<VariableID, at::AssignmentInfo>>>;
-
+  OverlapMap &&takeOverlapMap() { return std::move(VarContains); }
 private:
   /// The highest numbered VariableID for partially promoted variables, the
   /// values for which start at 1.
@@ -2125,7 +2125,8 @@ bool AssignmentTrackingLowering::emitPromotedVarLocs(
 /// FunctionVarLocsBuilder instead of with intrinsics.
 static bool
 removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
-                                        FunctionVarLocsBuilder &FnVarLocs) {
+                                        FunctionVarLocsBuilder &FnVarLocs,
+                                        const AssignmentTrackingLowering::OverlapMap &VarContains) {
   bool Changed = false;
   SmallDenseSet<DebugVariable> VariableSet;
 
@@ -2159,6 +2160,13 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
       if (FirstDefOfFragment) {
         // New def found: keep it.
         NewDefsReversed.push_back(*RIt);
+
+        // Add fragments that this one eclipses.
+        auto R = VarContains.find(RIt->VariableID);
+        if (R != VarContains.end()) {
+          for (auto FragID: R->second)
+            VariableSet.insert(FnVarLocs.getVariable(FragID));
+        }
       } else {
         // Redundant def found: throw it away. Since the wedge of defs is being
         // rebuilt, doing nothing is the same as deleting an entry.
@@ -2321,9 +2329,10 @@ removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
 }
 
 static bool removeRedundantDbgLocs(const BasicBlock *BB,
-                                   FunctionVarLocsBuilder &FnVarLocs) {
+                                   FunctionVarLocsBuilder &FnVarLocs,
+                                   const AssignmentTrackingLowering::OverlapMap &VarContains) {
   bool MadeChanges = false;
-  MadeChanges |= removeRedundantDbgLocsUsingBackwardScan(BB, FnVarLocs);
+  MadeChanges |= removeRedundantDbgLocsUsingBackwardScan(BB, FnVarLocs, VarContains);
   if (BB->isEntryBlock())
     MadeChanges |= removeUndefDbgLocsFromEntryBlock(BB, FnVarLocs);
   MadeChanges |= removeRedundantDbgLocsUsingForwardScan(BB, FnVarLocs);
@@ -2360,11 +2369,16 @@ static void analyzeFunction(Function &Fn, const DataLayout &Layout,
 
   bool Changed = false;
 
+  /// Map of framents to fragments contained wholly within. Calculated by
+  /// AssignmentTrackingLowering then moved here after running the pass.
+  AssignmentTrackingLowering::OverlapMap VarContainsMap;
+
   // Use a scope block to clean up AssignmentTrackingLowering before running
   // MemLocFragmentFill to reduce peak memory consumption.
   {
     AssignmentTrackingLowering Pass(Fn, Layout, &VarsWithStackSlot);
     Changed = Pass.run(FnVarLocs);
+    VarContainsMap = Pass.takeOverlapMap();
   }
 
   if (Changed) {
@@ -2376,7 +2390,7 @@ static void analyzeFunction(Function &Fn, const DataLayout &Layout,
     // important job. That is to work around some SelectionDAG quirks. See
     // removeRedundantDbgLocsUsingForwardScan comments for more info on that.
     for (auto &BB : Fn)
-      removeRedundantDbgLocs(&BB, *FnVarLocs);
+      removeRedundantDbgLocs(&BB, *FnVarLocs, VarContainsMap);
   }
 }
 
