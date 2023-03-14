@@ -1711,77 +1711,45 @@ void AssignmentTrackingLowering::joinBlockInfo(BlockInfo &Join,
 
 bool AssignmentTrackingLowering::join(
     const BasicBlock &BB, const SmallPtrSet<BasicBlock *, 16> &Visited) {
-
-  SmallVector<const BasicBlock *> VisitedPreds;
-  // Ignore backedges if we have not visited the predecessor yet. As the
-  // predecessor hasn't yet had locations propagated into it, most locations
-  // will not yet be valid, so treat them as all being uninitialized and
-  // potentially valid. If a location guessed to be correct here is
-  // invalidated later, we will remove it when we revisit this block. This
-  // is essentially the same as initialising all LocKinds and Assignments to
-  // an implicit ⊥ value which is the identity value for the join operation.
-  for (auto I = pred_begin(&BB), E = pred_end(&BB); I != E; I++) {
-    const BasicBlock *Pred = *I;
-    if (Visited.count(Pred))
-      VisitedPreds.push_back(Pred);
-  }
-
-  // No preds visted yet.
-  if (VisitedPreds.empty()) {
-    auto DidInsert = LiveIn.try_emplace(&BB, BlockInfo());
-    if (DidInsert.second)
-      DidInsert.first->second.init(TrackedVariablesVectorSize);
-    return /*Changed*/ DidInsert.second;
-  }
-
-  // Exactly one visited pred. Copy the LiveOut from that pred into BB LiveIn.
-  if (VisitedPreds.size() == 1) {
-    const BlockInfo &PredLiveOut = LiveOut.find(VisitedPreds[0])->second;
-    auto CurrentLiveInEntry = LiveIn.find(&BB);
-    if (CurrentLiveInEntry == LiveIn.end()) {
-      LiveIn[&BB] = PredLiveOut;
-      return /*Changed*/ true;
-    }
-
-    if (PredLiveOut != CurrentLiveInEntry->second) {
-      CurrentLiveInEntry->second = PredLiveOut;
-      return /*Changed*/ true;
-    }
-    return /*Changed*/ false;
-  }
-
-  // More than one pred. Join LiveOuts of blocks 1 and 2.
-  assert(VisitedPreds.size() > 1);
-  const BlockInfo &PredLiveOut0 = LiveOut.find(VisitedPreds[0])->second;
-  const BlockInfo &PredLiveOut1 = LiveOut.find(VisitedPreds[1])->second;
   BlockInfo BBLiveIn;
-  joinBlockInfo(BBLiveIn, PredLiveOut0, PredLiveOut1);
+  bool FirstJoin = true;
+  // LiveIn locs for BB is the join of the already-processed preds' LiveOut
+  // locs.
+  for (auto I = pred_begin(&BB), E = pred_end(&BB); I != E; I++) {
+    // Ignore backedges if we have not visited the predecessor yet. As the
+    // predecessor hasn't yet had locations propagated into it, most locations
+    // will not yet be valid, so treat them as all being uninitialized and
+    // potentially valid. If a location guessed to be correct here is
+    // invalidated later, we will remove it when we revisit this block. This
+    // is essentially the same as initialising all LocKinds and Assignments to
+    // an implicit ⊥ value which is the identity value for the join operation.
+    const BasicBlock *Pred = *I;
+    if (!Visited.count(Pred))
+      continue;
 
-  ArrayRef Tail = [&]() {
-    auto *It = VisitedPreds.begin();
-    std::advance(It, 2);
-    return ArrayRef(It, VisitedPreds.end());
-  }();
+    auto PredLiveOut = LiveOut.find(Pred);
+    // Pred must have been processed already. See comment at start of this loop.
+    assert(PredLiveOut != LiveOut.end());
 
-  // Join the LiveOuts of subsequent blocks.
-  for (const BasicBlock *Pred : Tail) {
-    const auto &PredLiveOut = LiveOut.find(Pred);
-    assert(PredLiveOut != LiveOut.end() &&
-           "block should have been processed already");
-    joinBlockInfo(BBLiveIn, std::move(BBLiveIn), PredLiveOut->second);
+    // Perform the join of BBLiveIn (current live-in info) and PrevLiveOut.
+    if (FirstJoin)
+      BBLiveIn = PredLiveOut->second;
+    else
+      joinBlockInfo(BBLiveIn, std::move(BBLiveIn), PredLiveOut->second);
+    FirstJoin = false;
   }
 
-  // Save the joined result for BB.
   auto CurrentLiveInEntry = LiveIn.find(&BB);
   // Check if there isn't an entry, or there is but the LiveIn set has changed
   // (expensive check).
   if (CurrentLiveInEntry == LiveIn.end() ||
       BBLiveIn != CurrentLiveInEntry->second) {
     LiveIn[&BB] = std::move(BBLiveIn);
-    return /*Changed*/ true;
+    // A change has occured.
+    return true;
   }
-
-  return /*Changed*/ false;
+  // No change.
+  return false;
 }
 
 /// Return true if A fully contains B.
