@@ -1775,11 +1775,8 @@ bool AssignmentTrackingLowering::join(
   auto CurrentLiveInEntry = LiveIn.find(&BB);
   // Check if there isn't an entry, or there is but the LiveIn set has changed
   // (expensive check).
-  if (CurrentLiveInEntry == LiveIn.end()) {
-    LiveIn[&BB].init(TrackedVariablesVectorSize);
-    return true;
-  }
-  if (BBLiveIn != CurrentLiveInEntry->second) {
+  if (CurrentLiveInEntry == LiveIn.end() ||
+      BBLiveIn != CurrentLiveInEntry->second) {
     LiveIn[&BB] = std::move(BBLiveIn);
     return /*Changed*/ true;
   }
