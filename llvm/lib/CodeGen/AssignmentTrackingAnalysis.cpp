@@ -1,4 +1,5 @@
 #include "llvm/CodeGen/AssignmentTrackingAnalysis.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
@@ -79,6 +80,8 @@ class FunctionVarLocsBuilder {
   SmallVector<VarLocInfo> SingleLocVars;
 
 public:
+  unsigned getNumVariables() const { return Variables.size(); }
+
   /// Find or insert \p V and return the ID.
   VariableID insertVariable(DebugVariable V) {
     return static_cast<VariableID>(Variables.insert(V));
@@ -963,14 +966,17 @@ public:
     }
   };
 
-  using AssignmentMap = DenseMap<VariableID, Assignment>;
-  using LocMap = DenseMap<VariableID, LocKind>;
+  using AssignmentMap = SmallVector<Assignment>;
+  using LocMap = SmallVector<LocKind>;
   using OverlapMap = DenseMap<VariableID, SmallVector<VariableID, 4>>;
   using UntaggedStoreAssignmentMap =
       DenseMap<const Instruction *,
                SmallVector<std::pair<VariableID, at::AssignmentInfo>>>;
 
 private:
+  /// The highest numbered VariableID for partially promoted variables, the
+  /// values for which start at 1.
+  unsigned TrackedVariablesVectorSize = 0;
   /// Map a variable to the set of variables that it fully contains.
   OverlapMap VarContains;
   /// Map untagged stores to the variable fragments they assign to. Used by
@@ -986,19 +992,15 @@ private:
   void emitDbgValue(LocKind Kind, const DbgVariableIntrinsic *Source,
                     Instruction *After);
 
-  static bool mapsAreEqual(const AssignmentMap &A, const AssignmentMap &B) {
-    if (A.size() != B.size())
-      return false;
-    for (const auto &Pair : A) {
-      VariableID Var = Pair.first;
-      const Assignment &AV = Pair.second;
-      auto R = B.find(Var);
-      // Check if this entry exists in B, otherwise ret false.
-      if (R == B.end())
-        return false;
+  static bool mapsAreEqual(const BitVector &Mask, const AssignmentMap &A,
+                           const AssignmentMap &B) {
+    assert(A.size() == B.size());
+    int VarID = Mask.find_first();
+    while (VarID != -1) {
       // Check that the assignment value is the same.
-      if (!AV.isSameSourceAssignment(R->second))
+      if (!A[VarID].isSameSourceAssignment(B[VarID]))
         return false;
+      VarID = Mask.find_next(VarID);
     }
     return true;
   }
@@ -1007,9 +1009,12 @@ private:
   /// the live-in and live-out values for blocks, as well as the "current"
   /// value as we process each instruction in a block.
   struct BlockInfo {
-    /// Dominating assignment to memory for each variable.
+    /// The set of variables (VariableID) being tracked in this block.
+    BitVector VariableIDsInBlock;
+    /// Dominating assignment to memory for each variable, indexed by
+    /// VariableID.
     AssignmentMap StackHomeValue;
-    /// Dominating assignemnt to each variable.
+    /// Dominating assignemnt to each variable, indexed by VariableID.
     AssignmentMap DebugValue;
     /// Location kind for each variable. LiveLoc indicates whether the
     /// dominating assignment in StackHomeValue (LocKind::Mem), DebugValue
@@ -1020,24 +1025,44 @@ private:
     /// merge of multiple assignments (both are Status::NoneOrPhi). In other
     /// words, the memory location may well be valid while both DebugValue and
     /// StackHomeValue contain Assignments that have a Status of NoneOrPhi.
+    /// Indexed by VariableID.
     LocMap LiveLoc;
+
+    bool isVariableTracked(VariableID Var) const {
+      return VariableIDsInBlock[static_cast<unsigned>(Var)];
+    }
+
+    const Assignment &getDebugValue(VariableID Var) const {
+      assert(isVariableTracked(Var) && "Var not tracked in block");
+      return DebugValue[static_cast<unsigned>(Var)];
+    }
 
     /// Compare every element in each map to determine structural equality
     /// (slow).
     bool operator==(const BlockInfo &Other) const {
-      return LiveLoc == Other.LiveLoc &&
-             mapsAreEqual(StackHomeValue, Other.StackHomeValue) &&
-             mapsAreEqual(DebugValue, Other.DebugValue);
+      return VariableIDsInBlock == Other.VariableIDsInBlock &&
+             LiveLoc == Other.LiveLoc &&
+             mapsAreEqual(VariableIDsInBlock, StackHomeValue,
+                          Other.StackHomeValue) &&
+             mapsAreEqual(VariableIDsInBlock, DebugValue, Other.DebugValue);
     }
     bool operator!=(const BlockInfo &Other) const { return !(*this == Other); }
     bool isValid() {
       return LiveLoc.size() == DebugValue.size() &&
              LiveLoc.size() == StackHomeValue.size();
     }
-    void clear() {
+
+    /// Clear everything and initialise with ⊤-values for all variables.
+    void init(int NumVars) {
       StackHomeValue.clear();
       DebugValue.clear();
       LiveLoc.clear();
+      VariableIDsInBlock = BitVector(NumVars);
+      StackHomeValue.insert(StackHomeValue.begin(), NumVars,
+                            Assignment::makeNoneOrPhi());
+      DebugValue.insert(DebugValue.begin(), NumVars,
+                        Assignment::makeNoneOrPhi());
+      LiveLoc.insert(LiveLoc.begin(), NumVars, LocKind::None);
     }
   };
 
@@ -1083,12 +1108,8 @@ private:
   /// (⊤) in this case (unknown location / assignment).
   ///@{
   static LocKind joinKind(LocKind A, LocKind B);
-  static LocMap joinLocMap(const LocMap &A, const LocMap &B);
   static Assignment joinAssignment(const Assignment &A, const Assignment &B);
-  static AssignmentMap joinAssignmentMap(const AssignmentMap &A,
-                                         const AssignmentMap &B);
-  static void joinBlockInfo(BlockInfo &Result, const BlockInfo &A,
-                            const BlockInfo &B);
+  void joinBlockInfo(BlockInfo &Result, const BlockInfo &A, const BlockInfo &B);
   ///@}
 
   /// Process the instructions in \p BB updating \p LiveSet along the way. \p
@@ -1121,8 +1142,8 @@ private:
   /// have been called for \p Var first.
   LocKind getLocKind(BlockInfo *LiveSet, VariableID Var);
   /// Return true if \p Var has an assignment in \p M matching \p AV.
-  bool hasVarWithAssignment(VariableID Var, const Assignment &AV,
-                            const AssignmentMap &M);
+  bool hasVarWithAssignment(VariableID Var, const BitVector &Mask,
+                            const Assignment &AV, const AssignmentMap &M);
 
   /// Emit info for variables that are fully promoted.
   bool emitPromotedVarLocs(FunctionVarLocsBuilder *FnVarLocs);
@@ -1140,8 +1161,10 @@ public:
 void AssignmentTrackingLowering::setLocKind(BlockInfo *LiveSet, VariableID Var,
                                             LocKind K) {
   auto SetKind = [this](BlockInfo *LiveSet, VariableID Var, LocKind K) {
+    unsigned Idx = static_cast<unsigned>(Var);
+    LiveSet->VariableIDsInBlock.set(Idx);
     VarsTouchedThisFrame.insert(Var);
-    LiveSet->LiveLoc[Var] = K;
+    LiveSet->LiveLoc[Idx] = K;
   };
   SetKind(LiveSet, Var, K);
 
@@ -1152,20 +1175,15 @@ void AssignmentTrackingLowering::setLocKind(BlockInfo *LiveSet, VariableID Var,
 
 AssignmentTrackingLowering::LocKind
 AssignmentTrackingLowering::getLocKind(BlockInfo *LiveSet, VariableID Var) {
-  auto Pair = LiveSet->LiveLoc.find(Var);
-  assert(Pair != LiveSet->LiveLoc.end());
-  return Pair->second;
+  return LiveSet->LiveLoc[static_cast<unsigned>(Var)];
 }
 
 void AssignmentTrackingLowering::addMemDef(BlockInfo *LiveSet, VariableID Var,
                                            const Assignment &AV) {
   auto AddDef = [](BlockInfo *LiveSet, VariableID Var, Assignment AV) {
-    LiveSet->StackHomeValue[Var] = AV;
-    // Add default (Var -> ⊤) to DebugValue if Var isn't in DebugValue yet.
-    LiveSet->DebugValue.insert({Var, Assignment::makeNoneOrPhi()});
-    // Add default (Var -> ⊤) to LiveLocs if Var isn't in LiveLocs yet. Callers
-    // of addMemDef will call setLocKind to override.
-    LiveSet->LiveLoc.insert({Var, LocKind::None});
+    unsigned Idx = static_cast<unsigned>(Var);
+    LiveSet->VariableIDsInBlock.set(Idx);
+    LiveSet->StackHomeValue[Idx] = AV;
   };
   AddDef(LiveSet, Var, AV);
 
@@ -1181,12 +1199,9 @@ void AssignmentTrackingLowering::addMemDef(BlockInfo *LiveSet, VariableID Var,
 void AssignmentTrackingLowering::addDbgDef(BlockInfo *LiveSet, VariableID Var,
                                            const Assignment &AV) {
   auto AddDef = [](BlockInfo *LiveSet, VariableID Var, Assignment AV) {
-    LiveSet->DebugValue[Var] = AV;
-    // Add default (Var -> ⊤) to StackHome if Var isn't in StackHome yet.
-    LiveSet->StackHomeValue.insert({Var, Assignment::makeNoneOrPhi()});
-    // Add default (Var -> ⊤) to LiveLocs if Var isn't in LiveLocs yet. Callers
-    // of addDbgDef will call setLocKind to override.
-    LiveSet->LiveLoc.insert({Var, LocKind::None});
+    unsigned Idx = static_cast<unsigned>(Var);
+    LiveSet->VariableIDsInBlock.set(Idx);
+    LiveSet->DebugValue[Idx] = AV;
   };
   AddDef(LiveSet, Var, AV);
 
@@ -1209,14 +1224,15 @@ static DIAssignID *getIDFromMarker(const DbgAssignIntrinsic &DAI) {
 
 /// Return true if \p Var has an assignment in \p M matching \p AV.
 bool AssignmentTrackingLowering::hasVarWithAssignment(VariableID Var,
+                                                      const BitVector &Mask,
                                                       const Assignment &AV,
                                                       const AssignmentMap &M) {
-  auto AssignmentIsMapped = [](VariableID Var, const Assignment &AV,
-                               const AssignmentMap &M) {
-    auto R = M.find(Var);
-    if (R == M.end())
+  auto AssignmentIsMapped = [&](VariableID Var, const Assignment &AV,
+                                const AssignmentMap &M) {
+    unsigned Idx = static_cast<unsigned>(Var);
+    if (!Mask[Idx])
       return false;
-    return AV.isSameSourceAssignment(R->second);
+    return AV.isSameSourceAssignment(M[Idx]);
   };
 
   if (!AssignmentIsMapped(Var, AV, M))
@@ -1413,13 +1429,15 @@ void AssignmentTrackingLowering::processTaggedInstruction(
 
     // The last assignment to the stack is now AV. Check if the last debug
     // assignment has a matching Assignment.
-    if (hasVarWithAssignment(Var, AV, LiveSet->DebugValue)) {
+    if (hasVarWithAssignment(Var, LiveSet->VariableIDsInBlock, AV,
+                             LiveSet->DebugValue)) {
       // The StackHomeValue and DebugValue for this variable match so we can
       // emit a stack home location here.
       LLVM_DEBUG(dbgs() << "Mem, Stack matches Debug program\n";);
       LLVM_DEBUG(dbgs() << "   Stack val: "; AV.dump(dbgs()); dbgs() << "\n");
       LLVM_DEBUG(dbgs() << "   Debug val: ";
-                 LiveSet->DebugValue[Var].dump(dbgs()); dbgs() << "\n");
+                 LiveSet->DebugValue[static_cast<unsigned>(Var)].dump(dbgs());
+                 dbgs() << "\n");
       setLocKind(LiveSet, Var, LocKind::Mem);
       emitDbgValue(LocKind::Mem, DAI, &I);
       continue;
@@ -1442,7 +1460,7 @@ void AssignmentTrackingLowering::processTaggedInstruction(
       // There's been an assignment to memory that we were using as a
       // location for this variable, and the Assignment doesn't match what
       // we'd expect to see in memory.
-      if (LiveSet->DebugValue[Var].Status == Assignment::NoneOrPhi) {
+      if (LiveSet->getDebugValue(Var).Status == Assignment::NoneOrPhi) {
         // We need to terminate any previously open location now.
         LLVM_DEBUG(dbgs() << "None, No Debug value available\n";);
         setLocKind(LiveSet, Var, LocKind::None);
@@ -1451,9 +1469,9 @@ void AssignmentTrackingLowering::processTaggedInstruction(
         // The previous DebugValue Value can be used here.
         LLVM_DEBUG(dbgs() << "Val, Debug value is Known\n";);
         setLocKind(LiveSet, Var, LocKind::Val);
-        Assignment PrevAV = LiveSet->DebugValue.lookup(Var);
-        if (PrevAV.Source) {
-          emitDbgValue(LocKind::Val, PrevAV.Source, &I);
+        if (LiveSet->isVariableTracked(Var) &&
+            LiveSet->getDebugValue(Var).Source) {
+          emitDbgValue(LocKind::Val, LiveSet->getDebugValue(Var).Source, &I);
         } else {
           // PrevAV.Source is nullptr so we must emit undef here.
           emitDbgValue(LocKind::None, DAI, &I);
@@ -1487,7 +1505,8 @@ void AssignmentTrackingLowering::processDbgAssign(DbgAssignIntrinsic &DAI,
 
   // Check if the DebugValue and StackHomeValue both hold the same
   // Assignment.
-  if (hasVarWithAssignment(Var, AV, LiveSet->StackHomeValue)) {
+  if (hasVarWithAssignment(Var, LiveSet->VariableIDsInBlock, AV,
+                           LiveSet->StackHomeValue)) {
     // They match. We can use the stack home because the debug intrinsics state
     // that an assignment happened here, and we know that specific assignment
     // was the last one to take place in memory for this variable.
@@ -1604,58 +1623,6 @@ AssignmentTrackingLowering::joinKind(LocKind A, LocKind B) {
   return A == B ? A : LocKind::None;
 }
 
-AssignmentTrackingLowering::LocMap
-AssignmentTrackingLowering::joinLocMap(const LocMap &A, const LocMap &B) {
-  // Join A and B.
-  //
-  // U = join(a, b) for a in A, b in B where Var(a) == Var(b)
-  // D = join(x, ⊤) for x where Var(x) is in A xor B
-  // Join = U ∪ D
-  //
-  // This is achieved by performing a join on elements from A and B with
-  // variables common to both A and B (join elements indexed by var intersect),
-  // then adding LocKind::None elements for vars in A xor B. The latter part is
-  // equivalent to performing join on elements with variables in A xor B with
-  // LocKind::None (⊤) since join(x, ⊤) = ⊤.
-  LocMap Join(std::max(A.size(), B.size()));
-  SmallVector<VariableID, 16> SymmetricDifference;
-  // Insert the join of the elements with common vars into Join. Add the
-  // remaining elements to into SymmetricDifference.
-  for (const auto &[Var, Loc] : A) {
-    // If this Var doesn't exist in B then add it to the symmetric difference
-    // set.
-    auto R = B.find(Var);
-    if (R == B.end()) {
-      SymmetricDifference.push_back(Var);
-      continue;
-    }
-    // There is an entry for Var in both, join it.
-    Join[Var] = joinKind(Loc, R->second);
-  }
-  unsigned IntersectSize = Join.size();
-  (void)IntersectSize;
-
-  // Check if A and B contain the same variables.
-  if (SymmetricDifference.empty() && A.size() == B.size())
-    return Join;
-
-  // Add the elements in B with variables that are not in A into
-  // SymmetricDifference.
-  for (const auto &Pair : B) {
-    VariableID Var = Pair.first;
-    if (A.count(Var) == 0)
-      SymmetricDifference.push_back(Var);
-  }
-
-  // Add SymmetricDifference elements to Join and return the result.
-  for (const auto &Var : SymmetricDifference)
-    Join.insert({Var, LocKind::None});
-
-  assert(Join.size() == (IntersectSize + SymmetricDifference.size()));
-  assert(Join.size() >= A.size() && Join.size() >= B.size());
-  return Join;
-}
-
 AssignmentTrackingLowering::Assignment
 AssignmentTrackingLowering::joinAssignment(const Assignment &A,
                                            const Assignment &B) {
@@ -1698,66 +1665,47 @@ AssignmentTrackingLowering::joinAssignment(const Assignment &A,
   return Assignment::make(A.ID, Source);
 }
 
-AssignmentTrackingLowering::AssignmentMap
-AssignmentTrackingLowering::joinAssignmentMap(const AssignmentMap &A,
-                                              const AssignmentMap &B) {
-  // Join A and B.
-  //
-  // U = join(a, b) for a in A, b in B where Var(a) == Var(b)
-  // D = join(x, ⊤) for x where Var(x) is in A xor B
-  // Join = U ∪ D
-  //
-  // This is achieved by performing a join on elements from A and B with
-  // variables common to both A and B (join elements indexed by var intersect),
-  // then adding LocKind::None elements for vars in A xor B. The latter part is
-  // equivalent to performing join on elements with variables in A xor B with
-  // Status::NoneOrPhi (⊤) since join(x, ⊤) = ⊤.
-  AssignmentMap Join(std::max(A.size(), B.size()));
-  SmallVector<VariableID, 16> SymmetricDifference;
-  // Insert the join of the elements with common vars into Join. Add the
-  // remaining elements to into SymmetricDifference.
-  for (const auto &[Var, AV] : A) {
-    // If this Var doesn't exist in B then add it to the symmetric difference
-    // set.
-    auto R = B.find(Var);
-    if (R == B.end()) {
-      SymmetricDifference.push_back(Var);
-      continue;
-    }
-    // There is an entry for Var in both, join it.
-    Join[Var] = joinAssignment(AV, R->second);
-  }
-  unsigned IntersectSize = Join.size();
-  (void)IntersectSize;
-
-  // Check if A and B contain the same variables.
-  if (SymmetricDifference.empty() && A.size() == B.size())
-    return Join;
-
-  // Add the elements in B with variables that are not in A into
-  // SymmetricDifference.
-  for (const auto &Pair : B) {
-    VariableID Var = Pair.first;
-    if (A.count(Var) == 0)
-      SymmetricDifference.push_back(Var);
-  }
-
-  // Add SymmetricDifference elements to Join and return the result.
-  for (auto Var : SymmetricDifference)
-    Join.insert({Var, Assignment::makeNoneOrPhi()});
-
-  assert(Join.size() == (IntersectSize + SymmetricDifference.size()));
-  assert(Join.size() >= A.size() && Join.size() >= B.size());
-  return Join;
+template <typename ElmtType, typename FnInputType>
+void joinElmt(int Index, SmallVector<ElmtType> &Target,
+              const SmallVector<ElmtType> &A, const SmallVector<ElmtType> &B,
+              ElmtType (*Fn)(FnInputType, FnInputType)) {
+  Target[Index] = Fn(A[Index], B[Index]);
 }
 
 void AssignmentTrackingLowering::joinBlockInfo(BlockInfo &Join,
                                                const BlockInfo &A,
                                                const BlockInfo &B) {
-  Join.clear();
-  Join.LiveLoc = joinLocMap(A.LiveLoc, B.LiveLoc);
-  Join.StackHomeValue = joinAssignmentMap(A.StackHomeValue, B.StackHomeValue);
-  Join.DebugValue = joinAssignmentMap(A.DebugValue, B.DebugValue);
+  // Join A and B.
+  //
+  // Intersect = join(a, b) for a in A, b in B where Var(a) == Var(b)
+  // Difference = join(x, ⊤) for x where Var(x) is in A xor B
+  // Join = Intersect ∪ Difference
+  //
+  // This is achieved by performing a join on elements from A and B with
+  // variables common to both A and B (join elements indexed by var intersect),
+  // then adding ⊤-value elements for vars in A xor B. The latter part is
+  // equivalent to performing join on elements with variables in A xor B with
+  // the ⊤-value for the map element since join(x, ⊤) = ⊤. BlockInfo::init
+  // initializes all variable entries to the ⊤ value so we don't need to
+  // explicitly perform that step as Join.VariableIDsInBlock is set to
+  // the union of the variables in A and B at the end of this function.
+  Join.init(TrackedVariablesVectorSize);
+
+  BitVector Intersect = A.VariableIDsInBlock;
+  Intersect &= B.VariableIDsInBlock;
+
+  int VarID = Intersect.find_first();
+  while (VarID != -1) {
+    joinElmt(VarID, Join.LiveLoc, A.LiveLoc, B.LiveLoc, joinKind);
+    joinElmt(VarID, Join.DebugValue, A.DebugValue, B.DebugValue,
+             joinAssignment);
+    joinElmt(VarID, Join.StackHomeValue, A.StackHomeValue, B.StackHomeValue,
+             joinAssignment);
+    VarID = Intersect.find_next(VarID);
+  }
+
+  Join.VariableIDsInBlock = A.VariableIDsInBlock;
+  Join.VariableIDsInBlock |= B.VariableIDsInBlock;
   assert(Join.isValid());
 }
 
@@ -1780,8 +1728,10 @@ bool AssignmentTrackingLowering::join(
 
   // No preds visted yet.
   if (VisitedPreds.empty()) {
-    bool DidInsert = LiveIn.try_emplace(&BB, BlockInfo()).second;
-    return /*Changed*/ DidInsert;
+    auto DidInsert = LiveIn.try_emplace(&BB, BlockInfo());
+    if (DidInsert.second)
+      DidInsert.first->second.init(TrackedVariablesVectorSize);
+    return /*Changed*/ DidInsert.second;
   }
 
   // Exactly one visited pred. Copy the LiveOut from that pred into BB LiveIn.
@@ -1867,7 +1817,13 @@ getUntaggedStoreAssignmentInfo(const Instruction &I, const DataLayout &Layout) {
 /// y does not contain all overlaps because partial overlaps are excluded.
 ///
 /// While we're iterating over the function, add single location defs for
-/// dbg.declares to \p FnVarLocs
+/// dbg.declares to \p FnVarLocs.
+///
+/// Variables that are interesting to this pass in are added to
+/// FnVarLocs->Variables first. TrackedVariablesVectorSize is set to the ID of
+/// the last interesting variable plus 1, meaning variables with ID 1
+/// (inclusive) to TrackedVariablesVectorSize (exclusive) are interesting. The
+/// subsequent variables are either stack homed or fully promoted.
 ///
 /// Finally, populate UntaggedStoreVars with a mapping of untagged stores to
 /// the stored-to variable fragments.
@@ -1877,7 +1833,8 @@ getUntaggedStoreAssignmentInfo(const Instruction &I, const DataLayout &Layout) {
 static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     Function &Fn, const DenseSet<DebugAggregate> *VarsWithStackSlot,
     FunctionVarLocsBuilder *FnVarLocs,
-    AssignmentTrackingLowering::UntaggedStoreAssignmentMap &UntaggedStoreVars) {
+    AssignmentTrackingLowering::UntaggedStoreAssignmentMap &UntaggedStoreVars,
+    unsigned &TrackedVariablesVectorSize) {
   DenseSet<DebugVariable> Seen;
   // Map of Variable: [Fragments].
   DenseMap<DebugAggregate, SmallVector<DebugVariable, 8>> FragmentMap;
@@ -1888,11 +1845,11 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
   //                     UntaggedStoreVars.
   // We need to add fragments for untagged stores too so that we can correctly
   // clobber overlapped fragment locations later.
+  SmallVector<DbgDeclareInst *> Declares;
   for (auto &BB : Fn) {
     for (auto &I : BB) {
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&I)) {
-        FnVarLocs->addSingleLocVar(DebugVariable(DDI), DDI->getExpression(),
-                                   DDI->getDebugLoc(), DDI->getAddress());
+        Declares.push_back(DDI);
       } else if (auto *DII = dyn_cast<DbgVariableIntrinsic>(&I)) {
         DebugVariable DV = DebugVariable(DII);
         DebugAggregate DA = {DV.getVariable(), DV.getInlinedAt()};
@@ -1971,6 +1928,15 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     }
   }
 
+  // VariableIDs are 1-based so the variable-tracking bitvector needs
+  // NumVariables plus 1 bits.
+  TrackedVariablesVectorSize = FnVarLocs->getNumVariables() + 1;
+
+  // Finally, insert the declares afterwards, so the first IDs are all
+  // partially homed vars.
+  for (auto *DDI : Declares)
+    FnVarLocs->addSingleLocVar(DebugVariable(DDI), DDI->getExpression(),
+                               DDI->getDebugLoc(), DDI->getAddress());
   return Map;
 }
 
@@ -1987,12 +1953,13 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
   // The general structure here is inspired by VarLocBasedImpl.cpp
   // (LiveDebugValues).
 
-  // Build the variable fragment overlap map.
+  // Build the variable fragment overlap map and do some other initialization.
   // Note that this pass doesn't handle partial overlaps correctly (FWIW
   // neither does LiveDebugVariables) because that is difficult to do and
   // appears to be rare occurance.
   VarContains = buildOverlapMapAndRecordDeclares(Fn, VarsWithStackSlot,
-                                                 FnVarLocs, UntaggedStoreVars);
+                                                 FnVarLocs, UntaggedStoreVars,
+                                                 TrackedVariablesVectorSize);
 
   // Prepare for traversal.
   ReversePostOrderTraversal<Function *> RPOT(&Fn);
