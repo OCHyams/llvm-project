@@ -1034,6 +1034,11 @@ private:
       return LiveLoc.size() == DebugValue.size() &&
              LiveLoc.size() == StackHomeValue.size();
     }
+    void clear() {
+      StackHomeValue.clear();
+      DebugValue.clear();
+      LiveLoc.clear();
+    }
   };
 
   Function &Fn;
@@ -1082,7 +1087,8 @@ private:
   static Assignment joinAssignment(const Assignment &A, const Assignment &B);
   static AssignmentMap joinAssignmentMap(const AssignmentMap &A,
                                          const AssignmentMap &B);
-  static BlockInfo joinBlockInfo(const BlockInfo &A, const BlockInfo &B);
+  static void joinBlockInfo(BlockInfo &Result, const BlockInfo &A,
+                            const BlockInfo &B);
   ///@}
 
   /// Process the instructions in \p BB updating \p LiveSet along the way. \p
@@ -1745,15 +1751,14 @@ AssignmentTrackingLowering::joinAssignmentMap(const AssignmentMap &A,
   return Join;
 }
 
-AssignmentTrackingLowering::BlockInfo
-AssignmentTrackingLowering::joinBlockInfo(const BlockInfo &A,
-                                          const BlockInfo &B) {
-  BlockInfo Join;
+void AssignmentTrackingLowering::joinBlockInfo(BlockInfo &Join,
+                                               const BlockInfo &A,
+                                               const BlockInfo &B) {
+  Join.clear();
   Join.LiveLoc = joinLocMap(A.LiveLoc, B.LiveLoc);
   Join.StackHomeValue = joinAssignmentMap(A.StackHomeValue, B.StackHomeValue);
   Join.DebugValue = joinAssignmentMap(A.DebugValue, B.DebugValue);
   assert(Join.isValid());
-  return Join;
 }
 
 bool AssignmentTrackingLowering::join(
@@ -1799,7 +1804,8 @@ bool AssignmentTrackingLowering::join(
   assert(VisitedPreds.size() > 1);
   const BlockInfo &PredLiveOut0 = LiveOut.find(VisitedPreds[0])->second;
   const BlockInfo &PredLiveOut1 = LiveOut.find(VisitedPreds[1])->second;
-  BlockInfo BBLiveIn = joinBlockInfo(PredLiveOut0, PredLiveOut1);
+  BlockInfo BBLiveIn;
+  joinBlockInfo(BBLiveIn, PredLiveOut0, PredLiveOut1);
 
   ArrayRef Tail = [&]() {
     auto *It = VisitedPreds.begin();
@@ -1812,7 +1818,7 @@ bool AssignmentTrackingLowering::join(
     const auto &PredLiveOut = LiveOut.find(Pred);
     assert(PredLiveOut != LiveOut.end() &&
            "block should have been processed already");
-    BBLiveIn = joinBlockInfo(std::move(BBLiveIn), PredLiveOut->second);
+    joinBlockInfo(BBLiveIn, std::move(BBLiveIn), PredLiveOut->second);
   }
 
   // Save the joined result for BB.
