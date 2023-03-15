@@ -2168,15 +2168,16 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
                                         FunctionVarLocsBuilder &FnVarLocs,
                                         const AssignmentTrackingLowering::OverlapMap &VarContains) {
   bool Changed = false;
-  SmallDenseSet<DebugVariable> VariableSet;
-
+  //  SmallDenseSet<DebugVariable> VariableSet;
+  DenseMap<DebugAggregate, BitVector> XXX;
   // Scan over the entire block, not just over the instructions mapped by
   // FnVarLocs, because wedges in FnVarLocs may only be seperated by debug
   // instructions.
   for (const Instruction &I : reverse(*BB)) {
     if (!isa<DbgVariableIntrinsic>(I)) {
       // Sequence of consecutive defs ended. Clear map for the next one.
-      VariableSet.clear();
+      //VariableSet.clear();
+      XXX.clear();
     }
 
     // Get the location defs that start just before this instruction.
@@ -2193,27 +2194,40 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
     for (auto RIt = Locs->rbegin(), REnd = Locs->rend(); RIt != REnd; ++RIt) {
       NumDefsScanned++;
       const DebugVariable &Key = FnVarLocs.getVariable(RIt->VariableID);
-      bool FirstDefOfFragment = VariableSet.insert(Key).second;
+      DebugAggregate Aggr = {Key.getVariable(), Key.getInlinedAt()};
+      unsigned SizeInBits;
+      if (auto Sz = Key.getVariable()->getSizeInBits()) {
+        SizeInBits = *Sz;
+      } else {
+        continue;
+      }
+
+      auto InsertResult = XXX.try_emplace(Aggr, BitVector(SizeInBits));
+      bool FirstInsert = InsertResult.second;
+      BitVector &DefinedBits = InsertResult.first->second;      
 
       // If the same variable fragment is described more than once it is enough
       // to keep the last one (i.e. the first found in this reverse iteration).
-      if (FirstDefOfFragment) {
-        // New def found: keep it.
+      unsigned FragSize = [&]() -> unsigned {
+        if (auto Frag = RIt->Expr->getFragmentInfo())
+          return Frag->SizeInBits;
+        return SizeInBits;
+      }();
+      unsigned FragOffset = [&]() -> unsigned {
+        if (auto Frag = RIt->Expr->getFragmentInfo())
+          return Frag->OffsetInBits;
+        return 0;
+      }();
+      // If this defines any previously undefined bits, keep it.
+      if (FirstInsert || DefinedBits.find_first_unset_in(FragOffset, FragOffset + FragSize) != -1) {
+        DefinedBits.set(FragOffset, FragOffset + FragSize);
         NewDefsReversed.push_back(*RIt);
-
-        // Add fragments that this one eclipses.
-        auto R = VarContains.find(RIt->VariableID);
-        if (R != VarContains.end()) {
-          for (auto FragID: R->second)
-            VariableSet.insert(FnVarLocs.getVariable(FragID));
-        }
-      } else {
-        // Redundant def found: throw it away. Since the wedge of defs is being
-        // rebuilt, doing nothing is the same as deleting an entry.
-        ChangedThisWedge = true;
-        NumDefsRemoved++;
+        continue;
       }
-      continue;
+      // Redundant def found: throw it away. Since the wedge of defs is being
+      // rebuilt, doing nothing is the same as deleting an entry.
+      ChangedThisWedge = true;
+      NumDefsRemoved++;      
     }
 
     // Un-reverse the defs and replace the wedge with the pruned version.
