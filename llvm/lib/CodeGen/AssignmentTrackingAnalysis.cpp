@@ -2199,6 +2199,8 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
       if (auto Sz = Key.getVariable()->getSizeInBits()) {
         SizeInBits = *Sz;
       } else {
+        // don't know the size - keep everything
+        NewDefsReversed.push_back(*RIt);
         continue;
       }
 
@@ -2219,8 +2221,10 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
         return 0;
       }();
       // If this defines any previously undefined bits, keep it.
-      if (FirstInsert || DefinedBits.find_first_unset_in(FragOffset, FragOffset + FragSize) != -1) {
-        DefinedBits.set(FragOffset, FragOffset + FragSize);
+      unsigned End = std::min(FragOffset + FragSize, SizeInBits);
+      if (FirstInsert || DefinedBits.find_first_unset_in(FragOffset, End) != -1) {
+        if (End > FragOffset)
+          DefinedBits.set(FragOffset, End);
         NewDefsReversed.push_back(*RIt);
         continue;
       }
