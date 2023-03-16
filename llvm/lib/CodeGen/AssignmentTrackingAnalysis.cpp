@@ -1120,7 +1120,7 @@ private:
   ///@{
   static LocKind joinKind(LocKind A, LocKind B);
   static Assignment joinAssignment(const Assignment &A, const Assignment &B);
-  void joinBlockInfo(BlockInfo &Result, const BlockInfo &A, const BlockInfo &B);
+  BlockInfo joinBlockInfo(const BlockInfo &A, const BlockInfo &B);
   ///@}
 
   /// Process the instructions in \p BB updating \p LiveSet along the way. \p
@@ -1683,9 +1683,9 @@ void joinElmt(int Index, SmallVector<ElmtType> &Target,
   Target[Index] = Fn(A[Index], B[Index]);
 }
 
-void AssignmentTrackingLowering::joinBlockInfo(BlockInfo &Join,
-                                               const BlockInfo &A,
-                                               const BlockInfo &B) {
+AssignmentTrackingLowering::BlockInfo
+AssignmentTrackingLowering::joinBlockInfo(const BlockInfo &A,
+                                          const BlockInfo &B) {
   // Join A and B.
   //
   // Intersect = join(a, b) for a in A, b in B where Var(a) == Var(b)
@@ -1700,6 +1700,7 @@ void AssignmentTrackingLowering::joinBlockInfo(BlockInfo &Join,
   // initializes all variable entries to the ⊤ value so we don't need to
   // explicitly perform that step as Join.VariableIDsInBlock is set to
   // the union of the variables in A and B at the end of this function.
+  BlockInfo Join;
   Join.init(TrackedVariablesVectorSize);
 
   BitVector Intersect = A.VariableIDsInBlock;
@@ -1717,7 +1718,9 @@ void AssignmentTrackingLowering::joinBlockInfo(BlockInfo &Join,
 
   Join.VariableIDsInBlock = A.VariableIDsInBlock;
   Join.VariableIDsInBlock |= B.VariableIDsInBlock;
+
   assert(Join.isValid());
+  return Join;
 }
 
 bool AssignmentTrackingLowering::join(
@@ -1765,8 +1768,7 @@ bool AssignmentTrackingLowering::join(
   assert(VisitedPreds.size() > 1);
   const BlockInfo &PredLiveOut0 = LiveOut.find(VisitedPreds[0])->second;
   const BlockInfo &PredLiveOut1 = LiveOut.find(VisitedPreds[1])->second;
-  BlockInfo BBLiveIn;
-  joinBlockInfo(BBLiveIn, PredLiveOut0, PredLiveOut1);
+  BlockInfo BBLiveIn = joinBlockInfo(PredLiveOut0, PredLiveOut1);
 
   ArrayRef Tail = [&]() {
     auto *It = VisitedPreds.begin();
@@ -1779,7 +1781,7 @@ bool AssignmentTrackingLowering::join(
     const auto &PredLiveOut = LiveOut.find(Pred);
     assert(PredLiveOut != LiveOut.end() &&
            "block should have been processed already");
-    joinBlockInfo(BBLiveIn, std::move(BBLiveIn), PredLiveOut->second);
+    BBLiveIn = joinBlockInfo(std::move(BBLiveIn), PredLiveOut->second);
   }
 
   // Save the joined result for BB.
