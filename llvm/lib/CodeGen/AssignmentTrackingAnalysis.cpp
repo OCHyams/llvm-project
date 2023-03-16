@@ -1779,8 +1779,7 @@ bool AssignmentTrackingLowering::join(
     const auto &PredLiveOut = LiveOut.find(Pred);
     assert(PredLiveOut != LiveOut.end() &&
            "block should have been processed already");
-    BlockInfo BBLiveIn2 = std::move(BBLiveIn);
-    joinBlockInfo(BBLiveIn, BBLiveIn2, PredLiveOut->second);
+    joinBlockInfo(BBLiveIn, std::move(BBLiveIn), PredLiveOut->second);
   }
 
   // Save the joined result for BB.
