@@ -593,6 +593,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
   // Use a map to unique and a vector to guarantee deterministic ordering.
   llvm::SmallDenseSet<std::pair<DIVariable *, DIExpression *>, 4> DeadDebugSet;
   llvm::SmallVector<DbgVariableIntrinsic *, 4> DeadDebugInst;
+  llvm::SmallVector<DPValue *, 4> DeadDPValues;
 
   if (ExitBlock) {
     // Given LCSSA form is satisfied, we should not have users of instructions
@@ -617,6 +618,21 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
                    "Unexpected user in reachable block");
           U.set(Poison);
         }
+
+        // DDD: do the same as below for DPValues.
+        if (Block->IsInhaled) {
+          for (DPValue &DPV : llvm::make_early_inc_range(I.getDbgValueRange())) {
+            auto Key =
+                DeadDebugSet.find({DPV.getVariable(), DPV.getExpression()});
+            if (Key != DeadDebugSet.end())
+              continue;
+            // Unlinks, however, this approach is really awkward.
+            DPV.removeFromParent();
+            DeadDebugSet.insert({DPV.getVariable(), DPV.getExpression()});
+            DeadDPValues.push_back(&DPV);
+          }
+        }
+
         auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I);
         if (!DVI)
           continue;
@@ -634,14 +650,29 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     // dbg.value truncates the range of any dbg.value before the loop where the
     // loop used to be. This is particularly important for constant values.
     DIBuilder DIB(*ExitBlock->getModule());
-    Instruction *InsertDbgValueBefore = ExitBlock->getFirstNonPHI();
-    assert(InsertDbgValueBefore &&
+    BasicBlock::iterator InsertDbgValueBefore = ExitBlock->getFirstInsertionPt();
+    assert(InsertDbgValueBefore != ExitBlock->end() &&
            "There should be a non-PHI instruction in exit block, else these "
            "instructions will have no parent.");
-    for (auto *DVI : DeadDebugInst)
+
+    for (auto *DVI : DeadDebugInst) {
       DIB.insertDbgValueIntrinsic(UndefValue::get(Builder.getInt32Ty()),
                                   DVI->getVariable(), DVI->getExpression(),
-                                  DVI->getDebugLoc(), InsertDbgValueBefore);
+                                  DVI->getDebugLoc(), &*InsertDbgValueBefore);
+    }
+
+    // DDD: above block moves dbg.declares, this moves DPValues/dbg.values:
+    if (ExitBlock->IsInhaled) {
+      // Insert in reverse order: because the head-bit is set on the position
+      // iterator, we would insert in the opposite order to normal instruction
+      // insertion.
+      for (DPValue *DPV : llvm::reverse(DeadDPValues)) {
+        // Debug intrinsic will be created, then immediately converted to a
+        // DPValue on insertion. Inefficient, but correct.
+        DPV->handleChangedLocation(ValueAsMetadata::get(UndefValue::get(Builder.getInt32Ty())));
+        ExitBlock->insertDPValueBefore(DPV, InsertDbgValueBefore);
+      }
+    }
   }
 
   // Remove the block from the reference counting scheme, so that we can
