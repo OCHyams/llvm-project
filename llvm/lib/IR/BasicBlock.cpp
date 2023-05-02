@@ -31,7 +31,7 @@ bool DDDInhaleDbgValues /*set default value in cl::init() below*/;
 /// DDDOption value is stored in DDDInhaleDbgValues to minimise change to
 /// existing setup.
 cl::opt<bool, true> DDDOption("ddd", cl::Hidden,
-                              cl::location(DDDInhaleDbgValues), cl::init(false));
+                              cl::location(DDDInhaleDbgValues), cl::init(true));
 
 DPMarker *BasicBlock::createMarker(Instruction *I) {
   assert(IsInhaled && "Tried to create a marker in a non-inhaled block!");
