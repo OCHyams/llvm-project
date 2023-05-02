@@ -103,16 +103,16 @@ class SelectionDAGBuilder {
 
   /// Helper type for DanglingDebugInfoMap.
   class DanglingDebugInfo {
-    const DbgValueInst* DI = nullptr;
+  public:
+    DILocalVariable *Variable;
+    DIExpression *Expression;
     DebugLoc dl;
     unsigned SDNodeOrder = 0;
 
-  public:
     DanglingDebugInfo() = default;
-    DanglingDebugInfo(const DbgValueInst *di, DebugLoc DL, unsigned SDNO)
-        : DI(di), dl(std::move(DL)), SDNodeOrder(SDNO) {}
+    DanglingDebugInfo(DILocalVariable *Var, DIExpression *Expr, DebugLoc DL, unsigned SDNO)
+        : Variable(Var), Expression(Expr), dl(std::move(DL)), SDNodeOrder(SDNO) {}
 
-    const DbgValueInst* getDI() { return DI; }
     DebugLoc getdl() { return dl; }
     unsigned getSDNodeOrder() { return SDNodeOrder; }
   };
@@ -288,6 +288,7 @@ public:
                                   ISD::NodeType ExtendType = ISD::ANY_EXTEND);
 
   void visit(const Instruction &I);
+  void visitDbgInfo(const Instruction &I);
 
   void visit(unsigned Opcode, const User &I);
 
@@ -296,8 +297,10 @@ public:
   SDValue getCopyFromRegs(const Value *V, Type *Ty);
 
   /// Register a dbg_value which relies on a Value which we have not yet seen.
-  void addDanglingDebugInfo(const DbgValueInst *DI, DebugLoc DL,
-                            unsigned Order);
+  void addDanglingDebugInfo(SmallVectorImpl<Value *> &Values,
+    DILocalVariable *Var, DIExpression *Expr, bool IsVariadic,
+                                                 DebugLoc DL, unsigned Order);
+
 
   /// If we have dangling debug info that describes \p Variable, or an
   /// overlapping part of variable considering the \p Expr, then this method
@@ -312,7 +315,7 @@ public:
   /// For the given dangling debuginfo record, perform last-ditch efforts to
   /// resolve the debuginfo to something that is represented in this DAG. If
   /// this cannot be done, produce an Undef debug value record.
-  void salvageUnresolvedDbgValue(DanglingDebugInfo &DDI);
+  void salvageUnresolvedDbgValue(const Value *V, DanglingDebugInfo &DDI);
 
   /// For a given list of Values, attempt to create and record a SDDbgValue in
   /// the SelectionDAG.

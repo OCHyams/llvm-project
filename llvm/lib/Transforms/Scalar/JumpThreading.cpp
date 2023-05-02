@@ -492,6 +492,10 @@ static bool replaceFoldableUses(Instruction *Cond, Value *ToVal,
   if (Cond->getParent() == KnownAtEndOfBB)
     Changed |= replaceNonLocalUsesWith(Cond, ToVal);
   for (Instruction &I : reverse(*KnownAtEndOfBB)) {
+    for (DPValue &DPV : I.getDbgValueRange()) {
+      DPV.replaceVariableLocationOp(Cond, ToVal, true);
+    }
+
     // Reached the Cond whose uses we are trying to replace, so there are no
     // more uses.
     if (&I == Cond)
@@ -1494,8 +1498,8 @@ bool JumpThreadingPass::simplifyPartiallyRedundantLoad(LoadInst *LoadI) {
 
   // Create a PHI node at the start of the block for the PRE'd load value.
   pred_iterator PB = pred_begin(LoadBB), PE = pred_end(LoadBB);
-  PHINode *PN = PHINode::Create(LoadI->getType(), std::distance(PB, PE), "",
-                                &LoadBB->front());
+  PHINode *PN = PHINode::Create(LoadI->getType(), std::distance(PB, PE), "");
+  PN->insertBefore(LoadBB->begin());
   PN->takeName(LoadI);
   PN->setDebugLoc(LoadI->getDebugLoc());
 
@@ -2060,6 +2064,8 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
   // block, evaluate them to account for entry from PredBB.
   DenseMap<Instruction *, Value *> ValueMapping;
 
+  BasicBlock *RangeBB = BI->getParent();
+
   // Clone the phi nodes of the source basic block into NewBB.  The resulting
   // phi nodes are trivial since NewBB only has one predecessor, but SSAUpdater
   // might need to rewrite the operand of the cloned phi.
@@ -2078,15 +2084,24 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
   identifyNoAliasScopesToClone(BI, BE, NoAliasScopes);
   cloneNoAliasScopes(NoAliasScopes, ClonedScopes, "thread", Context);
 
+  auto CloneDbgInfoPls = [&](Instruction *NewInst, Instruction *From) {
+    NewInst->cloneDebugInfoFrom(From);
+    // XXX -- by all rights, this should then remap the operands to the new
+    // path through the function. Normal jump-threading doesn't, so don't here.
+  };
+
   // Clone the non-phi instructions of the source basic block into NewBB,
   // keeping track of the mapping and using it to remap operands in the cloned
   // instructions.
+  Instruction *New = nullptr;
   for (; BI != BE; ++BI) {
-    Instruction *New = BI->clone();
+    New = BI->cloneMaybeDbg();
     New->setName(BI->getName());
-    NewBB->getInstList().push_back(New);
+    New->insertBefore(*NewBB, NewBB->end());
     ValueMapping[&*BI] = New;
     adaptNoAliasScopes(New, ClonedScopes, Context);
+
+    CloneDbgInfoPls(New, &*BI);
 
     // Remap operands to patch up intra-block references.
     for (unsigned i = 0, e = New->getNumOperands(); i != e; ++i)
@@ -2095,6 +2110,15 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
         if (I != ValueMapping.end())
           New->setOperand(i, I->second);
       }
+  }
+
+  // There may be dbg.values on the terminator,
+  if (BE != RangeBB->end()) {
+    // Dump them at the end.
+    DPMarker *Marker = RangeBB->getMarker(BE);
+    DPMarker *EndMarker = NewBB->getMarker(NewBB->end());
+    if (Marker && EndMarker)
+      EndMarker->cloneDbgInfoFrom(Marker, false);
   }
 
   return ValueMapping;
@@ -2650,7 +2674,15 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
   // Clone the non-phi instructions of BB into PredBB, keeping track of the
   // mapping and using it to remap operands in the cloned instructions.
   for (; BI != BB->end(); ++BI) {
-    Instruction *New = BI->clone();
+    Instruction *New = BI->cloneMaybeDbg();
+
+    // Insert and remove to ensure the dbg.values go in the right place!
+    if (!isa<DbgValueInst>(New)) {
+      New->insertBefore(OldPredBranch);
+      New->cloneDebugInfoFrom(&*BI);
+      // XXX another scenario where we should remap in the future.
+      New->removeFromParent();
+    }
 
     // Remap operands to patch up intra-block references.
     for (unsigned i = 0, e = New->getNumOperands(); i != e; ++i)
@@ -2677,7 +2709,7 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
     if (New) {
       // Otherwise, insert the new instruction into the block.
       New->setName(BI->getName());
-      PredBB->getInstList().insert(OldPredBranch->getIterator(), New);
+      New->insertBefore(OldPredBranch);
       // Update Dominance from simplified New instruction operands.
       for (unsigned i = 0, e = New->getNumOperands(); i != e; ++i)
         if (BasicBlock *SuccBB = dyn_cast<BasicBlock>(New->getOperand(i)))
@@ -2731,7 +2763,7 @@ void JumpThreadingPass::unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB,
                                          BB->getParent(), BB);
   // Move the unconditional branch to NewBB.
   PredTerm->removeFromParent();
-  NewBB->getInstList().insert(NewBB->end(), PredTerm);
+  PredTerm->insertBefore(*NewBB, NewBB->end());
   // Create a conditional branch and update PHI nodes.
   auto *BI = BranchInst::Create(NewBB, BB, SI->getCondition(), Pred);
   BI->applyMergedLocation(PredTerm->getDebugLoc(), SI->getDebugLoc());
