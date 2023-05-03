@@ -471,7 +471,7 @@ bool LoopInvariantCodeMotion::runOnLoop(
       InsertPts.reserve(ExitBlocks.size());
       MSSAInsertPts.reserve(ExitBlocks.size());
       for (BasicBlock *ExitBlock : ExitBlocks) {
-        InsertPts.push_back(&*ExitBlock->getFirstNonPHIOrDbg());
+        InsertPts.push_back(&*ExitBlock->getFirstInsertionPt());
         MSSAInsertPts.push_back(nullptr);
       }
 
