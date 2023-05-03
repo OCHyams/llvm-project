@@ -399,7 +399,7 @@ bool IndVarSimplify::handleFloatingPointIV(Loop *L, PHINode *PN) {
   // platforms.
   if (WeakPH) {
     Value *Conv = new SIToFPInst(NewPHI, PN->getType(), "indvar.conv",
-                                 &*PN->getParent()->getFirstNonPHIOrDbg());
+                                 &*PN->getParent()->getFirstInsertionPt());
     PN->replaceAllUsesWith(Conv);
     RecursivelyDeleteTriviallyDeadInstructions(PN, TLI, MSSAU.get());
   }
