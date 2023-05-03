@@ -1093,7 +1093,7 @@ simplifyRelocatesOffABase(GCRelocateInst *RelocatedBase,
   // right before found relocation. We consider only relocation in the same
   // basic block as relocation of base. Relocations from other basic block will
   // be skipped by optimization and we do not care about them.
-  for (auto R = RelocatedBase->getParent()->getFirstNonPHIOrDbg()->getIterator();
+  for (auto R = RelocatedBase->getParent()->getFirstInsertionPt();
        &*R != RelocatedBase; ++R)
     if (auto *RI = dyn_cast<GCRelocateInst>(R))
       if (RI->getStatepoint() == RelocatedBase->getStatepoint())
@@ -1264,7 +1264,7 @@ static bool SinkCast(CastInst *CI) {
     CastInst *&InsertedCast = InsertedCasts[UserBB];
 
     if (!InsertedCast) {
-      BasicBlock::iterator InsertPt = UserBB->getFirstNonPHIOrDbg()->getIterator();
+      BasicBlock::iterator InsertPt = UserBB->getFirstInsertionPt();
       assert(InsertPt != UserBB->end());
       InsertedCast = CastInst::Create(CI->getOpcode(), CI->getOperand(0),
                                       CI->getType(), "", &*InsertPt);
@@ -1631,7 +1631,7 @@ static bool sinkCmpExpression(CmpInst *Cmp, const TargetLowering &TLI) {
     CmpInst *&InsertedCmp = InsertedCmps[UserBB];
 
     if (!InsertedCmp) {
-      BasicBlock::iterator InsertPt = UserBB->getFirstNonPHIOrDbg()->getIterator();
+      BasicBlock::iterator InsertPt = UserBB->getFirstInsertionPt();
       assert(InsertPt != UserBB->end());
       InsertedCmp =
           CmpInst::Create(Cmp->getOpcode(), Cmp->getPredicate(),
@@ -1901,7 +1901,7 @@ SinkShiftAndTruncate(BinaryOperator *ShiftI, Instruction *User, ConstantInt *CI,
     CastInst *&InsertedTrunc = InsertedTruncs[TruncUserBB];
 
     if (!InsertedShift && !InsertedTrunc) {
-      BasicBlock::iterator InsertPt = TruncUserBB->getFirstNonPHIOrDbg()->getIterator();
+      BasicBlock::iterator InsertPt = TruncUserBB->getFirstInsertionPt();
       assert(InsertPt != TruncUserBB->end());
       // Sink the shift
       if (ShiftI->getOpcode() == Instruction::AShr)
@@ -1913,7 +1913,7 @@ SinkShiftAndTruncate(BinaryOperator *ShiftI, Instruction *User, ConstantInt *CI,
       InsertedShift->setDebugLoc(ShiftI->getDebugLoc());
 
       // Sink the trunc
-      BasicBlock::iterator TruncInsertPt = TruncUserBB->getFirstNonPHIOrDbg()->getIterator();
+      BasicBlock::iterator TruncInsertPt = TruncUserBB->getFirstInsertionPt();
       TruncInsertPt++;
       assert(TruncInsertPt != TruncUserBB->end());
 
@@ -2002,7 +2002,7 @@ static bool OptimizeExtractBits(BinaryOperator *ShiftI, ConstantInt *CI,
     BinaryOperator *&InsertedShift = InsertedShifts[UserBB];
 
     if (!InsertedShift) {
-      BasicBlock::iterator InsertPt = UserBB->getFirstNonPHIOrDbg()->getIterator();
+      BasicBlock::iterator InsertPt = UserBB->getFirstInsertionPt();
       assert(InsertPt != UserBB->end());
 
       if (ShiftI->getOpcode() == Instruction::AShr)
@@ -5978,18 +5978,18 @@ bool CodeGenPrepare::splitLargeGEPOffsets() {
           // inserted close to it.
           NewBaseInsertBB = BaseI->getParent();
           if (isa<PHINode>(BaseI))
-            NewBaseInsertPt = NewBaseInsertBB->getFirstNonPHIOrDbg()->getIterator();
+            NewBaseInsertPt = NewBaseInsertBB->getFirstInsertionPt();
           else if (InvokeInst *Invoke = dyn_cast<InvokeInst>(BaseI)) {
             NewBaseInsertBB =
                 SplitEdge(NewBaseInsertBB, Invoke->getNormalDest());
-            NewBaseInsertPt = NewBaseInsertBB->getFirstNonPHIOrDbg()->getIterator();
+            NewBaseInsertPt = NewBaseInsertBB->getFirstInsertionPt();
           } else
             NewBaseInsertPt = std::next(BaseI->getIterator());
         } else {
           // If the current base is an argument or global value, the new base
           // will be inserted to the entry block.
           NewBaseInsertBB = &BaseGEP->getFunction()->getEntryBlock();
-          NewBaseInsertPt = NewBaseInsertBB->getFirstNonPHIOrDbg()->getIterator();
+          NewBaseInsertPt = NewBaseInsertBB->getFirstInsertionPt();
         }
         IRBuilder<> NewBaseBuilder(NewBaseInsertBB, NewBaseInsertPt);
         // Create a new base.
@@ -6415,7 +6415,7 @@ bool CodeGenPrepare::optimizeExtUses(Instruction *I) {
     Instruction *&InsertedTrunc = InsertedTruncs[UserBB];
 
     if (!InsertedTrunc) {
-      BasicBlock::iterator InsertPt = UserBB->getFirstNonPHIOrDbg()->getIterator();
+      BasicBlock::iterator InsertPt = UserBB->getFirstInsertionPt();
       assert(InsertPt != UserBB->end());
       InsertedTrunc = new TruncInst(I, Src->getType(), "", &*InsertPt);
       InsertedInsts.insert(InsertedTrunc);
@@ -8157,7 +8157,7 @@ bool CodeGenPrepare::placePseudoProbes(Function &F) {
   bool MadeChange = false;
   for (auto &Block : F) {
     // Move the rest probes to the beginning of the block.
-    auto FirstInst = Block.getFirstNonPHIOrDbg()->getIterator();
+    auto FirstInst = Block.getFirstInsertionPt();
     while (FirstInst != Block.end() && FirstInst->isDebugOrPseudoInst())
       ++FirstInst;
     BasicBlock::iterator I(FirstInst);
