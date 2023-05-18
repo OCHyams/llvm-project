@@ -607,6 +607,8 @@ Value *IRLinker::materialize(Value *V, bool ForIndirectSymbol) {
   if (auto *F = dyn_cast<Function>(New)) {
     if (!F->isDeclaration())
       return New;
+    F->IsInhaled = cast<Function>(V)->IsInhaled;
+    cast<Function>(*NewProto)->IsInhaled = cast<Function>(V)->IsInhaled;
   } else if (auto *V = dyn_cast<GlobalVariable>(New)) {
     if (V->hasInitializer() || V->hasAppendingLinkage())
       return New;
@@ -1527,6 +1529,8 @@ Error IRLinker::run() {
   if (SrcM->getMaterializer())
     if (Error Err = SrcM->getMaterializer()->materializeMetadata())
       return Err;
+
+  DstM.IsInhaled = SrcM->IsInhaled;
 
   // Inherit the target data from the source module if the destination module
   // doesn't have one already.
