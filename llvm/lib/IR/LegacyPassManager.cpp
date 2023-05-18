@@ -530,7 +530,7 @@ bool PassManagerImpl::run(Module &M) {
 
   // The CodeGen pipeline still runs in the legacy pass manager; inhale for the
   // duration to gain coverage of codegen-only passes.
-  if (DDDInhaleDbgValues)
+  if (DDDInhaleDbgValues && !M.IsInhaled)
     M.inhaleDbgValues();
 
   for (ImmutablePass *ImPass : getImmutablePasses())

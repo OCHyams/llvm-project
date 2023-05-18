@@ -1113,7 +1113,11 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
     Dst.setPrologueData(Src.getPrologueData());
   if (Src.hasPersonalityFn())
     Dst.setPersonalityFn(Src.getPersonalityFn());
+  // FIXME: Restore this / similar assert. Disabled it and added the subsequent
+  // line as a work-around because the bitcode reader isn't setting IsInhaled
+  // on declarations when it should.
   assert(Src.IsInhaled == Dst.IsInhaled);
+  //Dst.IsInhaled = Src.IsInhaled;
 
   // Copy over the metadata attachments without remapping.
   Dst.copyMetadata(&Src, 0);

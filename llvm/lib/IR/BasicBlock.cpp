@@ -32,6 +32,10 @@ bool DDDInhaleDbgValues /*set default value in cl::init() below*/;
 /// existing setup.
 cl::opt<bool, true> DDDOption("ddd", cl::Hidden,
                               cl::location(DDDInhaleDbgValues), cl::init(false));
+bool DDDDirectBC /*set default value in cl::init() below*/;
+cl::opt<bool, true> WriteDDDDirectToBC("ddd-to-bc", cl::Hidden,
+                                       cl::location(DDDDirectBC),
+                                       cl::init(true));
 
 DPMarker *BasicBlock::createMarker(Instruction *I) {
   assert(IsInhaled && "Tried to create a marker in a non-inhaled block!");

@@ -18,15 +18,18 @@
 #include "llvm/Pass.h"
 using namespace llvm;
 
+extern bool DDDDirectBC;
+
 PreservedAnalyses BitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   // DDD: emit bitcode using the dbg.value representation of debug-info.
   bool IsInhaled = M.IsInhaled;
-  M.exhaleDbgValues();
+  if (!DDDDirectBC)
+    M.exhaleDbgValues();
   const ModuleSummaryIndex *Index =
       EmitSummaryIndex ? &(AM.getResult<ModuleSummaryIndexAnalysis>(M))
                        : nullptr;
   WriteBitcodeToFile(M, OS, ShouldPreserveUseListOrder, Index, EmitModuleHash);
-  if (IsInhaled)
+  if (!DDDDirectBC && IsInhaled)
     M.inhaleDbgValues();
   return PreservedAnalyses::all();
 }
@@ -60,10 +63,12 @@ namespace {
               ? &(getAnalysis<ModuleSummaryIndexWrapperPass>().getIndex())
               : nullptr;
       // DDD: emit bitcode using the dbg.value representation of debug-info.
-      M.exhaleDbgValues();
+      if (!DDDDirectBC)
+        M.exhaleDbgValues();
       WriteBitcodeToFile(M, OS, ShouldPreserveUseListOrder, Index,
                          EmitModuleHash);
-      M.inhaleDbgValues();
+      if (!DDDDirectBC)
+        M.inhaleDbgValues();
       return false;
     }
     void getAnalysisUsage(AnalysisUsage &AU) const override {
