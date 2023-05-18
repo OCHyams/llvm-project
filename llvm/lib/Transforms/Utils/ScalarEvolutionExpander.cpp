@@ -98,7 +98,9 @@ BasicBlock::iterator
 SCEVExpander::findInsertPointAfter(Instruction *I,
                                    Instruction *MustDominate) const {
   BasicBlock::iterator IP = std::next(I->getIterator());
-  IP = skipDebugIntrinsics(IP);
+  if (IP != I->getParent()->end())
+    IP = skipDebugIntrinsics(IP);
+
   if (auto *II = dyn_cast<InvokeInst>(I))
     IP = II->getNormalDest()->begin();
 
