@@ -88,6 +88,7 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
                              const char *NameSuffix, ClonedCodeInfo *CodeInfo,
                              ValueMapTypeRemapper *TypeMapper,
                              ValueMaterializer *Materializer) {
+  NewFunc->setInhaled(OldFunc->IsInhaled);
   assert(NameSuffix && "NameSuffix cannot be null!");
 
 #ifndef NDEBUG
