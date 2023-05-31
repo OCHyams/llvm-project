@@ -997,6 +997,10 @@ void Mapper::remapGlobalObjectMetadata(GlobalObject &GO) {
 }
 
 void Mapper::remapFunction(Function &F) {
+  // bool DoInhale = F.IsInhaled;
+  //  if (DoInhale)
+  //  F.exhaleDbgValues();
+
   // Remap the operands.
   for (Use &Op : F.operands())
     if (Op)
@@ -1011,9 +1015,37 @@ void Mapper::remapFunction(Function &F) {
       A.mutateType(TypeMapper->remapType(A.getType()));
 
   // Remap the instructions.
-  for (BasicBlock &BB : F)
-    for (Instruction &I : BB)
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
       remapInstruction(&I);
+#if 0
+      // XXX -- why can't we just do this instead of inhale/exhale?
+      if (I.DbgMarker) {
+        auto DbgValueRange = I.DbgMarker->getDbgValueRange();
+        RemapDPValueRange(F.getParent(), DbgValueRange, getVM(), Flags);
+      }
+    }
+    RemapDPValueRange(F.getParent(),
+     BB.LolDbgValuesOffEnd.getDbgValueRange(),
+                      getVM(), Flags);
+#elif 1
+      for (DPValue &DPV : I.getDbgValueRange()) {
+        MetadataAsValue *MAV =
+            MetadataAsValue::get(F.getContext(), DPV.getRawLocation());
+        if (MetadataAsValue *NewMAV =
+                cast_or_null<MetadataAsValue>(mapValue(MAV)))
+          DPV.setRawLocation(NewMAV->getMetadata());
+        DPV.setVariable(cast<DILocalVariable>(mapMetadata(DPV.getVariable())));
+        DPV.setExpression(cast<DIExpression>(mapMetadata(DPV.getExpression())));
+      }
+    }
+#else
+    }
+#endif
+  }
+
+  // if (DoInhale)
+  // F.inhaleDbgValues();
 }
 
 void Mapper::mapAppendingVariable(GlobalVariable &GV, Constant *InitPrefix,

@@ -3679,6 +3679,9 @@ void AssemblyWriter::printTypeIdentities() {
 
 /// printFunction - Print all aspects of a function.
 void AssemblyWriter::printFunction(const Function *F) {
+  bool InhaleAfter = F->IsInhaled;
+  if (F->IsInhaled)
+    const_cast<Function *>(F)->exhaleDbgValues();
   if (AnnotationWriter) AnnotationWriter->emitFunctionAnnot(F, Out);
 
   if (F->isMaterializable())
@@ -3821,6 +3824,8 @@ void AssemblyWriter::printFunction(const Function *F) {
     Out << "}\n";
   }
 
+  if (InhaleAfter)
+    const_cast<Function *>(F)->inhaleDbgValues();
   Machine.purgeFunction();
 }
 
