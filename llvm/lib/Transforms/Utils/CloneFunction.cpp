@@ -59,7 +59,11 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
     Instruction *NewInst = I.cloneMaybeDbg();
     if (I.hasName())
       NewInst->setName(I.getName() + NameSuffix);
-    NewInst->insertBefore(*NewBB, NewBB->end());
+    auto NewPt = NewInst->cloneDebugInfoFrom(&I);
+    auto DbgValueRange = NewInst->DbgMarker->getRangeToEnd(NewPt);
+    if (NewPt != NewBB->LolDbgValuesOffEnd.StoredDPValues.end())
+      RemapDPValueRange(const_cast<Module *>(BB->getParent()->getParent()),
+                        DbgValueRange, VMap, RF_NoModuleLevelChanges | RF_None);
     NewInst->cloneDebugInfoFrom(&I);
     VMap[&I] = NewInst; // Add instruction map to value.
 
