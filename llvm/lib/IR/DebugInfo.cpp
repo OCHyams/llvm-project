@@ -69,11 +69,23 @@ void llvm::findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers,
                            Value *V, SmallVectorImpl<DPValue *> *DPValues) {
   for (auto *DVI : FindDbgDeclareUses(V))
     DbgUsers.push_back(DVI);
-}
 
+  if (!DPValues)
+    return;
+  // FIXME: Could use findDbgIntrinsics (and was doing that in the lost VM
+  // work). NOTE: dbg.declares don't support DIArgLists.
+  if (auto *L = LocalAsMetadata::getIfExists(V)) {
+    for (DPValue *DPV : L->getAllDPValueUsers()) {
+      if (DPV->getType() == DPValue::LocationType::Declare)
+        DPValues->push_back(DPV);
+    }
+  }
+}
+/*Interface of this might be adjusted in J's
+                                  upstream patch?*/
 template <typename IntrinsicT>
-static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result,
-                              Value *V, SmallVectorImpl<DPValue *> *DPValues) {
+static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
+                              SmallVectorImpl<DPValue *> *DPValues) {
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
