@@ -81,8 +81,7 @@ void BasicBlock::convertToNewDbgValues() {
     if (DbgVariableIntrinsic *DVI = dyn_cast<DbgVariableIntrinsic>(&I)) {
       if (isa<DbgAssignIntrinsic>(DVI))
         continue;
-      if (isa<DbgDeclareInst>(DVI))
-        continue;
+
       // Convert this dbg.value to a DPValue.
       DPValue *Value = new DPValue(DVI);
       DPVals.push_back(Value);
