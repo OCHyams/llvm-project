@@ -1551,7 +1551,6 @@ static void insertDbgValueOrDPValue(DIBuilder &Builder, Value *DV, DILocalVariab
     // DPValue directly instead of a dbg.value intrinsic.
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
     DPValue *DV = new DPValue(DVAM, DIVar, DIExpr, NewLoc.get());
-    Instr->getParent()->createMarker(&*Instr);
     Instr->getParent()->insertDPValueBefore(DV, Instr);
   }
 }
@@ -1671,7 +1670,6 @@ void llvm::ConvertDebugDeclareToDebugValue(DPValue *DPV,
     DV = UndefValue::get(DV->getType());
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
     DPValue *NewDPV = new DPValue(DVAM, DIVar, DIExpr, NewLoc.get());
-    SI->getParent()->createMarker(SI);
     SI->getParent()->insertDPValueBefore(NewDPV, SI->getIterator());
     return;
   }
@@ -1680,7 +1678,6 @@ void llvm::ConvertDebugDeclareToDebugValue(DPValue *DPV,
   // Create a DPValue directly and insert.
   ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
   DPValue *NewDPV = new DPValue(DVAM, DIVar, DIExpr, NewLoc.get());
-  SI->getParent()->createMarker(SI);
   SI->getParent()->insertDPValueBefore(NewDPV, SI->getIterator());
 }
 
