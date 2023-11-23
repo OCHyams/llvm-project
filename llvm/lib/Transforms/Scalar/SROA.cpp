@@ -4826,7 +4826,8 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // and the individual partitions.
   TinyPtrVector<DbgVariableIntrinsic *> DbgVariables;
   SmallVector<DbgDeclareInst *> DbgDeclares;
-  findDbgDeclares(DbgDeclares, &AI);
+  SmallVector<DPValue *> DPValues;
+  findDbgDeclares(DbgDeclares, &AI, &DPValues);
   for (auto *DbgDeclare : DbgDeclares)
     DbgVariables.push_back(DbgDeclare);
   for (auto *DbgAssign : at::getAssignmentMarkers(&AI))
@@ -4886,14 +4887,18 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       // Remove any existing intrinsics on the new alloca describing
       // the variable fragment.
       SmallVector<DbgDeclareInst *> FragDbgDeclares;
-      findDbgDeclares(FragDbgDeclares, Fragment.Alloca);
+      SmallVector<DPValue *> FragDPValues;
+      findDbgDeclares(FragDbgDeclares, Fragment.Alloca, &FragDPValues);
+      auto SameVariableFragment = [](const auto *LHS, const auto *RHS) {
+        return LHS->getVariable() == RHS->getVariable() &&
+               LHS->getDebugLoc()->getInlinedAt() ==
+                   RHS->getDebugLoc()->getInlinedAt();
+      };
       for (DbgDeclareInst *OldDII : FragDbgDeclares) {
-        auto SameVariableFragment = [](const DbgVariableIntrinsic *LHS,
-                                       const DbgVariableIntrinsic *RHS) {
-          return LHS->getVariable() == RHS->getVariable() &&
-                 LHS->getDebugLoc()->getInlinedAt() ==
-                     RHS->getDebugLoc()->getInlinedAt();
-        };
+        if (SameVariableFragment(OldDII, DbgVariable))
+          OldDII->eraseFromParent();
+      }
+      for (DPValue *OldDII : FragDPValues) {
         if (SameVariableFragment(OldDII, DbgVariable))
           OldDII->eraseFromParent();
       }
@@ -4917,6 +4922,95 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       }
     }
   }
+
+  for (DPValue *DbgVariable : DPValues) {
+    auto *Expr = DbgVariable->getExpression();
+    DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
+    uint64_t AllocaSize =
+        DL.getTypeSizeInBits(AI.getAllocatedType()).getFixedValue();
+    for (auto Fragment : Fragments) {
+      // Create a fragment expression describing the new partition or reuse AI's
+      // expression if there is only one partition.
+      auto *FragmentExpr = Expr;
+      if (Fragment.Size < AllocaSize || Expr->isFragment()) {
+        // If this alloca is already a scalar replacement of a larger aggregate,
+        // Fragment.Offset describes the offset inside the scalar.
+        auto ExprFragment = Expr->getFragmentInfo();
+        uint64_t Offset = ExprFragment ? ExprFragment->OffsetInBits : 0;
+        uint64_t Start = Offset + Fragment.Offset;
+        uint64_t Size = Fragment.Size;
+        if (ExprFragment) {
+          uint64_t AbsEnd =
+              ExprFragment->OffsetInBits + ExprFragment->SizeInBits;
+          if (Start >= AbsEnd) {
+            // No need to describe a SROAed padding.
+            continue;
+          }
+          Size = std::min(Size, AbsEnd - Start);
+        }
+        // The new, smaller fragment is stenciled out from the old fragment.
+        if (auto OrigFragment = FragmentExpr->getFragmentInfo()) {
+          assert(Start >= OrigFragment->OffsetInBits &&
+                 "new fragment is outside of original fragment");
+          Start -= OrigFragment->OffsetInBits;
+        }
+
+        // The alloca may be larger than the variable.
+        auto VarSize = DbgVariable->getVariable()->getSizeInBits();
+        if (VarSize) {
+          if (Size > *VarSize)
+            Size = *VarSize;
+          if (Size == 0 || Start + Size > *VarSize)
+            continue;
+        }
+
+        // Avoid creating a fragment expression that covers the entire variable.
+        if (!VarSize || *VarSize != Size) {
+          if (auto E =
+                  DIExpression::createFragmentExpression(Expr, Start, Size))
+            FragmentExpr = *E;
+          else
+            continue;
+        }
+      }
+
+      // Remove any existing intrinsics on the new alloca describing
+      // the variable fragment.
+      SmallVector<DbgDeclareInst *> FragDbgDeclares;
+      SmallVector<DPValue *> FragDPValues;
+      findDbgDeclares(FragDbgDeclares, Fragment.Alloca, &FragDPValues);
+      auto SameVariableFragment = [](const auto *LHS, const auto *RHS) {
+        return LHS->getVariable() == RHS->getVariable() &&
+               LHS->getDebugLoc()->getInlinedAt() ==
+                   RHS->getDebugLoc()->getInlinedAt();
+      };
+      for (DbgDeclareInst *OldDII : FragDbgDeclares) {
+        if (SameVariableFragment(OldDII, DbgVariable))
+          OldDII->eraseFromParent();
+      }
+      for (DPValue *OldDII : FragDPValues) {
+        if (SameVariableFragment(OldDII, DbgVariable))
+          OldDII->eraseFromParent();
+      }
+
+      // FIXME: isa<dbg.assign>.
+      if (DbgVariable->Type != DPValue::LocationType::Declare) {
+        if (!Fragment.Alloca->hasMetadata(LLVMContext::MD_DIAssignID)) {
+          Fragment.Alloca->setMetadata(
+              LLVMContext::MD_DIAssignID,
+              DIAssignID::getDistinct(AI.getContext()));
+        }
+        llvm_unreachable("dbg.assign not supported");
+      } else {
+        DPValue *New = new DPValue(ValueAsMetadata::get(Fragment.Alloca),
+                                   DbgVariable->getVariable(), FragmentExpr,
+                                   DbgVariable->getDebugLoc(),
+                                   DPValue::LocationType::Declare);
+        AI.getParent()->insertDPValueBefore(New, AI.getIterator());
+      }
+    }
+  }
+
   return Changed;
 }
 
@@ -5041,8 +5135,11 @@ bool SROAPass::deleteDeadInstructions(
     if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
       DeletedAllocas.insert(AI);
       SmallVector<DbgDeclareInst *> DbgDeclares;
+      SmallVector<DPValue *> DPValues;
       findDbgDeclares(DbgDeclares, AI);
       for (DbgDeclareInst *OldDII : DbgDeclares)
+        OldDII->eraseFromParent();
+      for (DPValue *OldDII : DPValues)
         OldDII->eraseFromParent();
     }
 
