@@ -1802,7 +1802,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
     }
   }
 
-  if (Dbgs.empty())
+  if (Dbgs.empty() && DPVs.empty())
     return Changed;
 
   for (auto &I : Dbgs) {
