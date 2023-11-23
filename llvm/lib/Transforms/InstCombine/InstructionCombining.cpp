@@ -3994,7 +3994,14 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   }
   SmallVector<DPValue *, 2> DPVClones;
   for (auto [DPV, Instr] : DPValuesToSink) {
-    // Not explored: dbg.declare, dbg.assign representations.
+    // A dbg.declare instruction should not be cloned, since there can only be
+    // one per variable fragment. It should be left in the original place
+    // because the sunk instruction is not an alloca (otherwise we could not be
+    // here).
+    if (DPV->getType() == DPValue::LocationType::Declare)
+      continue;
+
+    // Not explored: dbg.assign representation.
     DebugVariable DbgUserVariable =
         DebugVariable(DPV->getVariable(), DPV->getExpression(),
                       DPV->getDebugLoc()->getInlinedAt());
