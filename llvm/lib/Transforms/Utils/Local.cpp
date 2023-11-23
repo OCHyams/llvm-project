@@ -2062,15 +2062,12 @@ static void updateOneDbgValueForAlloca(const DebugLoc &Loc, DILocalVariable *DIV
 
 void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
                                     DIBuilder &Builder, int Offset) {
-  SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
+  SmallVector<DbgValueInst *, 1> DbgUsers;
   SmallVector<DPValue *, 1> DPUsers;
-  findDbgUsers(DbgUsers, AI, &DPUsers);
+  findDbgValues(DbgUsers, AI, &DPUsers);
 
   // Attempt to replace dbg.values that use this alloca.
-  for (auto *DV : DbgUsers) {
-    auto *DVI = dyn_cast<DbgValueInst>(DV);
-    if (!DVI)
-      continue;
+  for (auto *DVI : DbgUsers) {
     updateOneDbgValueForAlloca(DVI->getDebugLoc(), DVI->getVariable(), DVI->getExpression(), NewAllocaAddress, DVI, nullptr, Builder, Offset);
   }
 
