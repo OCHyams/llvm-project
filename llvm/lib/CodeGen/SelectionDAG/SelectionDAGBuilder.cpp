@@ -1236,6 +1236,17 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
   for (DPValue &DPV : I.getDbgValueRange()) {
     DILocalVariable *Variable = DPV.getVariable();
     DIExpression *Expression = DPV.getExpression();
+
+    if (DPV.getType() == DPValue::LocationType::Declare) {
+      if (FuncInfo.PreprocessedDPVs.contains(&DPV))
+        continue;
+      LLVM_DEBUG(dbgs() << "SelectionDAG visiting dbg_declare: " << DPV
+                        << "\n");
+      handleDebugDeclare(DPV.getVariableLocationOp(0), Variable, Expression,
+                         DPV.getDebugLoc());
+      continue;
+    }
+
     dropDanglingDebugInfo(Variable, Expression);
 
     // A DPValue with no locations is a kill location.
