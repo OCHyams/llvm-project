@@ -1791,10 +1791,16 @@ bool llvm::LowerDbgDeclare(Function &F) {
   bool Changed = false;
   DIBuilder DIB(*F.getParent(), /*AllowUnresolved*/ false);
   SmallVector<DbgDeclareInst *, 4> Dbgs;
-  for (auto &FI : F)
-    for (Instruction &BI : FI)
+  SmallVector<DPValue *> DPVs;
+  for (auto &FI : F) {
+    for (Instruction &BI : FI) {
       if (auto DDI = dyn_cast<DbgDeclareInst>(&BI))
         Dbgs.push_back(DDI);
+      for (DPValue &DPV : BI.getDbgValueRange())
+        if (DPV.getType() == DPValue::LocationType::Declare)
+          DPVs.push_back(&DPV);
+    }
+  }
 
   if (Dbgs.empty())
     return Changed;
@@ -1841,6 +1847,61 @@ bool llvm::LowerDbgDeclare(Function &F) {
             auto *DerefExpr =
                 DIExpression::append(DDI->getExpression(), dwarf::DW_OP_deref);
             insertDbgValueOrDPValue(DIB, AI, DDI->getVariable(), DerefExpr, NewLoc, CI->getIterator());
+          }
+        } else if (BitCastInst *BI = dyn_cast<BitCastInst>(U)) {
+          if (BI->getType()->isPointerTy())
+            WorkList.push_back(BI);
+        }
+      }
+    }
+    DDI->eraseFromParent();
+    Changed = true;
+  }
+
+  for (auto *DDI : DPVs) {
+    // FIXME: getAddress
+    AllocaInst *AI =
+        dyn_cast_or_null<AllocaInst>(DDI->getVariableLocationOp(0));
+    // If this is an alloca for a scalar variable, insert a dbg.value
+    // at each load and store to the alloca and erase the dbg.declare.
+    // The dbg.values allow tracking a variable even if it is not
+    // stored on the stack, while the dbg.declare can only describe
+    // the stack slot (and at a lexical-scope granularity). Later
+    // passes will attempt to elide the stack slot.
+    if (!AI || isArray(AI) || isStructure(AI))
+      continue;
+
+    // A volatile load/store means that the alloca can't be elided anyway.
+    if (llvm::any_of(AI->users(), [](User *U) -> bool {
+          if (LoadInst *LI = dyn_cast<LoadInst>(U))
+            return LI->isVolatile();
+          if (StoreInst *SI = dyn_cast<StoreInst>(U))
+            return SI->isVolatile();
+          return false;
+        }))
+      continue;
+
+    SmallVector<const Value *, 8> WorkList;
+    WorkList.push_back(AI);
+    while (!WorkList.empty()) {
+      const Value *V = WorkList.pop_back_val();
+      for (const auto &AIUse : V->uses()) {
+        User *U = AIUse.getUser();
+        if (StoreInst *SI = dyn_cast<StoreInst>(U)) {
+          if (AIUse.getOperandNo() == 1)
+            ConvertDebugDeclareToDebugValue(DDI, SI, DIB);
+        } else if (LoadInst *LI = dyn_cast<LoadInst>(U)) {
+          ConvertDebugDeclareToDebugValue(DDI, LI, DIB);
+        } else if (CallInst *CI = dyn_cast<CallInst>(U)) {
+          // This is a call by-value or some other instruction that takes a
+          // pointer to the variable. Insert a *value* intrinsic that describes
+          // the variable by dereferencing the alloca.
+          if (!CI->isLifetimeStartOrEnd()) {
+            DebugLoc NewLoc = getDebugValueLocDPV(DDI, nullptr);
+            auto *DerefExpr =
+                DIExpression::append(DDI->getExpression(), dwarf::DW_OP_deref);
+            insertDbgValueOrDPValue(DIB, AI, DDI->getVariable(), DerefExpr,
+                                    NewLoc, CI->getIterator());
           }
         } else if (BitCastInst *BI = dyn_cast<BitCastInst>(U)) {
           if (BI->getType()->isPointerTy())
