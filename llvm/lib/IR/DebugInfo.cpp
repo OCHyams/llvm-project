@@ -83,9 +83,12 @@ void llvm::findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers,
 }
 /*Interface of this might be adjusted in J's
                                   upstream patch?*/
-template <typename IntrinsicT>
+template <typename IntrinsicT, bool AnyType,
+          DPValue::LocationType Type = DPValue::LocationType(-1)>
 static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
                               SmallVectorImpl<DPValue *> *DPValues) {
+  static_assert(AnyType || (int)Type > 0);
+
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
@@ -114,7 +117,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
     // Get DPValues that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
       for (DPValue *DPV : L->getAllDPValueUsers()) {
-        if (DPV->getType() == DPValue::LocationType::Value)
+        if (AnyType || DPV->getType() == Type)
           DPValues->push_back(DPV);
       }
     }
@@ -129,7 +132,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       DIArgList *DI = cast<DIArgList>(AL);
       if (auto *Replaceable = DI->getReplaceableUses()) {
         for (DPValue *DPV : Replaceable->getAllDPValueUsers())
-          if (DPV->getType() == DPValue::LocationType::Value)
+          if (AnyType || DPV->getType() == Type)
             if (EncounteredDPValues.insert(DPV).second)
               DPValues->push_back(DPV);
       }
@@ -139,12 +142,13 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
 
 void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues,
                          Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgValueInst>(DbgValues, V, DPValues);
+  findDbgIntrinsics<DbgValueInst, false, DPValue::LocationType::Value>(
+      DbgValues, V, DPValues);
 }
 
 void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
                         Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgVariableIntrinsic>(DbgUsers, V, DPValues);
+  findDbgIntrinsics<DbgVariableIntrinsic, true>(DbgUsers, V, DPValues);
 }
 
 DISubprogram *llvm::getDISubprogram(const MDNode *Scope) {
