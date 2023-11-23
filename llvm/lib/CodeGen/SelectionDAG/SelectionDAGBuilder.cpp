@@ -1148,6 +1148,62 @@ SDValue SelectionDAGBuilder::getControlRoot() {
   return updateRoot(PendingExports);
 }
 
+void SelectionDAGBuilder::handleDebugDeclare(Value *Address,
+                                             DILocalVariable *Variable,
+                                             DIExpression *Expression,
+                                             DebugLoc dl) {
+  assert(Variable && "Missing variable");
+
+  dropDanglingDebugInfo(Variable, Expression);
+
+  // Check if address has undef value.
+  if (!Address || isa<UndefValue>(Address) ||
+      (Address->use_empty() && !isa<Argument>(Address))) {
+    LLVM_DEBUG(
+        dbgs()
+        << "dbg_declare: Dropping debug info (bad/undef/unused-arg address)\n");
+    return;
+  }
+
+  bool isParameter = Variable->isParameter() || isa<Argument>(Address);
+
+  SDValue &N = NodeMap[Address];
+  if (!N.getNode() && isa<Argument>(Address))
+    // Check unused arguments map.
+    N = UnusedArgNodeMap[Address];
+  SDDbgValue *SDV;
+  if (N.getNode()) {
+    if (const BitCastInst *BCI = dyn_cast<BitCastInst>(Address))
+      Address = BCI->getOperand(0);
+    // Parameters are handled specially.
+    auto FINode = dyn_cast<FrameIndexSDNode>(N.getNode());
+    if (isParameter && FINode) {
+      // Byval parameter. We have a frame index at this point.
+      SDV = DAG.getFrameIndexDbgValue(Variable, Expression, FINode->getIndex(),
+                                      /*IsIndirect*/ true, dl, SDNodeOrder);
+    } else if (isa<Argument>(Address)) {
+      // Address is an argument, so try to emit its dbg value using
+      // virtual register info from the FuncInfo.ValueMap.
+      EmitFuncArgumentDbgValue(Address, Variable, Expression, dl,
+                               FuncArgumentDbgValueKind::Declare, N);
+      return;
+    } else {
+      SDV = DAG.getDbgValue(Variable, Expression, N.getNode(), N.getResNo(),
+                            true, dl, SDNodeOrder);
+    }
+    DAG.AddDbgValue(SDV, isParameter);
+  } else {
+    // If Address is an argument then try to emit its dbg value using
+    // virtual register info from the FuncInfo.ValueMap.
+    if (!EmitFuncArgumentDbgValue(Address, Variable, Expression, dl,
+                                  FuncArgumentDbgValueKind::Declare, N)) {
+      LLVM_DEBUG(dbgs() << "dbg_declare: Dropping debug info"
+                        << " (could not emit func-arg dbg_value)\n");
+    }
+  }
+  return;
+}
+
 void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
   // Add SDDbgValue nodes for any var locs here. Do so before updating
   // SDNodeOrder, as this mapping is {Inst -> Locs BEFORE Inst}.
@@ -6243,61 +6299,12 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     if (AssignmentTrackingEnabled ||
         FuncInfo.PreprocessedDbgDeclares.count(&DI))
       return;
+    LLVM_DEBUG(dbgs() << "SelectionDAG visiting dbg_declare: " << DI << "\n");
     // Assume dbg.declare can not currently use DIArgList, i.e.
     // it is non-variadic.
     assert(!DI.hasArgList() && "Only dbg.value should currently use DIArgList");
-    DILocalVariable *Variable = DI.getVariable();
-    DIExpression *Expression = DI.getExpression();
-    dropDanglingDebugInfo(Variable, Expression);
-    assert(Variable && "Missing variable");
-    LLVM_DEBUG(dbgs() << "SelectionDAG visiting debug intrinsic: " << DI
-                      << "\n");
-    // Check if address has undef value.
-    const Value *Address = DI.getVariableLocationOp(0);
-    if (!Address || isa<UndefValue>(Address) ||
-        (Address->use_empty() && !isa<Argument>(Address))) {
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << DI
-                        << " (bad/undef/unused-arg address)\n");
-      return;
-    }
-
-    bool isParameter = Variable->isParameter() || isa<Argument>(Address);
-
-    SDValue &N = NodeMap[Address];
-    if (!N.getNode() && isa<Argument>(Address))
-      // Check unused arguments map.
-      N = UnusedArgNodeMap[Address];
-    SDDbgValue *SDV;
-    if (N.getNode()) {
-      if (const BitCastInst *BCI = dyn_cast<BitCastInst>(Address))
-        Address = BCI->getOperand(0);
-      // Parameters are handled specially.
-      auto FINode = dyn_cast<FrameIndexSDNode>(N.getNode());
-      if (isParameter && FINode) {
-        // Byval parameter. We have a frame index at this point.
-        SDV =
-            DAG.getFrameIndexDbgValue(Variable, Expression, FINode->getIndex(),
-                                      /*IsIndirect*/ true, dl, SDNodeOrder);
-      } else if (isa<Argument>(Address)) {
-        // Address is an argument, so try to emit its dbg value using
-        // virtual register info from the FuncInfo.ValueMap.
-        EmitFuncArgumentDbgValue(Address, Variable, Expression, dl,
-                                 FuncArgumentDbgValueKind::Declare, N);
-        return;
-      } else {
-        SDV = DAG.getDbgValue(Variable, Expression, N.getNode(), N.getResNo(),
-                              true, dl, SDNodeOrder);
-      }
-      DAG.AddDbgValue(SDV, isParameter);
-    } else {
-      // If Address is an argument then try to emit its dbg value using
-      // virtual register info from the FuncInfo.ValueMap.
-      if (!EmitFuncArgumentDbgValue(Address, Variable, Expression, dl,
-                                    FuncArgumentDbgValueKind::Declare, N)) {
-        LLVM_DEBUG(dbgs() << "Dropping debug info for " << DI
-                          << " (could not emit func-arg dbg_value)\n");
-      }
-    }
+    handleDebugDeclare(DI.getVariableLocationOp(0), DI.getVariable(),
+                       DI.getExpression(), DI.getDebugLoc());
     return;
   }
   case Intrinsic::dbg_label: {
