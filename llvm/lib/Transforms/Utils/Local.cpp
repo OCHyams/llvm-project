@@ -2055,7 +2055,8 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
                              DIBuilder &Builder, uint8_t DIExprFlags,
                              int Offset) {
   SmallVector<DbgDeclareInst *> DbgDeclares;
-  findDbgDeclares(DbgDeclares, Address);
+  SmallVector<DPValue *> DPValues;
+  findDbgDeclares(DbgDeclares, Address, &DPValues);
   for (DbgVariableIntrinsic *DII : DbgDeclares) {
     const DebugLoc &Loc = DII->getDebugLoc();
     auto *DIVar = DII->getVariable();
@@ -2067,6 +2068,15 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
     Builder.insertDeclare(NewAddress, DIVar, DIExpr, Loc, DII);
     DII->eraseFromParent();
   }
+
+  // RemoveDI: Update the DPValues in-place, no need to clone-delete-insert.
+  for (DPValue *DII : DPValues) {
+    auto *DIExpr = DII->getExpression();
+    DIExpr = DIExpression::prepend(DIExpr, DIExprFlags, Offset);
+    DII->setExpression(DIExpr);
+    DII->replaceVariableLocationOp(0u, NewAddress);
+  }
+
   return !DbgDeclares.empty();
 }
 
