@@ -387,7 +387,10 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
     for (DPValue &DPV : reverse(I.getDbgValueRange())) {
-      DebugVariable Key(DPV.getVariable(), DPV.getExpression(),
+      if (DPV.getType() == DPValue::LocationType::Declare)
+        continue;
+      DebugVariable Key(DPV.getVariable(),
+                        DPV.getExpression(),
                         DPV.getDebugLoc()->getInlinedAt());
       auto R = VariableSet.insert(Key);
       // If the same variable fragment is described more than once it is enough
@@ -478,7 +481,10 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
       VariableMap;
   for (auto &I : *BB) {
     for (DPValue &DPV : I.getDbgValueRange()) {
-      DebugVariable Key(DPV.getVariable(), std::nullopt,
+      if (DPV.getType() == DPValue::LocationType::Declare)
+        continue;
+      DebugVariable Key(DPV.getVariable(),
+                        std::nullopt,
                         DPV.getDebugLoc()->getInlinedAt());
       auto VMI = VariableMap.find(Key);
       // Update the map if we found a new value/expression describing the
