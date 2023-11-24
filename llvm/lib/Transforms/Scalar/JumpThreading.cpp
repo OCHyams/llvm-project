@@ -2003,11 +2003,9 @@ void JumpThreadingPass::updateSSA(
 
     while (!UsesToRename.empty())
       SSAUpdate.RewriteUse(*UsesToRename.pop_back_val());
-    if (!DbgValues.empty() || !DPValues.empty()) {
+    if (!DbgValues.empty()) {
       SSAUpdate.UpdateDebugValues(&I, DbgValues);
-      SSAUpdate.UpdateDebugValues(&I, DPValues);
       DbgValues.clear();
-      DPValues.clear();
     }
 
     LLVM_DEBUG(dbgs() << "\n");
