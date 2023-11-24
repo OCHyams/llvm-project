@@ -1665,7 +1665,10 @@ void llvm::ConvertDebugDeclareToDebugValue(DPValue *DPV,
 
   DebugLoc NewLoc = getDebugValueLocDPV(DPV, SI);
 
-  if (!valueCoversEntireFragment(DV->getType(), DPV)) {
+  bool CanConvert =
+      DIExpr->isDeref() || (!DIExpr->startsWithDeref() &&
+                            valueCoversEntireFragment(DV->getType(), DPV));
+  if (!CanConvert) {
     // FIXME: If storing to a part of the variable described by the dbg.declare,
     // then we want to insert a DPValue.value for the corresponding fragment.
     LLVM_DEBUG(dbgs() << "Failed to convert dbg.declare to DPValue: "
