@@ -5136,7 +5136,7 @@ bool SROAPass::deleteDeadInstructions(
       DeletedAllocas.insert(AI);
       SmallVector<DbgDeclareInst *> DbgDeclares;
       SmallVector<DPValue *> DPValues;
-      findDbgDeclares(DbgDeclares, AI);
+      findDbgDeclares(DbgDeclares, AI, &DPValues);
       for (DbgDeclareInst *OldDII : DbgDeclares)
         OldDII->eraseFromParent();
       for (DPValue *OldDII : DPValues)
