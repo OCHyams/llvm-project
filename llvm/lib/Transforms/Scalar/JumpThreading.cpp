@@ -2003,9 +2003,11 @@ void JumpThreadingPass::updateSSA(
 
     while (!UsesToRename.empty())
       SSAUpdate.RewriteUse(*UsesToRename.pop_back_val());
-    if (!DbgValues.empty()) {
+    if (!DbgValues.empty() || !DPValues.empty()) {
       SSAUpdate.UpdateDebugValues(&I, DbgValues);
+      SSAUpdate.UpdateDebugValues(&I, DPValues);
       DbgValues.clear();
+      DPValues.clear();
     }
 
     LLVM_DEBUG(dbgs() << "\n");
@@ -2050,6 +2052,24 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
 
   BasicBlock *RangeBB = BI->getParent();
 
+  // Duplicate implementation of the above dbg.value code, using DPValues
+  // instead.
+  auto RetargetDPValueIfPossible = [&](DPValue *DPV) {
+    SmallSet<std::pair<Value *, Value *>, 16> OperandsToRemap;
+    for (auto *Op : DPV->location_ops()) {
+      Instruction *OpInst = dyn_cast<Instruction>(Op);
+      if (!OpInst)
+        continue;
+
+      auto I = ValueMapping.find(OpInst);
+      if (I != ValueMapping.end())
+        OperandsToRemap.insert({OpInst, I->second});
+    }
+
+    for (auto &[OldOp, MappedOp] : OperandsToRemap)
+      DPV->replaceVariableLocationOp(OldOp, MappedOp);
+  };
+
   // Clone the phi nodes of the source basic block into NewBB.  The resulting
   // phi nodes are trivial since NewBB only has one predecessor, but SSAUpdater
   // might need to rewrite the operand of the cloned phi.
@@ -2074,6 +2094,12 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
     // path through the function. Normal jump-threading doesn't, so don't here.
   };
 
+  auto CloneAndRemapDbgInfo = [&](Instruction *NewInst, Instruction *From) {
+    auto DPVRange = NewInst->cloneDebugInfoFrom(From);
+    for (DPValue &DPV : DPVRange)
+      RetargetDPValueIfPossible(&DPV);
+  };
+
   // Clone the non-phi instructions of the source basic block into NewBB,
   // keeping track of the mapping and using it to remap operands in the cloned
   // instructions.
@@ -2086,6 +2112,8 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
     adaptNoAliasScopes(New, ClonedScopes, Context);
 
     CloneDbgInfoPls(New, &*BI);
+
+    CloneAndRemapDbgInfo(New, &*BI);
 
     if (RetargetDbgValueIfPossible(New))
       continue;
@@ -2108,6 +2136,17 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
       DPMarker *EndMarker = NewBB->createMarker(NewBB->end());
       EndMarker->cloneDebugInfoFrom(Marker, std::nullopt);
     }
+  }
+
+  // There may be DPValues on the terminator, clone directly from marker
+  // to marker as there isn't an instruction there.
+  if (BE != RangeBB->end() && BE->hasDbgValues()) {
+    // Dump them at the end.
+    DPMarker *Marker = RangeBB->getMarker(BE);
+    DPMarker *EndMarker = NewBB->createMarker(NewBB->end());
+    auto DPVRange = EndMarker->cloneDebugInfoFrom(Marker, std::nullopt);
+    for (DPValue &DPV : DPVRange)
+      RetargetDPValueIfPossible(&DPV);
   }
 
   return ValueMapping;
