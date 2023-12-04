@@ -966,7 +966,6 @@ static void cacheDIVar(FrameDataInfo &FrameData,
     SmallVector<DbgDeclareInst *> DDIs;
     SmallVector<DPValue *> DPVs;
     findDbgDeclares(DDIs, V, &DPVs);
-    assert(DDIs.empty());
     auto CacheIt = [&DIVarCache, V](auto &Container) {
       auto *I = llvm::find_if(Container, [](auto *DDI) {
         return DDI->getExpression()->getNumElements() == 0;
