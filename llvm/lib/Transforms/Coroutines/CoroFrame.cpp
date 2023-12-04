@@ -964,12 +964,18 @@ static void cacheDIVar(FrameDataInfo &FrameData,
       continue;
 
     SmallVector<DbgDeclareInst *> DDIs;
-    findDbgDeclares(DDIs, V);
-    auto *I = llvm::find_if(DDIs, [](DbgDeclareInst *DDI) {
-      return DDI->getExpression()->getNumElements() == 0;
-    });
-    if (I != DDIs.end())
-      DIVarCache.insert({V, (*I)->getVariable()});
+    SmallVector<DPValue *> DPVs;
+    findDbgDeclares(DDIs, V, &DPVs);
+    assert(DDIs.empty());
+    auto CacheIt = [&DIVarCache, V](auto &Container) {
+      auto *I = llvm::find_if(Container, [](DbgDeclareInst *DDI) {
+        return DDI->getExpression()->getNumElements() == 0;
+      });
+      if (I != Container.end())
+        DIVarCache.insert({V, (*I)->getVariable()});
+    };
+    CacheIt(DDIs);
+    CacheIt(DPVs);
   }
 }
 
@@ -1121,15 +1127,25 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
          "Coroutine with switch ABI should own Promise alloca");
 
   SmallVector<DbgDeclareInst *> DIs;
-  findDbgDeclares(DIs, PromiseAlloca);
-  if (DIs.empty())
-    return;
+  SmallVector<DPValue *> DPVs;
+  findDbgDeclares(DIs, PromiseAlloca, &DPVs);
 
-  DbgDeclareInst *PromiseDDI = DIs.front();
-  DILocalVariable *PromiseDIVariable = PromiseDDI->getVariable();
+  DILocalVariable *PromiseDIVariable = nullptr;
+  DILocation *DILoc = nullptr;
+  if (!DIs.empty()) {
+    DbgDeclareInst *PromiseDDI = DIs.front();
+    PromiseDIVariable = PromiseDDI->getVariable();
+    DILoc = PromiseDDI->getDebugLoc().get();
+  } else if (!DPVs.empty()) {
+    DPValue *PromiseDPV = DPVs.front();
+    PromiseDIVariable = PromiseDPV->getVariable();
+    DILoc = PromiseDPV->getDebugLoc().get();
+  } else {
+    return;
+  }
+
   DILocalScope *PromiseDIScope = PromiseDIVariable->getScope();
   DIFile *DFile = PromiseDIScope->getFile();
-  DILocation *DILoc = PromiseDDI->getDebugLoc().get();
   unsigned LineNum = PromiseDIVariable->getLine();
 
   DICompositeType *FrameDITy = DBuilder.createStructType(
@@ -1843,7 +1859,8 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
               SpillAlignment, E.first->getName() + Twine(".reload"));
 
         SmallVector<DbgDeclareInst *> DIs;
-        findDbgDeclares(DIs, Def);
+        SmallVector<DPValue *> DPVs;
+        findDbgDeclares(DIs, Def, &DPVs);
         // Try best to find dbg.declare. If the spill is a temp, there may not
         // be a direct dbg.declare. Walk up the load chain to find one from an
         // alias.
@@ -1858,11 +1875,12 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
             if (!isa<AllocaInst, LoadInst>(CurDef))
               break;
             DIs.clear();
-            findDbgDeclares(DIs, CurDef);
+            DPVs.clear();
+            findDbgDeclares(DIs, CurDef, &DPVs);
           }
         }
 
-        for (DbgDeclareInst *DDI : DIs) {
+        auto SalvageOne = [&](DbgDeclareInst *DDI) {
           bool AllowUnresolved = false;
           // This dbg.declare is preserved for all coro-split function
           // fragments. It will be unreachable in the main function, and
@@ -1875,7 +1893,9 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           // will be deleted in all coro-split functions.
           coro::salvageDebugInfo(ArgToAllocaMap, DDI, Shape.OptimizeFrame,
                                  false /*UseEntryValue*/);
-        }
+        };
+        for_each(DIs, SalvageOne);
+        for_each(DPVs, SalvageOne);
       }
 
       // If we have a single edge PHINode, remove it and replace it with a
