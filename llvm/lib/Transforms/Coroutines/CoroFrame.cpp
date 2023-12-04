@@ -968,7 +968,7 @@ static void cacheDIVar(FrameDataInfo &FrameData,
     findDbgDeclares(DDIs, V, &DPVs);
     assert(DDIs.empty());
     auto CacheIt = [&DIVarCache, V](auto &Container) {
-      auto *I = llvm::find_if(Container, [](DbgDeclareInst *DDI) {
+      auto *I = llvm::find_if(Container, [](auto *DDI) {
         return DDI->getExpression()->getNumElements() == 0;
       });
       if (I != Container.end())
@@ -1259,7 +1259,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
   auto *FrameDIVar = DBuilder.createAutoVariable(PromiseDIScope, "__coro_frame",
                                                  DFile, LineNum, FrameDITy,
                                                  true, DINode::FlagArtificial);
-  assert(FrameDIVar->isValidLocationForIntrinsic(PromiseDDI->getDebugLoc()));
+  assert(FrameDIVar->isValidLocationForIntrinsic(DILoc));
 
   // Subprogram would have ContainedNodes field which records the debug
   // variables it contained. So we need to add __coro_frame to the
@@ -1880,7 +1880,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           }
         }
 
-        auto SalvageOne = [&](DbgDeclareInst *DDI) {
+        auto SalvageOne = [&](auto *DDI) {
           bool AllowUnresolved = false;
           // This dbg.declare is preserved for all coro-split function
           // fragments. It will be unreachable in the main function, and
@@ -1895,7 +1895,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
                                  false /*UseEntryValue*/);
         };
         for_each(DIs, SalvageOne);
-        for_each(DPVs, SalvageOne);
+        //for_each(DPVs, SalvageOne);
       }
 
       // If we have a single edge PHINode, remove it and replace it with a
@@ -2822,7 +2822,120 @@ static void collectFrameAlloca(AllocaInst *AI, coro::Shape &Shape,
                        Visitor.getMayWriteBeforeCoroBegin());
 }
 
+static std::optional<std::pair<Value *, DIExpression *>>
+salvageDebugInfoImpl(SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
+                     bool OptimizeFrame, bool UseEntryValue, Function *F,
+                     Value *Storage, DIExpression *Expr,
+                     bool SkipOutermostLoad) {
+  IRBuilder<> Builder(F->getContext());
+  auto InsertPt = F->getEntryBlock().getFirstInsertionPt();
+  while (isa<IntrinsicInst>(InsertPt))
+    ++InsertPt;
+  Builder.SetInsertPoint(&F->getEntryBlock(), InsertPt);
+
+  while (auto *Inst = dyn_cast_or_null<Instruction>(Storage)) {
+    if (auto *LdInst = dyn_cast<LoadInst>(Inst)) {
+      Storage = LdInst->getPointerOperand();
+      // FIXME: This is a heuristic that works around the fact that
+      // LLVM IR debug intrinsics cannot yet distinguish between
+      // memory and value locations: Because a dbg.declare(alloca) is
+      // implicitly a memory location no DW_OP_deref operation for the
+      // last direct load from an alloca is necessary.  This condition
+      // effectively drops the *last* DW_OP_deref in the expression.
+      if (!SkipOutermostLoad)
+        Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
+    } else if (auto *StInst = dyn_cast<StoreInst>(Inst)) {
+      Storage = StInst->getValueOperand();
+    } else {
+      SmallVector<uint64_t, 16> Ops;
+      SmallVector<Value *, 0> AdditionalValues;
+      Value *Op = llvm::salvageDebugInfoImpl(
+          *Inst, Expr ? Expr->getNumLocationOperands() : 0, Ops,
+          AdditionalValues);
+      if (!Op || !AdditionalValues.empty()) {
+        // If salvaging failed or salvaging produced more than one location
+        // operand, give up.
+        break;
+      }
+      Storage = Op;
+      Expr = DIExpression::appendOpsToArg(Expr, Ops, 0, /*StackValue*/ false);
+    }
+    SkipOutermostLoad = false;
+  }
+  if (!Storage)
+    return std::nullopt;
+
+  auto *StorageAsArg = dyn_cast<Argument>(Storage);
+  const bool IsSwiftAsyncArg =
+      StorageAsArg && StorageAsArg->hasAttribute(Attribute::SwiftAsync);
+
+  // Swift async arguments are described by an entry value of the ABI-defined
+  // register containing the coroutine context.
+  // Entry values in variadic expressions are not supported.
+  if (IsSwiftAsyncArg && UseEntryValue && !Expr->isEntryValue() &&
+      Expr->isSingleLocationExpression())
+    Expr = DIExpression::prepend(Expr, DIExpression::EntryValue);
+
+  // If the coroutine frame is an Argument, store it in an alloca to improve
+  // its availability (e.g. registers may be clobbered).
+  // Avoid this if optimizations are enabled (they would remove the alloca) or
+  // if the value is guaranteed to be available through other means (e.g. swift
+  // ABI guarantees).
+  if (StorageAsArg && !OptimizeFrame && !IsSwiftAsyncArg) {
+    auto &Cached = ArgToAllocaMap[StorageAsArg];
+    if (!Cached) {
+      Cached = Builder.CreateAlloca(Storage->getType(), 0, nullptr,
+                                    Storage->getName() + ".debug");
+      Builder.CreateStore(Storage, Cached);
+    }
+    Storage = Cached;
+    // FIXME: LLVM lacks nuanced semantics to differentiate between
+    // memory and direct locations at the IR level. The backend will
+    // turn a dbg.declare(alloca, ..., DIExpression()) into a memory
+    // location. Thus, if there are deref and offset operations in the
+    // expression, we need to add a DW_OP_deref at the *start* of the
+    // expression to first load the contents of the alloca before
+    // adjusting it with the expression.
+    Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
+  }
+
+  return {{Storage, Expr}};
+}
+
 void coro::salvageDebugInfo(
+    SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
+    DbgVariableIntrinsic *DVI, bool OptimizeFrame, bool UseEntryValue) {
+  Function *F = DVI->getFunction();
+  DIExpression *Expr = DVI->getExpression();
+  // Follow the pointer arithmetic all the way to the incoming
+  // function argument and convert into a DIExpression.
+  bool SkipOutermostLoad = !isa<DbgValueInst>(DVI);
+  Value *Storage = DVI->getVariableLocationOp(0);
+  Value *OriginalStorage = Storage;
+
+  auto SalvagedInfo =
+      ::salvageDebugInfoImpl(ArgToAllocaMap, OptimizeFrame, UseEntryValue, F,
+                             Storage, Expr, SkipOutermostLoad);
+  if (!SalvagedInfo)
+    return;
+
+  DVI->replaceVariableLocationOp(OriginalStorage, SalvagedInfo->first);
+  DVI->setExpression(SalvagedInfo->second);
+  // We only hoist dbg.declare today since it doesn't make sense to hoist
+  // dbg.value since it does not have the same function wide guarantees that
+  // dbg.declare does.
+  if (isa<DbgDeclareInst>(DVI)) {
+    std::optional<BasicBlock::iterator> InsertPt;
+    if (auto *I = dyn_cast<Instruction>(Storage))
+      InsertPt = I->getInsertionPointAfterDef();
+    else if (isa<Argument>(Storage))
+      InsertPt = F->getEntryBlock().begin();
+    if (InsertPt)
+      DVI->moveBefore(*(*InsertPt)->getParent(), *InsertPt);
+  }
+}
+
+void coro__salvageDebugInfo(
     SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
     DbgVariableIntrinsic *DVI, bool OptimizeFrame, bool UseEntryValue) {
   Function *F = DVI->getFunction();
