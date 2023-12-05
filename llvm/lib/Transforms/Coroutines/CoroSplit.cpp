@@ -1243,7 +1243,7 @@ static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
                             Function *DestroyFn, Function *CleanupFn) {
   assert(Shape.ABI == coro::ABI::Switch);
 
-  IRBuilder<> Builder(Shape.getInsertPtAfterFramePtr());
+  IRBuilder<> Builder(&*Shape.getInsertPtAfterFramePtr());
 
   auto *ResumeAddr = Builder.CreateStructGEP(
       Shape.FrameTy, Shape.FramePtr, coro::Shape::SwitchFieldIndex::Resume,

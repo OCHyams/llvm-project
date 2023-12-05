@@ -1276,9 +1276,17 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
         7, (MDTuple::get(F.getContext(), RetainedNodesVec)));
   }
 
-  DBuilder.insertDeclare(Shape.FramePtr, FrameDIVar,
-                         DBuilder.createExpression(), DILoc,
-                         Shape.getInsertPtAfterFramePtr());
+  if (UseNewDbgInfoFormat) {
+    DPValue *NewDPV = new DPValue(ValueAsMetadata::get(Shape.FramePtr),
+                                  FrameDIVar, DBuilder.createExpression(),
+                                  DILoc, DPValue::LocationType::Declare);
+    BasicBlock::iterator It = Shape.getInsertPtAfterFramePtr();
+    It->getParent()->insertDPValueBefore(NewDPV, It);
+  } else {
+    DBuilder.insertDeclare(Shape.FramePtr, FrameDIVar,
+                           DBuilder.createExpression(), DILoc,
+                           &*Shape.getInsertPtAfterFramePtr());
+  }
 }
 
 // Build a struct that will keep state for an active coroutine.
@@ -1786,7 +1794,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
     if (auto *Arg = dyn_cast<Argument>(Def)) {
       // For arguments, we will place the store instruction right after
       // the coroutine frame pointer instruction, i.e. coro.begin.
-      InsertPt = Shape.getInsertPtAfterFramePtr()->getIterator();
+      InsertPt = Shape.getInsertPtAfterFramePtr();
 
       // If we're spilling an Argument, make sure we clear 'nocapture'
       // from the coroutine function.
@@ -1803,7 +1811,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       if (!DT.dominates(CB, I)) {
         // If it is not dominated by CoroBegin, then spill should be
         // inserted immediately after CoroFrame is computed.
-        InsertPt = Shape.getInsertPtAfterFramePtr()->getIterator();
+        InsertPt = Shape.getInsertPtAfterFramePtr();
       } else if (auto *II = dyn_cast<InvokeInst>(I)) {
         // If we are spilling the result of the invoke instruction, split
         // the normal edge and insert the spill in the new block.
@@ -1885,10 +1893,19 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           // This dbg.declare is preserved for all coro-split function
           // fragments. It will be unreachable in the main function, and
           // processed by coro::salvageDebugInfo() by CoroCloner.
-          DIBuilder(*CurrentBlock->getParent()->getParent(), AllowUnresolved)
-              .insertDeclare(CurrentReload, DDI->getVariable(),
-                             DDI->getExpression(), DDI->getDebugLoc(),
-                             &*Builder.GetInsertPoint());
+          if (UseNewDbgInfoFormat) {
+            DPValue *NewDPV =
+                new DPValue(ValueAsMetadata::get(CurrentReload),
+                            DDI->getVariable(), DDI->getExpression(),
+                            DDI->getDebugLoc(), DPValue::LocationType::Declare);
+            Builder.GetInsertPoint()->getParent()->insertDPValueBefore(
+                NewDPV, Builder.GetInsertPoint());
+          } else {
+            DIBuilder(*CurrentBlock->getParent()->getParent(), AllowUnresolved)
+                .insertDeclare(CurrentReload, DDI->getVariable(),
+                               DDI->getExpression(), DDI->getDebugLoc(),
+                               &*Builder.GetInsertPoint());
+          }
           // This dbg.declare is for the main function entry point.  It
           // will be deleted in all coro-split functions.
           coro::salvageDebugInfo(ArgToAllocaMap, DDI, Shape.OptimizeFrame,
@@ -1982,7 +1999,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       I->replaceUsesOfWith(Alloca, G);
     }
   }
-  Builder.SetInsertPoint(Shape.getInsertPtAfterFramePtr());
+  Builder.SetInsertPoint(&*Shape.getInsertPtAfterFramePtr());
   for (const auto &A : FrameData.Allocas) {
     AllocaInst *Alloca = A.Alloca;
     if (A.MayWriteBeforeCoroBegin) {
@@ -2043,7 +2060,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
              isa<BitCastInst>(Inst);
     });
     if (HasAccessingPromiseBeforeCB) {
-      Builder.SetInsertPoint(Shape.getInsertPtAfterFramePtr());
+      Builder.SetInsertPoint(&*Shape.getInsertPtAfterFramePtr());
       auto *G = GetFramePointer(PA);
       auto *Value = Builder.CreateLoad(PA->getAllocatedType(), PA);
       Builder.CreateStore(Value, G);

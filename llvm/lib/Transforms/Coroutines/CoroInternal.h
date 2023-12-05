@@ -244,10 +244,10 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     return nullptr;
   }
 
-  Instruction *getInsertPtAfterFramePtr() const {
+  BasicBlock::iterator getInsertPtAfterFramePtr() const {
     if (auto *I = dyn_cast<Instruction>(FramePtr))
-      return I->getNextNode();
-    return &cast<Argument>(FramePtr)->getParent()->getEntryBlock().front();
+      return std::next(I->getIterator());
+    return cast<Argument>(FramePtr)->getParent()->getEntryBlock().begin();
   }
 
   /// Allocate memory according to the rules of the active lowering.
