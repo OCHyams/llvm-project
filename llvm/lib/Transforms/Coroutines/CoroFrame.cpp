@@ -3264,12 +3264,13 @@ void coro::buildCoroutineFrame(
     SmallVector<DbgValueInst *, 16> DVIs;
     SmallVector<DPValue *, 16> DPVs;
     findDbgValues(DVIs, V, &DPVs);
-    auto CheckOne = [&](auto *DVI) {
+    for (DbgValueInst *DVI : DVIs)
       if (Checker.isDefinitionAcrossSuspend(*V, DVI))
         FrameData.Spills[V].push_back(DVI);
-    };
-    for_each(DVIs, CheckOne);
-    //for_each(DPVs, CheckOne); // TODO.
+    // Hmmmm?
+    // for (DPValue *DPV : DPVs)
+    //  if (Checker.isDefinitionAcrossSuspend(*V, DPV->getInstruction()))
+    //    FrameData.Spills[V].push_back(DPV->getInstruction());
   }
 
   LLVM_DEBUG(dumpSpills("Spills", FrameData.Spills));
