@@ -33,6 +33,10 @@ void replaceCoroFree(CoroIdInst *CoroId, bool Elide);
 void salvageDebugInfo(
     SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
     DbgVariableIntrinsic *DVI, bool OptimizeFrame, bool IsEntryPoint);
+/// See overload.
+void salvageDebugInfo(
+    SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap, DPValue *DPV,
+    bool OptimizeFrame, bool UseEntryValue);
 
 // Keeps data and helper functions for lowering coroutine intrinsics.
 struct LowererBase {

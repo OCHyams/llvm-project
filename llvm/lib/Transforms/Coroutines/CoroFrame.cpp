@@ -1894,7 +1894,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
                                  false /*UseEntryValue*/);
         };
         for_each(DIs, SalvageOne);
-        //for_each(DPVs, SalvageOne);
+        for_each(DPVs, SalvageOne);
       }
 
       // If we have a single edge PHINode, remove it and replace it with a
@@ -2904,22 +2904,24 @@ salvageDebugInfoImpl(SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
 void coro::salvageDebugInfo(
     SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
     DbgVariableIntrinsic *DVI, bool OptimizeFrame, bool UseEntryValue) {
+
   Function *F = DVI->getFunction();
-  DIExpression *Expr = DVI->getExpression();
   // Follow the pointer arithmetic all the way to the incoming
   // function argument and convert into a DIExpression.
   bool SkipOutermostLoad = !isa<DbgValueInst>(DVI);
-  Value *Storage = DVI->getVariableLocationOp(0);
-  Value *OriginalStorage = Storage;
+  Value *OriginalStorage = DVI->getVariableLocationOp(0);
 
-  auto SalvagedInfo =
-      ::salvageDebugInfoImpl(ArgToAllocaMap, OptimizeFrame, UseEntryValue, F,
-                             Storage, Expr, SkipOutermostLoad);
+  auto SalvagedInfo = ::salvageDebugInfoImpl(
+      ArgToAllocaMap, OptimizeFrame, UseEntryValue, F, OriginalStorage,
+      DVI->getExpression(), SkipOutermostLoad);
   if (!SalvagedInfo)
     return;
 
-  DVI->replaceVariableLocationOp(OriginalStorage, SalvagedInfo->first);
-  DVI->setExpression(SalvagedInfo->second);
+  Value *Storage = SalvagedInfo->first;
+  DIExpression *Expr = SalvagedInfo->second;
+
+  DVI->replaceVariableLocationOp(OriginalStorage, Storage);
+  DVI->setExpression(Expr);
   // We only hoist dbg.declare today since it doesn't make sense to hoist
   // dbg.value since it does not have the same function wide guarantees that
   // dbg.declare does.
@@ -2931,6 +2933,43 @@ void coro::salvageDebugInfo(
       InsertPt = F->getEntryBlock().begin();
     if (InsertPt)
       DVI->moveBefore(*(*InsertPt)->getParent(), *InsertPt);
+  }
+}
+
+void coro::salvageDebugInfo(
+    SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap, DPValue *DPV,
+    bool OptimizeFrame, bool UseEntryValue) {
+
+  Function *F = DPV->getFunction();
+  // Follow the pointer arithmetic all the way to the incoming
+  // function argument and convert into a DIExpression.
+  bool SkipOutermostLoad = DPV->getType() == DPValue::LocationType::Declare;
+  Value *OriginalStorage = DPV->getVariableLocationOp(0);
+
+  auto SalvagedInfo = ::salvageDebugInfoImpl(
+      ArgToAllocaMap, OptimizeFrame, UseEntryValue, F, OriginalStorage,
+      DPV->getExpression(), SkipOutermostLoad);
+  if (!SalvagedInfo)
+    return;
+
+  Value *Storage = SalvagedInfo->first;
+  DIExpression *Expr = SalvagedInfo->second;
+
+  DPV->replaceVariableLocationOp(OriginalStorage, Storage);
+  DPV->setExpression(Expr);
+  // We only hoist dbg.declare today since it doesn't make sense to hoist
+  // dbg.value since it does not have the same function wide guarantees that
+  // dbg.declare does.
+  if (DPV->getType() == DPValue::LocationType::Declare) {
+    std::optional<BasicBlock::iterator> InsertPt;
+    if (auto *I = dyn_cast<Instruction>(Storage))
+      InsertPt = I->getInsertionPointAfterDef();
+    else if (isa<Argument>(Storage))
+      InsertPt = F->getEntryBlock().begin();
+    if (InsertPt) {
+      DPV->removeFromParent();
+      (*InsertPt)->getParent()->insertDPValueBefore(DPV, *InsertPt);
+    }
   }
 }
 
