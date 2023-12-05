@@ -245,8 +245,11 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
   }
 
   BasicBlock::iterator getInsertPtAfterFramePtr() const {
-    if (auto *I = dyn_cast<Instruction>(FramePtr))
-      return std::next(I->getIterator());
+    if (auto *I = dyn_cast<Instruction>(FramePtr)) {
+      BasicBlock::iterator It = std::next(I->getIterator());
+      It.setHeadBit(true); // Copy pre-RemoveDIs behaviour.
+      return It;
+    }
     return cast<Argument>(FramePtr)->getParent()->getEntryBlock().begin();
   }
 
