@@ -1860,6 +1860,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
         SmallVector<DbgDeclareInst *> DIs;
         SmallVector<DPValue *> DPVs;
         findDbgDeclares(DIs, Def, &DPVs);
+
         // Try best to find dbg.declare. If the spill is a temp, there may not
         // be a direct dbg.declare. Walk up the load chain to find one from an
         // alias.
@@ -1962,9 +1963,12 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
     G->setName(Alloca->getName() + Twine(".reload.addr"));
 
     SmallVector<DbgVariableIntrinsic *, 4> DIs;
-    findDbgUsers(DIs, Alloca);
+    SmallVector<DPValue *> DPValues;
+    findDbgUsers(DIs, Alloca, &DPValues);
     for (auto *DVI : DIs)
       DVI->replaceUsesOfWith(Alloca, G);
+    for (auto *DPV : DPValues)
+      DPV->replaceVariableLocationOp(Alloca, G);
 
     for (Instruction *I : UsersToUpdate) {
       // It is meaningless to retain the lifetime intrinsics refer for the
@@ -3258,10 +3262,14 @@ void coro::buildCoroutineFrame(
   for (auto &Iter : FrameData.Spills) {
     auto *V = Iter.first;
     SmallVector<DbgValueInst *, 16> DVIs;
-    findDbgValues(DVIs, V);
-    for (DbgValueInst *DVI : DVIs)
+    SmallVector<DPValue *, 16> DPVs;
+    findDbgValues(DVIs, V, &DPVs);
+    auto CheckOne = [&](auto *DVI) {
       if (Checker.isDefinitionAcrossSuspend(*V, DVI))
         FrameData.Spills[V].push_back(DVI);
+    };
+    for_each(DVIs, CheckOne);
+    //for_each(DPVs, CheckOne); // TODO.
   }
 
   LLVM_DEBUG(dumpSpills("Spills", FrameData.Spills));
