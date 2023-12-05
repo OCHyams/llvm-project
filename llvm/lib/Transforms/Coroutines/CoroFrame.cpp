@@ -1930,6 +1930,10 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       // Replace all uses of CurrentValue in the current instruction with
       // reload.
       U->replaceUsesOfWith(Def, CurrentReload);
+      // In some cases Instructions are processed to update their attached
+      // debug records.
+      for (auto &DPV: U->getDbgValueRange())
+        DPV.replaceVariableLocationOp(Def, CurrentReload, true);
     }
   }
 
@@ -3284,10 +3288,10 @@ void coro::buildCoroutineFrame(
     for (DbgValueInst *DVI : DVIs)
       if (Checker.isDefinitionAcrossSuspend(*V, DVI))
         FrameData.Spills[V].push_back(DVI);
-    // Hmmmm?
-    // for (DPValue *DPV : DPVs)
-    //  if (Checker.isDefinitionAcrossSuspend(*V, DPV->getInstruction()))
-    //    FrameData.Spills[V].push_back(DPV->getInstruction());
+    // Add the instructions which carry debug info that is in the frame.
+    for (DPValue *DPV : DPVs)
+      if (Checker.isDefinitionAcrossSuspend(*V, DPV->Marker->MarkedInstr))
+        FrameData.Spills[V].push_back(DPV->Marker->MarkedInstr);
   }
 
   LLVM_DEBUG(dumpSpills("Spills", FrameData.Spills));
