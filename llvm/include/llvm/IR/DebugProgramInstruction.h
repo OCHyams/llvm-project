@@ -137,6 +137,18 @@ public:
   DebugLoc DbgLoc;
 
 public:
+  // filter?
+  class adaptor_iterator
+      : public iterator_adaptor_base<
+            adaptor_iterator, DPEntity::self_iterator,
+            typename std::iterator_traits<
+                DPEntity::self_iterator>::iterator_category,
+            DPValue *, std::ptrdiff_t, DPValue **, DPValue *&> {
+  public:
+    adaptor_iterator(DPEntity::self_iterator It) : iterator_adaptor_base(It) {}
+    DPValue *operator*() const { return cast<DPValue>(I); }
+  };
+
   void dump() const;
 
   // using self_iterator = simple_ilist<DPValue>::iterator;
