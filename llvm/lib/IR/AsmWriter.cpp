@@ -4546,8 +4546,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   // There's no formal representation of a DPMarker -- print purely as a
   // debugging aid.
-  for (const DPValue &DPI2 : Marker.StoredDPValues) {
-    printDPValue(DPI2);
+  for (const DPEntity &DPI2 : Marker.StoredDPValues) {
+    if (auto *DPV = dyn_cast<DPValue>(&DPI2))
+      printDPValue(*DPV);
+    else
+      llvm_unreachable("unsupported DPEntity");
     Out << "\n";
   }
 
