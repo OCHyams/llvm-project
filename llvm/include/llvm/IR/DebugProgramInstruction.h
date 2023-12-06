@@ -64,13 +64,20 @@ class DPMarker;
 class DPValue;
 class raw_ostream;
 
-class DPEntity {
+/// In order to avoid paying for a vtable, inheritors must add cases to a few
+/// functions:
+///   ~DPEnitiy()
+///   clone()
+class DPEntity : public ilist_node<DPEntity> {
 public:
   /// Marker that this DPValue is linked into.
   DPMarker *Marker = nullptr;
   enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
 
   DPEntity(Kind EntityKind) : EntityKind(EntityKind) {}
+  ~DPEntity();
+
+  DPEntity *clone() const;
 
   void setMarker(DPMarker *M) { Marker = M; }
 
@@ -92,8 +99,12 @@ public:
   const BasicBlock *getParent() const;
   BasicBlock *getParent();
 
-  using self_iterator = simple_ilist<DPValue>::iterator;
-  using const_self_iterator = simple_ilist<DPValue>::const_iterator;
+  void deleteInstr();
+  void removeFromParent();
+  void eraseFromParent();
+
+  using self_iterator = simple_ilist<DPEntity>::iterator;
+  using const_self_iterator = simple_ilist<DPEntity>::const_iterator;
 };
 
 /// Record of a variable value-assignment, aka a non instruction representation
@@ -104,10 +115,10 @@ public:
 ///
 /// This class inherits from DebugValueUser to allow LLVM's metadata facilities
 /// to update our references to metadata beneath our feet.
-class DPValue : public ilist_node<DPValue>,
-                private DebugValueUser,
-                public DPEntity {
+class DPValue : private DebugValueUser, public DPEntity {
 public:
+  friend class DebugValueUser;
+
   enum class LocationType : uint8_t {
     Declare,
     Value,
@@ -120,8 +131,6 @@ public:
   /// currently supported, but it would be trivial to do so.
   LocationType Type;
 
-  friend class DebugValueUser;
-
   // NB: there is no explicit "Value" field in this class, it's effectively the
   // DebugValueUser superclass instead. The referred to Value can either be a
   // ValueAsMetadata or a DIArgList.
@@ -131,13 +140,10 @@ public:
   DebugLoc DbgLoc;
 
 public:
-  void deleteInstr();
   void dump() const;
-  void removeFromParent();
-  void eraseFromParent();
 
-  using self_iterator = simple_ilist<DPValue>::iterator;
-  using const_self_iterator = simple_ilist<DPValue>::const_iterator;
+  // using self_iterator = simple_ilist<DPValue>::iterator;
+  // using const_self_iterator = simple_ilist<DPValue>::const_iterator;
 
   /// Create a new DPValue representing the intrinsic \p DVI, for example the
   /// assignment represented by a dbg.value.
@@ -333,7 +339,7 @@ public:
   /// Transfer the DPValues in \p Range from \p Src into this DPMarker. If
   /// \p InsertAtHead is true, place them before existing DPValues, otherwise
   // afterwards.
-  void absorbDebugValues(iterator_range<DPValue::self_iterator> Range,
+  void absorbDebugValues(iterator_range<DPEntity::self_iterator> Range,
                          DPMarker &Src, bool InsertAtHead);
   /// Insert a DPValue into this DPMarker, at the end of the list. If
   /// \p InsertAtHead is true, at the start.
@@ -344,9 +350,9 @@ public:
   /// \p FromHere If non-null, copy from FromHere to the end of From's DPValues
   /// \p InsertAtHead Place the cloned DPValues at the start of StoredDPValues
   /// \returns Range over all the newly cloned DPValues
-  iterator_range<simple_ilist<DPValue>::iterator>
+  iterator_range<simple_ilist<DPEntity>::iterator>
   cloneDebugInfoFrom(DPMarker *From,
-                     std::optional<simple_ilist<DPValue>::iterator> FromHere,
+                     std::optional<simple_ilist<DPEntity>::iterator> FromHere,
                      bool InsertAtHead = false);
   /// Erase all DPValues in this DPMarker.
   void dropDPValues();

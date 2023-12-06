@@ -70,9 +70,9 @@ public:
   /// \p InsertAtHead Whether the cloned DPValues should be placed at the end
   ///    or the beginning of existing DPValues attached to this.
   /// \returns A range over the newly cloned DPValues.
-  iterator_range<simple_ilist<DPValue>::iterator> cloneDebugInfoFrom(
+  iterator_range<simple_ilist<DPEntity>::iterator> cloneDebugInfoFrom(
       const Instruction *From,
-      std::optional<simple_ilist<DPValue>::iterator> FromHere = std::nullopt,
+      std::optional<simple_ilist<DPEntity>::iterator> FromHere = std::nullopt,
       bool InsertAtHead = false);
 
   /// Return a range over the DPValues attached to this instruction.
