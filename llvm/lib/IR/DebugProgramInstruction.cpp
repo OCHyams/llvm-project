@@ -222,27 +222,29 @@ void DPValue::handleChangedLocation(Metadata *NewLocation) {
   resetDebugValue(NewLocation);
 }
 
-const BasicBlock *DPValue::getParent() const {
+const BasicBlock *DPEntity::getParent() const {
   return Marker->MarkedInstr->getParent();
 }
 
-BasicBlock *DPValue::getParent() { return Marker->MarkedInstr->getParent(); }
+BasicBlock *DPEntity::getParent() { return Marker->MarkedInstr->getParent(); }
 
-BasicBlock *DPValue::getBlock() { return Marker->getParent(); }
+BasicBlock *DPEntity::getBlock() { return Marker->getParent(); }
 
-const BasicBlock *DPValue::getBlock() const { return Marker->getParent(); }
+const BasicBlock *DPEntity::getBlock() const { return Marker->getParent(); }
 
-Function *DPValue::getFunction() { return getBlock()->getParent(); }
+Function *DPEntity::getFunction() { return getBlock()->getParent(); }
 
-const Function *DPValue::getFunction() const { return getBlock()->getParent(); }
+const Function *DPEntity::getFunction() const {
+  return getBlock()->getParent();
+}
 
-Module *DPValue::getModule() { return getFunction()->getParent(); }
+Module *DPEntity::getModule() { return getFunction()->getParent(); }
 
-const Module *DPValue::getModule() const { return getFunction()->getParent(); }
+const Module *DPEntity::getModule() const { return getFunction()->getParent(); }
 
-LLVMContext &DPValue::getContext() { return getBlock()->getContext(); }
+LLVMContext &DPEntity::getContext() { return getBlock()->getContext(); }
 
-const LLVMContext &DPValue::getContext() const {
+const LLVMContext &DPEntity::getContext() const {
   return getBlock()->getContext();
 }
 
@@ -328,7 +330,7 @@ void DPMarker::insertDPValue(DPValue *New, bool InsertAtHead) {
 
 void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
-  for (DPValue &DPV : Src.StoredDPValues)
+  for (DPEntity &DPV : Src.StoredDPValues)
     DPV.setMarker(this);
 
   StoredDPValues.splice(It, Src.StoredDPValues);

@@ -66,8 +66,34 @@ class raw_ostream;
 
 class DPEntity {
 public:
+  /// Marker that this DPValue is linked into.
+  DPMarker *Marker = nullptr;
   enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
+
   DPEntity(Kind EntityKind) : EntityKind(EntityKind) {}
+
+  void setMarker(DPMarker *M) { Marker = M; }
+
+  DPMarker *getMarker() { return Marker; }
+  const DPMarker *getMarker() const { return Marker; }
+
+  BasicBlock *getBlock();
+  const BasicBlock *getBlock() const;
+
+  Function *getFunction();
+  const Function *getFunction() const;
+
+  Module *getModule();
+  const Module *getModule() const;
+
+  LLVMContext &getContext();
+  const LLVMContext &getContext() const;
+
+  const BasicBlock *getParent() const;
+  BasicBlock *getParent();
+
+  using self_iterator = simple_ilist<DPValue>::iterator;
+  using const_self_iterator = simple_ilist<DPValue>::const_iterator;
 };
 
 /// Record of a variable value-assignment, aka a non instruction representation
@@ -103,18 +129,12 @@ public:
 
 public:
   void deleteInstr();
-
-  const BasicBlock *getParent() const;
-  BasicBlock *getParent();
   void dump() const;
   void removeFromParent();
   void eraseFromParent();
 
   using self_iterator = simple_ilist<DPValue>::iterator;
   using const_self_iterator = simple_ilist<DPValue>::const_iterator;
-
-  /// Marker that this DPValue is linked into.
-  DPMarker *Marker = nullptr;
 
   /// Create a new DPValue representing the intrinsic \p DVI, for example the
   /// assignment represented by a dbg.value.
@@ -241,23 +261,6 @@ public:
   /// "under our feet".
   void handleChangedLocation(Metadata *NewLocation);
 
-  void setMarker(DPMarker *M) { Marker = M; }
-
-  DPMarker *getMarker() { return Marker; }
-  const DPMarker *getMarker() const { return Marker; }
-
-  BasicBlock *getBlock();
-  const BasicBlock *getBlock() const;
-
-  Function *getFunction();
-  const Function *getFunction() const;
-
-  Module *getModule();
-  const Module *getModule() const;
-
-  LLVMContext &getContext();
-  const LLVMContext &getContext() const;
-
   void print(raw_ostream &O, bool IsForDebug = false) const;
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
@@ -300,7 +303,7 @@ public:
   /// between each dbg.value in a block and each DPValue once the
   /// representation has been converted, and the ordering of DPValues is
   /// meaningful in the same was a dbg.values.
-  simple_ilist<DPValue> StoredDPValues;
+  simple_ilist<DPEntity> StoredDPValues;
 
   const BasicBlock *getParent() const;
   BasicBlock *getParent();
@@ -356,7 +359,8 @@ public:
   /// DPValue in that range, but they should be using the Official (TM) API for
   /// that.
   static DPMarker EmptyDPMarker;
-  static iterator_range<simple_ilist<DPValue>::iterator> getEmptyDPValueRange(){
+  static iterator_range<simple_ilist<DPEntity>::iterator>
+  getEmptyDPValueRange() {
     return make_range(EmptyDPMarker.StoredDPValues.end(), EmptyDPMarker.StoredDPValues.end());
   }
 };
