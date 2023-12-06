@@ -47,10 +47,11 @@
 #ifndef LLVM_IR_DEBUGPROGRAMINSTRUCTION_H
 #define LLVM_IR_DEBUGPROGRAMINSTRUCTION_H
 
-#include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/ilist.h"
+#include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/Support/Casting.h"
 
 namespace llvm {
 
@@ -63,6 +64,12 @@ class DPMarker;
 class DPValue;
 class raw_ostream;
 
+class DPEntity {
+public:
+  enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
+  DPEntity(Kind EntityKind) : EntityKind(EntityKind) {}
+};
+
 /// Record of a variable value-assignment, aka a non instruction representation
 /// of the dbg.value intrinsic. Features various methods copied across from the
 /// Instruction class to aid ease-of-use. DPValue objects should always be
@@ -71,7 +78,22 @@ class raw_ostream;
 ///
 /// This class inherits from DebugValueUser to allow LLVM's metadata facilities
 /// to update our references to metadata beneath our feet.
-class DPValue : public ilist_node<DPValue>, private DebugValueUser {
+class DPValue : public ilist_node<DPValue>,
+                private DebugValueUser,
+                public DPEntity {
+public:
+  enum class LocationType : uint8_t {
+    Declare,
+    Value,
+
+    End, ///< Marks the end of the concrete types.
+    Any, ///< To indicate all LocationTypes in searches.    
+  };
+  /// Classification of the debug-info record that this DPValue represents.
+  /// Essentially, "is this a dbg.value or dbg.declare?". dbg.declares are not
+  /// currently supported, but it would be trivial to do so.
+  LocationType Type;
+
   friend class DebugValueUser;
 
   // NB: there is no explicit "Value" field in this class, it's effectively the
@@ -93,18 +115,6 @@ public:
 
   using self_iterator = simple_ilist<DPValue>::iterator;
   using const_self_iterator = simple_ilist<DPValue>::const_iterator;
-
-  enum class LocationType {
-    Declare,
-    Value,
-
-    End, ///< Marks the end of the concrete types.
-    Any, ///< To indicate all LocationTypes in searches.
-  };
-  /// Classification of the debug-info record that this DPValue represents.
-  /// Essentially, "is this a dbg.value or dbg.declare?". dbg.declares are not
-  /// currently supported, but it would be trivial to do so.
-  LocationType Type;
 
   /// Marker that this DPValue is linked into.
   DPMarker *Marker = nullptr;
@@ -253,6 +263,11 @@ public:
 
   void print(raw_ostream &O, bool IsForDebug = false) const;
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// @{
+  static bool classof(const DPEntity *I) { return I->EntityKind == ValueKind; }
+  /// @}
 };
 
 /// Per-instruction record of debug-info. If an Instruction is the position of
