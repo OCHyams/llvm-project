@@ -14,7 +14,7 @@
 namespace llvm {
 
 DPValue::DPValue(const DbgVariableIntrinsic *DVI)
-    : DPEntity(ValueKind), DebugValueUser(DVI->getRawLocation()),
+    : DebugValueUser(DVI->getRawLocation()), DPEntity(ValueKind),
       Variable(DVI->getVariable()), Expression(DVI->getExpression()),
       DbgLoc(DVI->getDebugLoc()) {
   switch (DVI->getIntrinsicID()) {
@@ -31,16 +31,26 @@ DPValue::DPValue(const DbgVariableIntrinsic *DVI)
 }
 
 DPValue::DPValue(const DPValue &DPV)
-    : DPEntity(ValueKind), DebugValueUser(DPV.getRawLocation()),
-      Variable(DPV.getVariable()), Expression(DPV.getExpression()),
-      DbgLoc(DPV.getDebugLoc()), Type(DPV.getType()) {}
+    : DebugValueUser(DPV.getRawLocation()), DPEntity(ValueKind),
+      Type(DPV.getType()), Variable(DPV.getVariable()),
+      Expression(DPV.getExpression()), DbgLoc(DPV.getDebugLoc()) {}
 
 DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
                  const DILocation *DI, LocationType Type)
-    : DPEntity(ValueKind), DebugValueUser(Location), Variable(DV),
-      Expression(Expr), DbgLoc(DI), Type(Type) {}
+    : DebugValueUser(Location), DPEntity(ValueKind), Type(Type), Variable(DV),
+      Expression(Expr), DbgLoc(DI) {}
 
-void DPValue::deleteInstr() { delete this; }
+void DPEntity::deleteInstr() { delete this; }
+
+DPEntity::~DPEntity() {
+  switch (EntityKind) {
+  case ValueKind:
+    cast<DPValue>(this)->~DPValue();
+    break;
+  default:
+    llvm_unreachable("unsupported entity kind");
+  }
+}
 
 iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
   auto *MD = getRawLocation();
@@ -181,6 +191,15 @@ std::optional<uint64_t> DPValue::getFragmentSizeInBits() const {
   return getVariable()->getSizeInBits();
 }
 
+DPEntity *DPEntity::clone() const {
+  switch (EntityKind) {
+  case ValueKind:
+    return cast<DPValue>(this)->clone();
+  default:
+    llvm_unreachable("unsupported entity kind");
+  };
+}
+
 DPValue *DPValue::clone() const { return new DPValue(*this); }
 
 DbgVariableIntrinsic *
@@ -257,9 +276,9 @@ DPMarker DPMarker::EmptyDPMarker;
 void DPMarker::dropDPValues() {
   while (!StoredDPValues.empty()) {
     auto It = StoredDPValues.begin();
-    DPValue *DPV = &*It;
+    DPEntity *DPE = &*It;
     StoredDPValues.erase(It);
-    DPV->deleteInstr();
+    DPE->deleteInstr();
   }
 }
 
@@ -313,11 +332,11 @@ iterator_range<DPValue::self_iterator> DPMarker::getDbgValueRange() {
   return make_range(StoredDPValues.begin(), StoredDPValues.end());
 }
 
-void DPValue::removeFromParent() {
+void DPEntity::removeFromParent() {
   getMarker()->StoredDPValues.erase(getIterator());
 }
 
-void DPValue::eraseFromParent() {
+void DPEntity::eraseFromParent() {
   removeFromParent();
   deleteInstr();
 }
@@ -336,10 +355,10 @@ void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
   StoredDPValues.splice(It, Src.StoredDPValues);
 }
 
-void DPMarker::absorbDebugValues(iterator_range<DPValue::self_iterator> Range,
+void DPMarker::absorbDebugValues(iterator_range<DPEntity::self_iterator> Range,
                                  DPMarker &Src, bool InsertAtHead) {
-  for (DPValue &DPV : Range)
-    DPV.setMarker(this);
+  for (DPEntity &DPE : Range)
+    DPE.setMarker(this);
 
   auto InsertPos =
       (InsertAtHead) ? StoredDPValues.begin() : StoredDPValues.end();
@@ -348,10 +367,10 @@ void DPMarker::absorbDebugValues(iterator_range<DPValue::self_iterator> Range,
                         Range.end());
 }
 
-iterator_range<simple_ilist<DPValue>::iterator> DPMarker::cloneDebugInfoFrom(
-    DPMarker *From, std::optional<simple_ilist<DPValue>::iterator> from_here,
+iterator_range<simple_ilist<DPEntity>::iterator> DPMarker::cloneDebugInfoFrom(
+    DPMarker *From, std::optional<simple_ilist<DPEntity>::iterator> from_here,
     bool InsertAtHead) {
-  DPValue *First = nullptr;
+  DPEntity *First = nullptr;
   // Work out what range of DPValues to clone: normally all the contents of the
   // "From" marker, optionally we can start from the from_here position down to
   // end().
@@ -363,8 +382,8 @@ iterator_range<simple_ilist<DPValue>::iterator> DPMarker::cloneDebugInfoFrom(
   // Clone each DPValue and insert into StoreDPValues; optionally place them at
   // the start or the end of the list.
   auto Pos = (InsertAtHead) ? StoredDPValues.begin() : StoredDPValues.end();
-  for (DPValue &DPV : Range) {
-    DPValue *New = DPV.clone();
+  for (DPEntity &DPE : Range) {
+    DPEntity *New = DPE.clone();
     New->setMarker(this);
     StoredDPValues.insert(Pos, *New);
     if (!First)
