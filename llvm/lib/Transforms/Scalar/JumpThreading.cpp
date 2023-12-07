@@ -401,7 +401,7 @@ static bool replaceFoldableUses(Instruction *Cond, Value *ToVal,
     Changed |= replaceNonLocalUsesWith(Cond, ToVal);
   for (Instruction &I : reverse(*KnownAtEndOfBB)) {
     // Replace any debug-info record users of Cond with ToVal.
-    for (DPValue &DPV : I.getDbgValueRange())
+    for (DPValue &DPV : filterValues(I.getDbgValueRange()))
       DPV.replaceVariableLocationOp(Cond, ToVal, true);
 
     // Reached the Cond whose uses we are trying to replace, so there are no

@@ -1219,8 +1219,8 @@ void ValueMapper::remapDPValue(Module *M, DPValue &V) {
 }
 
 void ValueMapper::remapDPValueRange(
-    Module *M, iterator_range<DPValue::self_iterator> Range) {
-  for (DPValue &DPV : Range) {
+    Module *M, iterator_range<DPEntity::self_iterator> Range) {
+  for (DPValue &DPV : filterValues(Range)) {
     remapDPValue(M, DPV);
   }
 }

@@ -194,7 +194,7 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   EXPECT_EQ(Marker2->StoredDPValues.size(), 2u);
   // They should also be in the correct order.
   SmallVector<DPValue *, 2> DPVs;
-  for (DPValue &DPV : Marker2->getDbgEntityRange())
+  for (DPValue &DPV : Marker2->getDbgValueRange())
     DPVs.push_back(&DPV);
   EXPECT_EQ(DPVs[0], DPV1);
   EXPECT_EQ(DPVs[1], DPV2);
@@ -210,7 +210,7 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   // Again, these should arrive in the correct order.
 
   DPVs.clear();
-  for (DPValue &DPV : EndMarker->getDbgEntityRange())
+  for (DPValue &DPV : EndMarker->getDbgValueRange())
     DPVs.push_back(&DPV);
   EXPECT_EQ(DPVs[0], DPV1);
   EXPECT_EQ(DPVs[1], DPV2);
@@ -397,18 +397,18 @@ TEST(BasicBlockDbgInfoTest, InstrDbgAccess) {
   ASSERT_TRUE(BInst->DbgMarker);
   ASSERT_TRUE(CInst->DbgMarker);
   ASSERT_EQ(CInst->DbgMarker->StoredDPValues.size(), 1u);
-  DPValue *DPV1 = &*CInst->DbgMarker->StoredDPValues.begin();
-  ASSERT_TRUE(DPV1);
+  DPEntity *DPE1 = &*CInst->DbgMarker->StoredDPValues.begin();
+  ASSERT_TRUE(DPE1);
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 0u);
 
   // Clone DPValues from one inst to another. Other arguments to clone are
   // tested in DPMarker test.
   auto Range1 = BInst->cloneDebugInfoFrom(CInst);
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 1u);
-  DPValue *DPV2 = &*BInst->DbgMarker->StoredDPValues.begin();
+  DPEntity *DPE2 = &*BInst->DbgMarker->StoredDPValues.begin();
   EXPECT_EQ(std::distance(Range1.begin(), Range1.end()), 1u);
-  EXPECT_EQ(&*Range1.begin(), DPV2);
-  EXPECT_NE(DPV1, DPV2);
+  EXPECT_EQ(&*Range1.begin(), DPE2);
+  EXPECT_NE(DPE1, DPE2);
 
   // We should be able to get a range over exactly the same information.
   auto Range2 = BInst->getDbgValueRange();
@@ -426,7 +426,7 @@ TEST(BasicBlockDbgInfoTest, InstrDbgAccess) {
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 0u);
 
   // And we should be able to drop individual DPValues.
-  CInst->dropOneDbgValue(DPV1);
+  CInst->dropOneDbgValue(DPE1);
   EXPECT_FALSE(CInst->hasDbgValues());
   EXPECT_EQ(CInst->DbgMarker->StoredDPValues.size(), 0u);
 
@@ -545,7 +545,7 @@ protected:
   void TearDown() override { UseNewDbgInfoFormat = false; }
 
   bool InstContainsDPValue(Instruction *I, DPValue *DPV) {
-    for (DPValue &D : I->getDbgValueRange()) {
+    for (DPValue &D : filterValues(I->getDbgValueRange())) {
       if (&D == DPV) {
         // Confirm too that the links between the records are correct.
         EXPECT_EQ(DPV->Marker, I->DbgMarker);
@@ -558,7 +558,7 @@ protected:
 
   bool CheckDPVOrder(Instruction *I, SmallVector<DPValue *> CheckVals) {
     SmallVector<DPValue *> Vals;
-    for (DPValue &D : I->getDbgValueRange())
+    for (DPValue &D : filterValues(I->getDbgValueRange()))
       Vals.push_back(&D);
 
     EXPECT_EQ(Vals.size(), CheckVals.size());

@@ -379,14 +379,14 @@ TEST(ValueTest, replaceUsesOutsideBlockDPValue) {
   EXPECT_TRUE(Branch->hasDbgValues());
   EXPECT_TRUE(Ret->hasDbgValues());
 
-  DPValue *DPV1 = &*Branch->getDbgValueRange().begin();
-  DPValue *DPV2 = &*Ret->getDbgValueRange().begin();
+  DPValue &DPV1 = *filterValues(Branch->getDbgValueRange()).begin();
+  DPValue &DPV2 = *filterValues(Ret->getDbgValueRange()).begin();
 
   A->replaceUsesOutsideBlock(B, Entry);
   // These users are in Entry so shouldn't be changed.
-  EXPECT_TRUE(DPV1->getVariableLocationOp(0) == cast<Value>(A));
+  EXPECT_TRUE(DPV1.getVariableLocationOp(0) == cast<Value>(A));
   // These users are outside Entry so should be changed.
-  EXPECT_TRUE(DPV2->getVariableLocationOp(0) == cast<Value>(B));
+  EXPECT_TRUE(DPV2.getVariableLocationOp(0) == cast<Value>(B));
   UseNewDbgInfoFormat = OldDbgValueMode;
 }
 
