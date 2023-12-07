@@ -286,10 +286,10 @@ void DPMarker::dropDPValues() {
   }
 }
 
-void DPMarker::dropOneDPValue(DPValue *DPV) {
-  assert(DPV->getMarker() == this);
-  StoredDPValues.erase(DPV->getIterator());
-  DPV->deleteInstr();
+void DPMarker::dropOneDPValue(DPEntity *DPE) {
+  assert(DPE->getMarker() == this);
+  StoredDPValues.erase(DPE->getIterator());
+  DPE->deleteInstr();
 }
 
 const BasicBlock *DPMarker::getParent() const {
@@ -345,7 +345,7 @@ void DPEntity::eraseFromParent() {
   deleteInstr();
 }
 
-void DPMarker::insertDPValue(DPValue *New, bool InsertAtHead) {
+void DPMarker::insertDPValue(DPEntity *New, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
   StoredDPValues.insert(It, *New);
   New->setMarker(this);
