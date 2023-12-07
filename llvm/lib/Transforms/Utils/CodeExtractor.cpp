@@ -1585,7 +1585,8 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   };
 
   auto UpdateDPValuesOnInst = [&](Instruction &I) -> void {
-    for (auto &DPV : I.getDbgValueRange()) {
+    for (auto &DPE : I.getDbgValueRange()) {
+      DPValue &DPV = cast<DPValue>(DPE);
       // Apply the two updates that dbg.values get: invalid operands, and
       // variable metadata fixup.
       // FIXME: support dbg.assign form of DPValues.

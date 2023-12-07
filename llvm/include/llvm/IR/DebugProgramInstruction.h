@@ -72,6 +72,7 @@ class DPEntity : public ilist_node<DPEntity> {
 public:
   /// Marker that this DPValue is linked into.
   DPMarker *Marker = nullptr;
+  DebugLoc DbgLoc;
   enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
 
   DPEntity(Kind EntityKind) : EntityKind(EntityKind) {}
@@ -102,6 +103,9 @@ public:
   void deleteInstr();
   void removeFromParent();
   void eraseFromParent();
+
+  DebugLoc getDebugLoc() const { return DbgLoc; }
+  void setDebugLoc(DebugLoc Loc) { DbgLoc = std::move(Loc); }
 
   using self_iterator = simple_ilist<DPEntity>::iterator;
   using const_self_iterator = simple_ilist<DPEntity>::const_iterator;
@@ -137,7 +141,6 @@ public:
 
   DILocalVariable *Variable;
   DIExpression *Expression;
-  DebugLoc DbgLoc;
 
 public:
   void dump() const;
@@ -233,9 +236,6 @@ public:
   bool isAddressOfVariable() const { return Type != LocationType::Value; }
   LocationType getType() const { return Type; }
 
-  DebugLoc getDebugLoc() const { return DbgLoc; }
-  void setDebugLoc(DebugLoc Loc) { DbgLoc = std::move(Loc); }
-
   void setKillLocation();
   bool isKillLocation() const;
 
@@ -278,6 +278,13 @@ public:
   static bool classof(const DPEntity *I) { return I->EntityKind == ValueKind; }
   /// @}
 };
+
+// Filter the DPEntity range to the DPValues only.
+inline auto filterValues(iterator_range<simple_ilist<DPEntity>::iterator> R) {
+  return map_range(
+      make_filter_range(R, [](DPEntity &E) { return isa<DPValue>(E); }),
+      [](DPEntity &E) { return std::ref(cast<DPValue>(E)); });
+}
 
 /// Per-instruction record of debug-info. If an Instruction is the position of
 /// some debugging information, it points at a DPMarker storing that info. Each
@@ -332,12 +339,7 @@ public:
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
   // Return a range of DPValues.
-  auto getDbgValueRange() {
-    return map_range(
-        make_filter_range(getDbgEntityRange(),
-                          [](DPEntity &E) { return isa<DPValue>(E); }),
-        [](DPEntity &E) { return cast<DPValue>(E); });
-  }
+  auto getDbgValueRange() { return filterValues(getDbgEntityRange()); }
 
   /// Produce a range over all the DPValues in this Marker.
   iterator_range<simple_ilist<DPEntity>::iterator> getDbgEntityRange();

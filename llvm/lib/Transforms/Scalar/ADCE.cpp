@@ -548,10 +548,10 @@ ADCEChanged AggressiveDeadCodeElimination::removeDeadInstructions() {
     // attached to this instruction, and drop any for scopes that aren't alive,
     // like the rest of this loop does. Extending support to assignment tracking
     // is future work.
-    for (DPValue &DPV : make_early_inc_range(I.getDbgValueRange())) {
-      if (AliveScopes.count(DPV.getDebugLoc()->getScope()))
+    for (DPEntity &DPE : make_early_inc_range(I.getDbgValueRange())) {
+      if (AliveScopes.count(DPE.getDebugLoc()->getScope()))
         continue;
-      I.dropOneDbgValue(&DPV);
+      I.dropOneDbgValue(&DPE);
     }
 
     // Check if the instruction is alive.
