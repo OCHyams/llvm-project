@@ -122,7 +122,7 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   EXPECT_EQ(Marker2->StoredDPValues.size(), 2u);
   // They should also be in the correct order.
   SmallVector<DPValue *, 2> DPVs;
-  for (DPValue &DPV : Marker2->getDbgValueRange())
+  for (DPValue &DPV : Marker2->getDbgEntityRange())
     DPVs.push_back(&DPV);
   EXPECT_EQ(DPVs[0], DPV1);
   EXPECT_EQ(DPVs[1], DPV2);
@@ -138,7 +138,7 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   // Again, these should arrive in the correct order.
 
   DPVs.clear();
-  for (DPValue &DPV : EndMarker->getDbgValueRange())
+  for (DPValue &DPV : EndMarker->getDbgEntityRange())
     DPVs.push_back(&DPV);
   EXPECT_EQ(DPVs[0], DPV1);
   EXPECT_EQ(DPVs[1], DPV2);

@@ -251,7 +251,7 @@ Instruction::getDbgValueRange() const {
   if (!DbgMarker)
     return DPMarker::getEmptyDPValueRange();
 
-  return DbgMarker->getDbgValueRange();
+  return DbgMarker->getDbgEntityRange();
 }
 
 std::optional<DPValue::self_iterator> Instruction::getDbgReinsertionPosition() {

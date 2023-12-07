@@ -137,18 +137,6 @@ public:
   DebugLoc DbgLoc;
 
 public:
-  // filter?
-  class adaptor_iterator
-      : public iterator_adaptor_base<
-            adaptor_iterator, DPEntity::self_iterator,
-            typename std::iterator_traits<
-                DPEntity::self_iterator>::iterator_category,
-            DPValue *, std::ptrdiff_t, DPValue **, DPValue *&> {
-  public:
-    adaptor_iterator(DPEntity::self_iterator It) : iterator_adaptor_base(It) {}
-    DPValue *operator*() const { return cast<DPValue>(I); }
-  };
-
   void dump() const;
 
   // using self_iterator = simple_ilist<DPValue>::iterator;
@@ -339,8 +327,21 @@ public:
   void print(raw_ostream &O, bool IsForDebug = false) const;
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
+  // filter?
+  class adaptor_iterator
+      : public iterator_adaptor_base<
+            adaptor_iterator, DPEntity::self_iterator,
+            typename std::iterator_traits<
+                DPEntity::self_iterator>::iterator_category,
+            DPValue *, std::ptrdiff_t, DPValue **, DPValue *&> {
+  public:
+    adaptor_iterator(DPEntity::self_iterator It) : iterator_adaptor_base(It) {}
+    DPValue *operator*() const { return cast<DPValue>(I); }
+  };
+  // using value_filter_it = filter_iterator<adaptor_iterator, std::function()>;
+
   /// Produce a range over all the DPValues in this Marker.
-  iterator_range<simple_ilist<DPValue>::iterator> getDbgValueRange();
+  iterator_range<simple_ilist<DPEntity>::iterator> getDbgEntityRange();
   /// Transfer any DPValues from \p Src into this DPMarker. If \p InsertAtHead
   /// is true, place them before existing DPValues, otherwise afterwards.
   void absorbDebugValues(DPMarker &Src, bool InsertAtHead);

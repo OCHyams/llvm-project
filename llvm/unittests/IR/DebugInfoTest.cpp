@@ -955,7 +955,7 @@ TEST(MetadataTest, ConvertDbgToDPValue) {
   FirstInst->DbgMarker->insertDPValue(DPV1, false);
   FirstInst->DbgMarker->insertDPValue(DPV2, true);
   unsigned int ItCount = 0;
-  for (DPValue &Item : FirstInst->DbgMarker->getDbgValueRange()) {
+  for (DPValue &Item : FirstInst->DbgMarker->getDbgEntityRange()) {
     EXPECT_TRUE((&Item == DPV2 && ItCount == 0) ||
               (&Item == DPV1 && ItCount == 1));
     EXPECT_EQ(Item.getMarker(), FirstInst->DbgMarker);
@@ -968,7 +968,7 @@ TEST(MetadataTest, ConvertDbgToDPValue) {
   ItCount = 0;
   // Check these things store the same information; but that they're not the same
   // objects.
-  for (DPValue &Item : RetInst->DbgMarker->getDbgValueRange()) {
+  for (DPValue &Item : RetInst->DbgMarker->getDbgEntityRange()) {
     EXPECT_TRUE((Item.getRawLocation() == DPV2->getRawLocation() && ItCount == 0) ||
                 (Item.getRawLocation() == DPV1->getRawLocation() && ItCount == 1));
     
@@ -982,7 +982,7 @@ TEST(MetadataTest, ConvertDbgToDPValue) {
   EXPECT_EQ(RetInst->DbgMarker->StoredDPValues.size(), 0u);
 
   // Try cloning one single DPValue.
-  auto DIIt = std::next(FirstInst->DbgMarker->getDbgValueRange().begin());
+  auto DIIt = std::next(FirstInst->DbgMarker->getDbgEntityRange().begin());
   RetInst->DbgMarker->cloneDebugInfoFrom(FirstInst->DbgMarker, DIIt, false);
   EXPECT_EQ(RetInst->DbgMarker->StoredDPValues.size(), 1u);
   // The second DPValue should have been cloned; it should have the same values
@@ -998,7 +998,7 @@ TEST(MetadataTest, ConvertDbgToDPValue) {
   EXPECT_EQ(RetInst->DbgMarker->StoredDPValues.size(), 2u);
   // Should be the DPV1 and DPV2 objects.
   ItCount = 0;
-  for (DPValue &Item : RetInst->DbgMarker->getDbgValueRange()) {
+  for (DPValue &Item : RetInst->DbgMarker->getDbgEntityRange()) {
     EXPECT_TRUE((&Item == DPV2 && ItCount == 0) ||
               (&Item == DPV1 && ItCount == 1));
     EXPECT_EQ(Item.getMarker(), RetInst->DbgMarker);
@@ -1019,7 +1019,7 @@ TEST(MetadataTest, ConvertDbgToDPValue) {
   EXPECT_EQ(EndMarker->StoredDPValues.size(), 2u);
   // Test again that it's those two DPValues, DPV1 and DPV2.
   ItCount = 0;
-  for (DPValue &Item : EndMarker->getDbgValueRange()) {
+  for (DPValue &Item : EndMarker->getDbgEntityRange()) {
     EXPECT_TRUE((&Item == DPV2 && ItCount == 0) ||
               (&Item == DPV1 && ItCount == 1));
     EXPECT_EQ(Item.getMarker(), EndMarker);
@@ -1110,13 +1110,13 @@ TEST(MetadataTest, DPValueConversionRoutines) {
   EXPECT_EQ(SecondInst, SecondInst->DbgMarker->MarkedInstr);
 
   EXPECT_EQ(FirstInst->DbgMarker->StoredDPValues.size(), 1u);
-  DPValue *DPV1 = &*FirstInst->DbgMarker->getDbgValueRange().begin();
+  DPValue *DPV1 = &*FirstInst->DbgMarker->getDbgEntityRange().begin();
   EXPECT_EQ(DPV1->getMarker(), FirstInst->DbgMarker);
   // Should point at %a, an argument.
   EXPECT_TRUE(isa<Argument>(DPV1->getVariableLocationOp(0)));
 
   EXPECT_EQ(SecondInst->DbgMarker->StoredDPValues.size(), 1u);
-  DPValue *DPV2 = &*SecondInst->DbgMarker->getDbgValueRange().begin();
+  DPValue *DPV2 = &*SecondInst->DbgMarker->getDbgEntityRange().begin();
   EXPECT_EQ(DPV2->getMarker(), SecondInst->DbgMarker);
   // Should point at FirstInst.
   EXPECT_EQ(DPV2->getVariableLocationOp(0), FirstInst);
