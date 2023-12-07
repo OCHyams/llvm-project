@@ -351,7 +351,7 @@ public:
                          DPMarker &Src, bool InsertAtHead);
   /// Insert a DPValue into this DPMarker, at the end of the list. If
   /// \p InsertAtHead is true, at the start.
-  void insertDPValue(DPValue *New, bool InsertAtHead);
+  void insertDPValue(DPEntity *New, bool InsertAtHead);
   /// Clone all DPMarkers from \p From into this marker. There are numerous
   /// options to customise the source/destination, due to gnarliness, see class
   /// comment.
@@ -367,7 +367,7 @@ public:
   /// Erase a single DPValue from this marker. In an ideal future, we would
   /// never erase an assignment in this way, but it's the equivalent to
   /// erasing a dbg.value from a block.
-  void dropOneDPValue(DPValue *DPV);
+  void dropOneDPValue(DPEntity *DPE);
 
   /// We generally act like all llvm Instructions have a range of DPValues
   /// attached to them, but in reality sometimes we don't allocate the DPMarker
