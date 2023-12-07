@@ -1078,7 +1078,7 @@ void BasicBlock::splice(iterator Dest, BasicBlock *Src, iterator First,
   flushTerminatorDbgValues();
 }
 
-void BasicBlock::insertDPValueAfter(DPValue *DPV, Instruction *I) {
+void BasicBlock::insertDPValueAfter(DPEntity *DPV, Instruction *I) {
   assert(IsNewDbgInfoFormat);
   assert(I->getParent() == this);
 
@@ -1089,7 +1089,7 @@ void BasicBlock::insertDPValueAfter(DPValue *DPV, Instruction *I) {
   NextMarker->insertDPValue(DPV, true);
 }
 
-void BasicBlock::insertDPValueBefore(DPValue *DPV,
+void BasicBlock::insertDPValueBefore(DPEntity *DPV,
                                      InstListType::iterator Where) {
   // We should never directly insert at the end of the block, new DPValues
   // shouldn't be generated at times when there's no terminator.
