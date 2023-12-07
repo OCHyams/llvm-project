@@ -43,13 +43,13 @@ DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
 void DPEntity::deleteInstr() { delete this; }
 
 DPEntity::~DPEntity() {
-  switch (EntityKind) {
-  case ValueKind:
-    cast<DPValue>(this)->~DPValue();
-    break;
-  default:
-    llvm_unreachable("unsupported entity kind");
-  }
+  //  switch (EntityKind) {
+  //case ValueKind:
+  //  cast<DPValue>(this)->~DPValue();
+  //  break;
+  //default:
+  //  llvm_unreachable("unsupported entity kind");
+  //}
 }
 
 iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
