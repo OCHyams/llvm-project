@@ -387,7 +387,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
     for (DPEntity &DPE : reverse(I.getDbgValueRange())) {
-      DPValue DPV = cast<DPValue>(DPE);
+      DPValue &DPV = cast<DPValue>(DPE);
       if (DPV.getType() == DPValue::LocationType::Declare)
         continue;
       DebugVariable Key(DPV.getVariable(),
