@@ -108,9 +108,13 @@ void BasicBlock::convertFromNewDbgValues() {
       continue;
 
     DPMarker &Marker = *Inst.DbgMarker;
-    for (DPValue &DPV : Marker.getDbgEntityRange())
-      InstList.insert(Inst.getIterator(),
-                      DPV.createDebugIntrinsic(getModule(), nullptr));
+    for (DPEntity &DPE : Marker.getDbgEntityRange()) {
+      if (auto *DPV = dyn_cast<DPValue>(&DPE))
+        InstList.insert(Inst.getIterator(),
+                        DPV->createDebugIntrinsic(getModule(), nullptr));
+      else
+        llvm_unreachable("unsupported entity kind");
+    }
 
     Marker.eraseFromParent();
   };
@@ -164,9 +168,9 @@ bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
                 "Debug Marker points to incorrect instruction?");
 
     // Now validate any DPValues in the marker.
-    for (DPValue &DPV : CurrentDebugMarker->getDbgEntityRange()) {
+    for (DPEntity &DPE : CurrentDebugMarker->getDbgEntityRange()) {
       // Validate DebugProgramValues.
-      TestFailure(DPV.getMarker() == CurrentDebugMarker,
+      TestFailure(DPE.getMarker() == CurrentDebugMarker,
                   "Not pointing at correct next marker!");
 
       // Verify that no DbgValues appear prior to PHIs.
