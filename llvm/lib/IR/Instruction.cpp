@@ -274,7 +274,7 @@ void Instruction::dropDbgValues() {
     DbgMarker->dropDPValues();
 }
 
-void Instruction::dropOneDbgValue(DPValue *DPV) {
+void Instruction::dropOneDbgValue(DPEntity *DPV) {
   DbgMarker->dropOneDPValue(DPV);
 }
 

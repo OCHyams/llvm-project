@@ -564,7 +564,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
               D.getExpression()};
     };
     for (Instruction &I : llvm::drop_begin(llvm::reverse(*OrigPreheader)))
-      for (const DPValue &DPV : I.getDbgValueRange())
+      for (const DPValue &DPV : filterValues(I.getDbgValueRange()))
         DbgIntrinsics.insert(makeHashDPV(DPV));
 
     // Remember the local noalias scope declarations in the header. After the

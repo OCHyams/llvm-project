@@ -1462,7 +1462,7 @@ static void processDbgDeclares(FunctionLoweringInfo &FuncInfo) {
                                 DI->getVariable(), DI->getDebugLoc()))
       FuncInfo.PreprocessedDbgDeclares.insert(DI);
     // FIXME: Add getDDbgValueRange with builtin filter?
-    for (const DPValue &DPV : I.getDbgValueRange()) {
+    for (const DPValue &DPV : filterValues(I.getDbgValueRange())) {
       if (DPV.Type == DPValue::LocationType::Declare &&
           processDbgDeclare(FuncInfo, DPV.getVariableLocationOp(0),
                             DPV.getExpression(), DPV.getVariable(),

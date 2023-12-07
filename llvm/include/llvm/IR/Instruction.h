@@ -91,7 +91,7 @@ public:
   void dropDbgValues();
 
   /// Erase a single DPValue \p I that is attached to this instruction.
-  void dropOneDbgValue(DPValue *I);
+  void dropOneDbgValue(DPEntity *I);
 
   /// Handle the debug-info implications of this instruction being removed. Any
   /// attached DPValues need to "fall" down onto the next instruction.

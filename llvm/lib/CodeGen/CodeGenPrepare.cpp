@@ -8120,8 +8120,8 @@ static bool optimizeBranch(BranchInst *Branch, const TargetLowering &TLI,
 
 bool CodeGenPrepare::optimizeInst(Instruction *I, ModifyDT &ModifiedDT) {
   bool AnyChange = false;
-  for (DPValue &DPV : I->getDbgValueRange())
-    AnyChange |= fixupDPValue(DPV);
+  for (DPValue *DPV : filterValues(I->getDbgValueRange()))
+    AnyChange |= fixupDPValue(*DPV);
 
   // Bail out if we inserted the instruction to prevent optimizations from
   // stepping on each other's toes.
@@ -8494,7 +8494,8 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
 
       // If this isn't a dbg.value, process any attached DPValue records
       // attached to this instruction.
-      for (DPValue &DPV : llvm::make_early_inc_range(Insn.getDbgValueRange())) {
+      for (DPValue &DPV :
+           llvm::make_early_inc_range(filterValues(Insn.getDbgValueRange()))) {
         if (DPV.Type != DPValue::LocationType::Value)
           continue;
         DbgProcessor(&DPV, &Insn);
