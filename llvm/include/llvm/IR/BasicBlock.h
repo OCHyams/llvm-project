@@ -147,7 +147,7 @@ public:
   /// occur: inserting into the middle of a sequence of dbg.value intrinsics
   /// does not have an equivalent with DPValues.
   void reinsertInstInDPValues(Instruction *I,
-                              std::optional<DPValue::self_iterator> Pos);
+                              std::optional<DPEntity::self_iterator> Pos);
 
 private:
   void setParent(Function *parent);
