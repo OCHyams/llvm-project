@@ -332,7 +332,7 @@ void DPMarker::eraseFromParent() {
   delete this;
 }
 
-iterator_range<DPValue::self_iterator> DPMarker::getDbgValueRange() {
+iterator_range<DPEntity::self_iterator> DPMarker::getDbgEntityRange() {
   return make_range(StoredDPValues.begin(), StoredDPValues.end());
 }
 

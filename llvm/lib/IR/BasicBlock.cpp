@@ -108,7 +108,7 @@ void BasicBlock::convertFromNewDbgValues() {
       continue;
 
     DPMarker &Marker = *Inst.DbgMarker;
-    for (DPValue &DPV : Marker.getDbgValueRange())
+    for (DPValue &DPV : Marker.getDbgEntityRange())
       InstList.insert(Inst.getIterator(),
                       DPV.createDebugIntrinsic(getModule(), nullptr));
 
@@ -164,7 +164,7 @@ bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
                 "Debug Marker points to incorrect instruction?");
 
     // Now validate any DPValues in the marker.
-    for (DPValue &DPV : CurrentDebugMarker->getDbgValueRange()) {
+    for (DPValue &DPV : CurrentDebugMarker->getDbgEntityRange()) {
       // Validate DebugProgramValues.
       TestFailure(DPV.getMarker() == CurrentDebugMarker,
                   "Not pointing at correct next marker!");
