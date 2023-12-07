@@ -66,7 +66,7 @@ class raw_ostream;
 
 /// In order to avoid paying for a vtable, inheritors must add cases to a few
 /// functions:
-///   ~DPEnitiy()
+///   deleteEntity();
 ///   clone()
 class DPEntity : public ilist_node<DPEntity> {
 public:
@@ -76,7 +76,7 @@ public:
   enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
 
   DPEntity(Kind EntityKind, DebugLoc DL) : DbgLoc(DL), EntityKind(EntityKind) {}
-  ~DPEntity();
+  void deleteEntity();
 
   DPEntity *clone() const;
 
@@ -109,6 +109,12 @@ public:
 
   using self_iterator = simple_ilist<DPEntity>::iterator;
   using const_self_iterator = simple_ilist<DPEntity>::const_iterator;
+
+protected:
+  // Similarly to Value, we avoid paying the cost of a vtable
+  // by protecting the dtor and having deleteEntity dispatch
+  // cleanup.
+  ~DPEntity() = default; // Use deleteEntity to delete a generic entity.
 };
 
 /// Record of a variable value-assignment, aka a non instruction representation

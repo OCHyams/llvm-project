@@ -40,16 +40,14 @@ DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
     : DebugValueUser(Location), DPEntity(ValueKind, DI), Type(Type),
       Variable(DV), Expression(Expr) {}
 
-void DPEntity::deleteInstr() { delete this; }
-
-DPEntity::~DPEntity() {
-  //  switch (EntityKind) {
-  //case ValueKind:
-  //  cast<DPValue>(this)->~DPValue();
-  //  break;
-  //default:
-  //  llvm_unreachable("unsupported entity kind");
-  //}
+void DPEntity::deleteEntity() {
+  switch (EntityKind) {
+  case ValueKind:
+    delete cast<DPValue>(this);
+    break;
+  default:
+    llvm_unreachable("unsupported entity kind");
+  }
 }
 
 iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
@@ -278,14 +276,14 @@ void DPMarker::dropDPValues() {
     auto It = StoredDPValues.begin();
     DPEntity *DPE = &*It;
     StoredDPValues.erase(It);
-    DPE->deleteInstr();
+    DPE->deleteEntity();
   }
 }
 
 void DPMarker::dropOneDPValue(DPEntity *DPE) {
   assert(DPE->getMarker() == this);
   StoredDPValues.erase(DPE->getIterator());
-  DPE->deleteInstr();
+  DPE->deleteEntity();
 }
 
 const BasicBlock *DPMarker::getParent() const {
@@ -338,7 +336,7 @@ void DPEntity::removeFromParent() {
 
 void DPEntity::eraseFromParent() {
   removeFromParent();
-  deleteInstr();
+  deleteEntity();
 }
 
 void DPMarker::insertDPValue(DPEntity *New, bool InsertAtHead) {
