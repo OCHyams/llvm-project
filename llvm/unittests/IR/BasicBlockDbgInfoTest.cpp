@@ -96,8 +96,8 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   EXPECT_EQ(Marker2->StoredDPValues.size(), 1u);
 
   // Unlink them and try to re-insert them through the basic block.
-  DPValue *DPV1 = &*Marker1->StoredDPValues.begin();
-  DPValue *DPV2 = &*Marker2->StoredDPValues.begin();
+  DPValue *DPV1 = cast<DPValue>(Marker1->StoredDPValues.begin());
+  DPValue *DPV2 = cast<DPValue>(Marker2->StoredDPValues.begin());
   DPV1->removeFromParent();
   DPV2->removeFromParent();
   EXPECT_TRUE(Marker1->StoredDPValues.empty());
@@ -465,9 +465,9 @@ protected:
     Branch = &*Last;
     CInst = &*Dest;
 
-    DPVA = &*BInst->DbgMarker->StoredDPValues.begin();
-    DPVB = &*Branch->DbgMarker->StoredDPValues.begin();
-    DPVConst = &*CInst->DbgMarker->StoredDPValues.begin();
+    DPVA = cast<DPValue>(BInst->DbgMarker->StoredDPValues.begin());
+    DPVB = cast<DPValue>(Branch->DbgMarker->StoredDPValues.begin());
+    DPVConst = cast<DPValue>(CInst->DbgMarker->StoredDPValues.begin());
   }
 
   void TearDown() override { UseNewDbgInfoFormat = false; }
