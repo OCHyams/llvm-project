@@ -1932,7 +1932,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       U->replaceUsesOfWith(Def, CurrentReload);
       // In some cases Instructions are processed to update their attached
       // debug records.
-      for (auto &DPV: U->getDbgValueRange())
+      for (DPValue &DPV : filterValues(U->getDbgValueRange()))
         DPV.replaceVariableLocationOp(Def, CurrentReload, true);
     }
   }

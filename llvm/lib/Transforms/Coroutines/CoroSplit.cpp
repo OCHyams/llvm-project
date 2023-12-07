@@ -730,7 +730,7 @@ collectDbgVariableIntrinsics(Function &F) {
   SmallVector<DbgVariableIntrinsic *, 8> Intrinsics;
   SmallVector<DPValue *> DPValues;
   for (auto &I : instructions(F)) {
-    for (DPValue &DPV : I.getDbgValueRange())
+    for (DPValue &DPV : filterValues(I.getDbgValueRange()))
       DPValues.push_back(&DPV);
     if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
       Intrinsics.push_back(DVI);

@@ -2081,7 +2081,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
 
   auto CloneAndRemapDbgInfo = [&](Instruction *NewInst, Instruction *From) {
     auto DPVRange = NewInst->cloneDebugInfoFrom(From);
-    for (DPValue &DPV : DPVRange)
+    for (DPValue &DPV : filterValues(DPVRange))
       RetargetDPValueIfPossible(&DPV);
   };
 
@@ -2116,7 +2116,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
     DPMarker *Marker = RangeBB->getMarker(BE);
     DPMarker *EndMarker = NewBB->createMarker(NewBB->end());
     auto DPVRange = EndMarker->cloneDebugInfoFrom(Marker, std::nullopt);
-    for (DPValue &DPV : DPVRange)
+    for (DPValue &DPV : filterValues(DPVRange))
       RetargetDPValueIfPossible(&DPV);
   }
 

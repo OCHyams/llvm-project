@@ -634,7 +634,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       if (LoopEntryBranch->getParent()->IsNewDbgInfoFormat) {
         auto Range = C->cloneDebugInfoFrom(Inst, NextDbgInst);
         // Erase anything we've seen before.
-        for (DPValue &DPV : make_early_inc_range(Range))
+        for (DPValue &DPV : make_early_inc_range(filterValues(Range)))
           if (DbgIntrinsics.count(makeHashDPV(DPV)))
             DPV.eraseFromParent();
         RemapDPValueRange(M, Range, ValueMap,
