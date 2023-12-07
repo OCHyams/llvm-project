@@ -917,7 +917,7 @@ bool llvm::UnrollRuntimeLoopRemainder(
     for (Instruction &I : *BB) {
       RemapInstruction(&I, VMap,
                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-      RemapDPValueRange(M, filterValues(I.getDbgValueRange()), VMap,
+      RemapDPValueRange(M, I.getDbgValueRange(), VMap,
                         RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     }
   }
