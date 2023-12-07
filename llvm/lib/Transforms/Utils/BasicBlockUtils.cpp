@@ -490,7 +490,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>
       VariableMap;
   for (auto &I : *BB) {
-    for (DPEntity &DPV : filterValues(I.getDbgValueRange())) {
+    for (DPValue &DPV : filterValues(I.getDbgValueRange())) {
       if (DPV.getType() == DPValue::LocationType::Declare)
         continue;
       DebugVariable Key(DPV.getVariable(), std::nullopt,
