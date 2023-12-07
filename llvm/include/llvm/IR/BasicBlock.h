@@ -130,10 +130,10 @@ public:
   DPMarker *getNextMarker(Instruction *I);
 
   /// Insert a DPValue into a block at the position given by \p I.
-  void insertDPValueAfter(DPValue *DPV, Instruction *I);
+  void insertDPValueAfter(DPEntity *DPV, Instruction *I);
 
   /// Insert a DPValue into a block at the position given by \p Here.
-  void insertDPValueBefore(DPValue *DPV, InstListType::iterator Here);
+  void insertDPValueBefore(DPEntity *DPV, InstListType::iterator Here);
 
   /// Eject any debug-info trailing at the end of a block. DPValues can
   /// transiently be located "off the end" of a block if the blocks terminator
@@ -194,8 +194,9 @@ public:
   friend void Instruction::moveBeforeImpl(BasicBlock &BB,
                                           InstListType::iterator I,
                                           bool Preserve);
-  friend iterator_range<DPValue::self_iterator> Instruction::cloneDebugInfoFrom(
-      const Instruction *From, std::optional<DPValue::self_iterator> FromHere,
+  friend iterator_range<DPEntity::self_iterator>
+  Instruction::cloneDebugInfoFrom(
+      const Instruction *From, std::optional<DPEntity::self_iterator> FromHere,
       bool InsertAtHead);
 
   /// Creates a new BasicBlock.

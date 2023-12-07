@@ -226,9 +226,9 @@ void Instruction::moveBeforeImpl(BasicBlock &BB, InstListType::iterator I,
     getParent()->flushTerminatorDbgValues();
 }
 
-iterator_range<DPValue::self_iterator>
+iterator_range<DPEntity::self_iterator>
 Instruction::cloneDebugInfoFrom(const Instruction *From,
-                                std::optional<DPValue::self_iterator> FromHere,
+                                std::optional<DPEntity::self_iterator> FromHere,
                                 bool InsertAtHead) {
   if (!From->DbgMarker)
     return DPMarker::getEmptyDPValueRange();
