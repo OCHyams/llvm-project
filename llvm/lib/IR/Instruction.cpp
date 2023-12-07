@@ -243,8 +243,7 @@ Instruction::cloneDebugInfoFrom(const Instruction *From,
   return DbgMarker->cloneDebugInfoFrom(From->DbgMarker, FromHere, InsertAtHead);
 }
 
-iterator_range<DPValue::self_iterator>
-Instruction::getDbgValueRange() const {
+iterator_range<DPEntity::self_iterator> Instruction::getDbgValueRange() const {
   BasicBlock *Parent = const_cast<BasicBlock *>(getParent());
   assert(Parent && "Instruction must be inserted to have DPValues");
   (void)Parent;
@@ -255,7 +254,8 @@ Instruction::getDbgValueRange() const {
   return DbgMarker->getDbgEntityRange();
 }
 
-std::optional<DPValue::self_iterator> Instruction::getDbgReinsertionPosition() {
+std::optional<DPEntity::self_iterator>
+Instruction::getDbgReinsertionPosition() {
   // Is there a marker on the next instruction?
   DPMarker *NextMarker = getParent()->getNextMarker(this);
   if (!NextMarker)

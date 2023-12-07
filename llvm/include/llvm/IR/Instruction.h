@@ -35,6 +35,7 @@ class MDNode;
 class Module;
 struct AAMDNodes;
 class DPMarker;
+class DPEntity;
 
 template <> struct ilist_alloc_traits<Instruction> {
   static inline void deleteNode(Instruction *V);
@@ -76,12 +77,12 @@ public:
       bool InsertAtHead = false);
 
   /// Return a range over the DPValues attached to this instruction.
-  iterator_range<simple_ilist<DPValue>::iterator> getDbgValueRange() const;
+  iterator_range<simple_ilist<DPEntity>::iterator> getDbgValueRange() const;
 
   /// Return an iterator to the position of the "Next" DPValue after this
   /// instruction, or std::nullopt. This is the position to pass to
   /// BasicBlock::reinsertInstInDPValues when re-inserting an instruction.
-  std::optional<simple_ilist<DPValue>::iterator> getDbgReinsertionPosition();
+  std::optional<simple_ilist<DPEntity>::iterator> getDbgReinsertionPosition();
 
   /// Returns true if any DPValues are attached to this instruction.
   bool hasDbgValues() const;
