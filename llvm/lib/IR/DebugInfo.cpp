@@ -198,8 +198,8 @@ void DebugInfoFinder::processInstruction(const Module &M,
   if (auto DbgLoc = I.getDebugLoc())
     processLocation(M, DbgLoc.get());
 
-  for (const DPValue &DPV : I.getDbgValueRange())
-    processDPValue(M, DPV);
+  for (const DPEntity &DPE : I.getDbgValueRange())
+    processDPEntity(M, DPE);
 }
 
 void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
@@ -212,6 +212,10 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
 void DebugInfoFinder::processDPValue(const Module &M, const DPValue &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
+}
+
+void DebugInfoFinder::processDPEntity(const Module &M, const DPEntity &DPE) {
+  processDPValue(M, cast<DPValue>(DPE));
 }
 
 void DebugInfoFinder::processType(DIType *DT) {
