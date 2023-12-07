@@ -75,7 +75,7 @@ public:
   DebugLoc DbgLoc;
   enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
 
-  DPEntity(Kind EntityKind) : EntityKind(EntityKind) {}
+  DPEntity(Kind EntityKind, DebugLoc DL) : DbgLoc(DL), EntityKind(EntityKind) {}
   ~DPEntity();
 
   DPEntity *clone() const;

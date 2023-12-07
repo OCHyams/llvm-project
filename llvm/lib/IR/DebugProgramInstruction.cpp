@@ -14,9 +14,9 @@
 namespace llvm {
 
 DPValue::DPValue(const DbgVariableIntrinsic *DVI)
-    : DebugValueUser(DVI->getRawLocation()), DPEntity(ValueKind),
-      Variable(DVI->getVariable()), Expression(DVI->getExpression()),
-      DbgLoc(DVI->getDebugLoc()) {
+    : DebugValueUser(DVI->getRawLocation()),
+      DPEntity(ValueKind, DVI->getDebugLoc()), Variable(DVI->getVariable()),
+      Expression(DVI->getExpression()) {
   switch (DVI->getIntrinsicID()) {
   case Intrinsic::dbg_value:
     Type = LocationType::Value;
@@ -31,14 +31,14 @@ DPValue::DPValue(const DbgVariableIntrinsic *DVI)
 }
 
 DPValue::DPValue(const DPValue &DPV)
-    : DebugValueUser(DPV.getRawLocation()), DPEntity(ValueKind),
-      Type(DPV.getType()), Variable(DPV.getVariable()),
-      Expression(DPV.getExpression()), DbgLoc(DPV.getDebugLoc()) {}
+    : DebugValueUser(DPV.getRawLocation()),
+      DPEntity(ValueKind, DPV.getDebugLoc()), Type(DPV.getType()),
+      Variable(DPV.getVariable()), Expression(DPV.getExpression()) {}
 
 DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
                  const DILocation *DI, LocationType Type)
-    : DebugValueUser(Location), DPEntity(ValueKind), Type(Type), Variable(DV),
-      Expression(Expr), DbgLoc(DI) {}
+    : DebugValueUser(Location), DPEntity(ValueKind, DI), Type(Type),
+      Variable(DV), Expression(Expr) {}
 
 void DPEntity::deleteInstr() { delete this; }
 

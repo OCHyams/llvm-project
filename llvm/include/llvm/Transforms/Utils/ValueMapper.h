@@ -276,7 +276,7 @@ inline void RemapDPValue(Module *M, DPValue *V, ValueToValueMapTy &VM,
 }
 
 /// Remap the Values used in the DPValue \a V using the value map \a VM.
-inline void RemapDPValueRange(Module *M, iterator_range<DPValueIterator> Range,
+inline void RemapDPValueRange(Module *M, iterator_range<DPEntityIterator> Range,
                               ValueToValueMapTy &VM, RemapFlags Flags = RF_None,
                               ValueMapTypeRemapper *TypeMapper = nullptr,
                               ValueMaterializer *Materializer = nullptr) {
