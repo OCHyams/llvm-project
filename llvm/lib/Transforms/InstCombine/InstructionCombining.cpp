@@ -3999,6 +3999,9 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
         DebugVariable(DPV->getVariable(), DPV->getExpression(),
                       DPV->getDebugLoc()->getInlinedAt());
 
+    if (DPV->isDbgDeclare() || DPV->isDbgAssign())
+      continue;
+
     if (!SunkVariables.insert(DbgUserVariable).second)
       continue;
 

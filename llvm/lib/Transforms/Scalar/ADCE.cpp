@@ -548,6 +548,9 @@ ADCEChanged AggressiveDeadCodeElimination::removeDeadInstructions() {
     // If inhaled, check for any dbg.values attached to this instruction, and
     // drop any for scopes that aren't alive, like the rest of this loop does.
     for (DPValue &DPV : make_early_inc_range(I.getDbgValueRange())) {
+      if (DPV.isDbgAssign())
+        if (!at::getAssignmentInsts(&DPV).empty())
+          continue;
       if (AliveScopes.count(DPV.getDebugLoc()->getScope()))
         continue;
       I.dropOneDbgValue(&DPV);

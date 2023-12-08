@@ -41,6 +41,10 @@ DebugVariable::DebugVariable(const DbgVariableIntrinsic *DII)
     : Variable(DII->getVariable()),
       Fragment(DII->getExpression()->getFragmentInfo()),
       InlinedAt(DII->getDebugLoc().getInlinedAt()) {}
+DebugVariable::DebugVariable(const DPValue *DPV)
+    : Variable(DPV->getVariable()),
+      Fragment(DPV->getExpression()->getFragmentInfo()),
+      InlinedAt(DPV->getDebugLoc().getInlinedAt()) {}
 
 DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
     : DebugVariable(DVI->getVariable(), std::nullopt,

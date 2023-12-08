@@ -1724,6 +1724,13 @@ static at::StorageToVarsMap collectEscapedLocals(const DataLayout &DL,
       LLVM_DEBUG(errs() << " > DEF : " << *DAI << "\n");
       EscapedLocals[Base].insert(at::VarRecord(DAI));
     }
+    for (auto *DPV : at::getDPAssignmentMarkers(Base)) {
+      // Skip variables from inlined functions - they are not local variables.
+      if (DPV->getDebugLoc().getInlinedAt())
+        continue;
+      LLVM_DEBUG(errs() << " > DEF : " << *DPV << "\n");
+      EscapedLocals[Base].insert(at::VarRecord(DPV));
+    }
   }
   return EscapedLocals;
 }
@@ -1759,6 +1766,10 @@ static void fixupAssignments(Function::iterator Start, Function::iterator End) {
         I.setMetadata(LLVMContext::MD_DIAssignID, GetNewID(ID));
       else if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&I))
         DAI->setAssignId(GetNewID(DAI->getAssignID()));
+      for (DPValue &DPV : I.getDbgValueRange()) {
+        if (DPV.isDbgAssign())
+          DPV.setAssignId(GetNewID(DPV.getAssignID()));
+      }
     }
   }
 }

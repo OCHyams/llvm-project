@@ -170,6 +170,11 @@ private:
       *OS << '\n';
     }
   }
+  
+  void Write(const DPValue *V) {
+    if (V)
+      *OS << "DPValue { " << V->getVariable() << " }\n";
+  }
 
   void Write(const Metadata *MD) {
     if (!MD)
@@ -4699,6 +4704,13 @@ void Verifier::visitDIAssignIDMetadata(Instruction &I, MDNode *MD) {
         CheckDI(DAI->getFunction() == I.getFunction(),
                 "dbg.assign not in same function as inst", DAI, &I);
     }
+  }
+  for (DPValue *DPV : cast<DIAssignID>(MD)->getAllDPValueUsers()) {
+    CheckDI(DPV->isDbgAssign(),
+            "!DIAssignID should only be used by llvm.dbg.assign intrinsics",
+            MD, DPV);
+    CheckDI(DPV->getFunction() == I.getFunction(),
+            "dbg.assign not in same function as inst", DPV, &I);
   }
 }
 

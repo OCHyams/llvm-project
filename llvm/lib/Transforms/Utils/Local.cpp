@@ -1570,6 +1570,8 @@ static void insertDbgValueOrDPValueAfter(DIBuilder &Builder, Value *DV, DILocalV
   }
 }
 
+
+
 /// Inserts a llvm.dbg.value intrinsic before a store to an alloca'd value
 /// that has an associated llvm.dbg.declare intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
@@ -2066,14 +2068,14 @@ void llvm::salvageDebugInfo(Instruction &I) {
   salvageDebugInfoForDbgValues(I, DbgUsers, DPUsers);
 }
 
-/// Salvage the address component of \p DAI.
-static void salvageDbgAssignAddress(DbgAssignIntrinsic *DAI) {
-  Instruction *I = dyn_cast<Instruction>(DAI->getAddress());
+template<typename T>
+static void salvageDbgAssignAddress(T *Assign) {
+  Instruction *I = dyn_cast<Instruction>(Assign->getAddress());
   // Only instructions can be salvaged at the moment.
   if (!I)
     return;
 
-  assert(!DAI->getAddressExpression()->getFragmentInfo().has_value() &&
+  assert(!Assign->getAddressExpression()->getFragmentInfo().has_value() &&
          "address-expression shouldn't have fragment info");
 
   // The address component of a dbg.assign cannot be variadic.
@@ -2087,16 +2089,16 @@ static void salvageDbgAssignAddress(DbgAssignIntrinsic *DAI) {
     return;
 
   DIExpression *SalvagedExpr = DIExpression::appendOpsToArg(
-      DAI->getAddressExpression(), Ops, 0, /*StackValue=*/false);
+      Assign->getAddressExpression(), Ops, 0, /*StackValue=*/false);
   assert(!SalvagedExpr->getFragmentInfo().has_value() &&
          "address-expression shouldn't have fragment info");
 
   // Salvage succeeds if no additional values are required.
   if (AdditionalValues.empty()) {
-    DAI->setAddress(NewV);
-    DAI->setAddressExpression(SalvagedExpr);
+    Assign->setAddress(NewV);
+    Assign->setAddressExpression(SalvagedExpr);
   } else {
-    DAI->setKillAddress();
+    Assign->setKillAddress();
   }
 }
 
@@ -2169,6 +2171,15 @@ void llvm::salvageDebugInfoForDbgValues(
   }
   // Duplicate of above block for DPValues.
   for (auto *DPV : DPUsers) {
+    if (DPV->isDbgAssign()) {
+      if (DPV->getAddress() == &I) {
+        salvageDbgAssignAddress(DPV);
+        Salvaged = true;
+      }
+      if (DPV->getValue() != &I)
+        continue;
+    }
+
     // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
     // are implicitly pointing out the value as a DWARF memory location
     // description.

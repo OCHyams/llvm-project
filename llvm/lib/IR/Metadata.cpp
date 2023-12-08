@@ -155,39 +155,43 @@ const DPValue *DebugValueUser::getUser() const {
 void DebugValueUser::handleChangedValue(void *Old, Metadata *New) {
   // NOTE: We could inform the "owner" that a value has changed through
   // getOwner, if needed.
-  auto Values = getDebugValues();
-  Metadata **It = std::find(Values.begin(), Values.end(), Old);
-  if (It == Values.end())
-    return;
-  ptrdiff_t Idx = std::distance(Values.begin(), It);
+  auto OldMD = static_cast<Metadata **>(Old);
+  ptrdiff_t Idx = std::distance(DebugValues.begin(), OldMD);
   resetDebugValue(Idx, New);
 }
 
-void DebugValueUser::trackDebugValue(int Idx) {
-  Metadata *&Operand = DebugValues[Idx];
-  MetadataTracking::track(Operand, *Operand, *this);
+void DebugValueUser::trackDebugValue(size_t Idx) {
+  assert(Idx < 2 && "Invalid debug value index.");
+  Metadata *&MD = DebugValues[Idx];
+  if (MD)
+    MetadataTracking::track(&MD, *MD, *this);
 }
 
 void DebugValueUser::trackDebugValues() {
-  for (Metadata *&MD : getDebugValues())
-    MetadataTracking::track(MD, *MD, *this);
+  for (Metadata *&MD : DebugValues)
+    if (MD)
+      MetadataTracking::track(&MD, *MD, *this);
 }
 
-void DebugValueUser::untrackDebugValue(int Idx) {
-  Metadata *&Operand = DebugValues[Idx];
-  MetadataTracking::untrack(Operand);
+void DebugValueUser::untrackDebugValue(size_t Idx) {
+  assert(Idx < 2 && "Invalid debug value index.");
+  Metadata *&MD = DebugValues[Idx];
+  if (MD)
+    MetadataTracking::untrack(MD);
 }
 
 void DebugValueUser::untrackDebugValues() {
-  for (Metadata *&MD : getDebugValues())
-    MetadataTracking::untrack(MD);
+  for (Metadata *&MD : DebugValues)
+    if (MD)
+      MetadataTracking::untrack(MD);
 }
 
 void DebugValueUser::retrackDebugValues(DebugValueUser &X) {
   assert(DebugValueUser::operator==(X) && "Expected values to match");
-  for (const auto &[MD, XMD] : zip(getDebugValues(), X.getDebugValues()))
-    MetadataTracking::retrack(XMD, MD);
-  X.DebugValues.reset();
+  for (const auto &[MD, XMD] : zip(DebugValues, X.DebugValues))
+    if (XMD)
+      MetadataTracking::retrack(XMD, MD);
+  X.DebugValues.fill(nullptr);
 }
 
 bool MetadataTracking::track(void *Ref, Metadata &MD, OwnerTy Owner) {
@@ -426,27 +430,26 @@ void ReplaceableMetadataImpl::resolveAllUses(bool ResolveUsers) {
 }
 
 ReplaceableMetadataImpl *ReplaceableMetadataImpl::getOrCreate(Metadata &MD) {
-  if (auto ArgList = dyn_cast<DIArgList>(&MD))
-    return ArgList->Context.getOrCreateReplaceableUses();
-  if (auto *N = dyn_cast<MDNode>(&MD))
-    return N->isResolved() ? nullptr : N->Context.getOrCreateReplaceableUses();
+  if (auto *N = dyn_cast<MDNode>(&MD)) {
+    return !N->isResolved() || N->isAlwaysReplaceable()
+      ? N->Context.getOrCreateReplaceableUses()
+      : nullptr;
+  }
   return dyn_cast<ValueAsMetadata>(&MD);
 }
 
 ReplaceableMetadataImpl *ReplaceableMetadataImpl::getIfExists(Metadata &MD) {
-  if (auto ArgList = dyn_cast<DIArgList>(&MD)) {
-    return ArgList->Context.getOrCreateReplaceableUses();
+  if (auto *N = dyn_cast<MDNode>(&MD)) {
+    return !N->isResolved() || N->isAlwaysReplaceable()
+      ? N->Context.getReplaceableUses()
+      : nullptr;
   }
-  if (auto *N = dyn_cast<MDNode>(&MD))
-    return N->isResolved() ? nullptr : N->Context.getReplaceableUses();
   return dyn_cast<ValueAsMetadata>(&MD);
 }
 
 bool ReplaceableMetadataImpl::isReplaceable(const Metadata &MD) {
-  if (isa<DIArgList>(&MD))
-    return true;
   if (auto *N = dyn_cast<MDNode>(&MD))
-    return !N->isResolved();
+    return !N->isResolved() || N->isAlwaysReplaceable();
   return isa<ValueAsMetadata>(&MD);
 }
 

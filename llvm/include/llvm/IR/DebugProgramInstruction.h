@@ -90,6 +90,8 @@ class DPValue : public ilist_node<DPValue>, private DebugValueUser {
   DILocalVariable *Variable;
   DIExpression *Expression;
   DebugLoc DbgLoc;
+  DIExpression *AddressExpression;
+  DIAssignID *AssignID;
 
 public:
   void deleteInstr();
@@ -100,12 +102,21 @@ public:
   void removeFromParent();
   void eraseFromParent();
 
+  
+  DPValue *getNextNode() {
+    return &*(++getIterator());
+  }
+  DPValue *getPrevNode() {
+    return &*(--getIterator());
+  }
+
   using self_iterator = simple_ilist<DPValue>::iterator;
   using const_self_iterator = simple_ilist<DPValue>::const_iterator;
 
   enum class LocationType {
     Declare,
     Value,
+    Assign,
   };
   /// Classification of the debug-info record that this DPValue represents.
   /// Essentially, "is this a dbg.value or dbg.declare?". dbg.declares are not
@@ -123,6 +134,27 @@ public:
   /// assigning \p Location to the DV / Expr / DI variable.
   DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
           const DILocation *DI);
+  DPValue(Metadata *Value, DILocalVariable *Variable,
+    DIExpression *Expression, DIAssignID *AssignID, Metadata *Address,
+    DIExpression *AddressExpression, const DILocation *DI);
+  ~DPValue() {
+    untrackAssignID();
+  }
+
+  static DPValue *createDPValue(
+      Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
+      const DILocation *DI, Instruction *InsertBefore = nullptr);
+  static DPValue *createDPDeclare(
+      Value *Address, DILocalVariable *DV, DIExpression *Expr,
+      const DILocation *DI, Instruction *InsertBefore = nullptr);
+  static DPValue *createDPAssign(
+      Metadata *Value, DILocalVariable *Variable, DIExpression *Expression,
+      DIAssignID *AssignID, Metadata *Address, DIExpression *AddressExpression,
+      const DILocation *DI, Instruction *InsertBefore = nullptr);
+  static DPValue *createLinkedDPAssign(
+      Instruction *LinkedInstr, Metadata *ValueMD, DILocalVariable *Variable,
+      DIExpression *Expression, Value *Address, 
+      DIExpression *AddressExpression, const DILocation *DI);
 
   /// Iterator for ValueAsMetadata that internally uses direct pointer iteration
   /// over either a ValueAsMetadata* or a ValueAsMetadata**, dereferencing to the
@@ -171,6 +203,9 @@ public:
       return *this;
     }
   };
+
+  bool isDbgDeclare() { return Type == LocationType::Declare; }
+  bool isDbgValue() { return Type == LocationType::Value; }
 
   /// Get the locations corresponding to the variable referenced by the debug
   /// info intrinsic.  Depending on the intrinsic, this could be the
@@ -238,6 +273,10 @@ public:
   /// a DIArgList which is a list of values.
   Metadata *getRawLocation() const { return DebugValues[0]; }
 
+  Value *getValue(unsigned OpIdx = 0) const {
+    return getVariableLocationOp(OpIdx);
+  }
+
   /// Use of this should generally be avoided; instead,
   /// replaceVariableLocationOp and addVariableLocationOps should be used where
   /// possible to avoid creating invalid state.
@@ -252,6 +291,78 @@ public:
   /// Get the size (in bits) of the variable, or fragment of the variable that
   /// is described.
   std::optional<uint64_t> getFragmentSizeInBits() const;
+
+  /// Get the FragmentInfo for the variable if it exists, otherwise return a
+  /// FragmentInfo that covers the entire variable if the variable size is
+  /// known, otherwise return a zero-sized fragment.
+  DIExpression::FragmentInfo getFragmentOrEntireVariable() const {
+    DIExpression::FragmentInfo VariableSlice(0, 0);
+    // Get the fragment or variable size, or zero.
+    if (auto Sz = getFragmentSizeInBits())
+      VariableSlice.SizeInBits = *Sz;
+    if (auto Frag = getExpression()->getFragmentInfo())
+      VariableSlice.OffsetInBits = Frag->OffsetInBits;
+    return VariableSlice;
+  }
+
+  /////////////////////////////////////////////
+  /// DbgAssign Methods
+
+  bool isDbgAssign() const { return getType() == LocationType::Assign; }
+
+  Value *getAddress() const;
+  Metadata *getRawAddress() const {
+    return DebugValues[1];
+  }
+  Metadata *getRawAssignID() const {
+    return AssignID;
+  }
+  DIAssignID *getAssignID() const { return AssignID; }
+  Metadata *getRawAddressExpression() const {
+    return AddressExpression;
+  }
+  DIExpression *getAddressExpression() const {
+    return AddressExpression;
+  }
+  void setAddressExpression(DIExpression *NewExpr) {
+    AddressExpression = NewExpr;
+  }
+  void setAssignId(DIAssignID *New) {
+    untrackAssignID();
+    AssignID = New;
+    trackAssignID();
+  }
+  void setAddress(Value *V) {
+    resetDebugValue(1, ValueAsMetadata::get(V));
+  }
+  /// Kill the address component.
+  void setKillAddress() {
+    resetDebugValue(1, ValueAsMetadata::get(UndefValue::get(getAddress()->getType())));
+  }
+  /// Check whether this kills the address component. This doesn't take into
+  /// account the position of the intrinsic, therefore a returned value of false
+  /// does not guarentee the address is a valid location for the variable at the
+  /// intrinsic's position in IR.
+  bool isKillAddress() const {
+    Value *Addr = getAddress();
+    return !Addr || isa<UndefValue>(Addr);
+  }
+
+private:
+  void trackAssignID() {
+    if (AssignID)
+      MetadataTracking::track(&AssignID, *AssignID, *this);
+  }
+  void untrackAssignID() {
+    if (AssignID)
+      MetadataTracking::untrack(&AssignID, *AssignID);
+  }
+public:
+  /////////////////////////////////////////////
+
+  bool isEquivalentTo(const DPValue &Other) {
+    return std::tie(Type, DebugValues, Variable, Expression, DbgLoc, AddressExpression, AssignID) == std::tie(Other.Type, Other.DebugValues, Other.Variable, Other.Expression, Other.DbgLoc, Other.AddressExpression, Other.AssignID);
+  }
 
   DPValue *clone() const;
   /// Convert this DPValue back into a dbg.value intrinsic.
@@ -275,6 +386,11 @@ public:
 
   LLVMContext &getContext();
   const LLVMContext &getContext() const;
+
+  /// Insert this DPValue prior to \p InsertBefore. Must not be called if this
+  /// is already contained in a DPMarker.
+  void insertBefore(DPValue *InsertBefore);
+  void insertAfter(DPValue *InsertAfter);
 
   void print(raw_ostream &O, bool IsForDebug = false) const;
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
@@ -339,6 +455,10 @@ public:
   /// Insert a DPValue into this DPMarker, at the end of the list. If
   /// \p InsertAtHead is true, at the start.
   void insertDPValue(DPValue *New, bool InsertAtHead);
+  /// Insert a DPValue prior to a DPValue contained within this marker.
+  void insertDPValue(DPValue *New, DPValue *InsertBefore);
+  /// Insert a DPValue after a DPValue contained within this marker.
+  void insertDPValueAfter(DPValue *New, DPValue *InsertAfter);
   /// Clone all DPMarkers from \p From into this marker. There are numerous
   /// options to customise the source/destination, due to gnarliness, see class
   /// comment.

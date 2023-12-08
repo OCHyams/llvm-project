@@ -294,6 +294,10 @@ Instruction *InstCombinerImpl::SimplifyAnyMemSet(AnyMemSetInst *MI) {
       if (llvm::is_contained(DAI->location_ops(), FillC))
         DAI->replaceVariableLocationOp(FillC, FillVal);
     }
+    for (auto *DPV : at::getDPAssignmentMarkers(S)) {
+      if (llvm::is_contained(DPV->location_ops(), FillC))
+        DPV->replaceVariableLocationOp(FillC, FillVal);
+    }
 
     S->setAlignment(Alignment);
     if (isa<AtomicMemSetInst>(MI))
