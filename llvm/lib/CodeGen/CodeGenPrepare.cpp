@@ -3098,7 +3098,8 @@ class TypePromotionTransaction {
       }
       // Record the debug uses separately. They are not in the instruction's
       // use list, but they are replaced by RAUW.
-      findDbgValues(DbgValues, Inst, &DPValues);
+      DbgValues = findDbgValues(Inst);
+      DPValues = findDPValues(Inst);
 
       // Now, we can replace the uses.
       Inst->replaceAllUsesWith(New);

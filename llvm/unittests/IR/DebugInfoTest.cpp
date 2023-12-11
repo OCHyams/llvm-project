@@ -184,8 +184,7 @@ TEST(MetadataTest, DeleteInstUsedByDbgValue) {
   Instruction &I = *M->getFunction("f")->getEntryBlock().getFirstNonPHI();
 
   // Find the dbg.value using %b.
-  SmallVector<DbgValueInst *, 1> DVIs;
-  findDbgValues(DVIs, &I);
+  SmallVector<DbgValueInst *> DVIs = findDbgValues(&I);
 
   // Delete %b. The dbg.value should now point to undef.
   I.eraseFromParent();
@@ -268,9 +267,7 @@ TEST(MetadataTest, DeleteInstUsedByDPValue) {
   M->convertToNewDbgValues();
 
   // Find the DPValues using %b.
-  SmallVector<DbgValueInst *, 2> DVIs;
-  SmallVector<DPValue *, 2> DPVs;
-  findDbgValues(DVIs, &I, &DPVs);
+  SmallVector<DPValue *, 2> DPVs = findDPValues(&I);
   ASSERT_EQ(DPVs.size(), 2u);
 
   // Delete %b. The DPValue should now point to undef.
@@ -318,9 +315,8 @@ TEST(MetadataTest, OrderingOfDPValues) {
   UseNewDbgInfoFormat = true;
   Instruction &I = *M->getFunction("f")->getEntryBlock().getFirstNonPHI();
 
-  SmallVector<DbgValueInst *, 2> DVIs;
-  SmallVector<DPValue *, 2> DPVs;
-  findDbgValues(DVIs, &I, &DPVs);
+  SmallVector<DbgValueInst *> DVIs = findDbgValues(&I);
+  SmallVector<DPValue *> DPVs = findDPValues(&I);
   ASSERT_EQ(DVIs.size(), 2u);
   ASSERT_EQ(DPVs.size(), 0u);
 
@@ -333,10 +329,9 @@ TEST(MetadataTest, OrderingOfDPValues) {
   EXPECT_TRUE(Var1->getName() == "foo");
 
   // Now try again, but in DPValue form.
-  DVIs.clear();
-
   M->convertToNewDbgValues();
-  findDbgValues(DVIs, &I, &DPVs);
+  DVIs = findDbgValues(&I);
+  DPVs = findDPValues(&I);
   ASSERT_EQ(DVIs.size(), 0u);
   ASSERT_EQ(DPVs.size(), 2u);
 

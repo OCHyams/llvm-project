@@ -719,17 +719,13 @@ TEST(Local, FindDbgUsers) {
   Function &Fun = *cast<Function>(M->getNamedValue("fun"));
   Value *Arg = Fun.getArg(0);
 
-  SmallVector<DbgVariableIntrinsic *> Users;
   // Arg (%a) is used twice by a single dbg.assign. Check findDbgUsers returns
   // only 1 pointer to it rather than 2.
-  findDbgUsers(Users, Arg);
-  EXPECT_EQ(Users.size(), 1u);
+  EXPECT_EQ(findDbgUsers(Arg).size(), 1u);
 
-  SmallVector<DbgValueInst *> Vals;
   // Arg (%a) is used twice by a single dbg.assign. Check findDbgValues returns
   // only 1 pointer to it rather than 2.
-  findDbgValues(Vals, Arg);
-  EXPECT_EQ(Vals.size(), 1u);
+  EXPECT_EQ(findDbgValues(Arg).size(), 1u);
 }
 
 TEST(Local, ReplaceAllDbgUsesWith) {
@@ -833,8 +829,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
   // Simulate i32* <-> i64* conversion.
   EXPECT_TRUE(replaceAllDbgUsesWith(D, C, C, DT));
 
-  SmallVector<DbgVariableIntrinsic *, 2> CDbgVals;
-  findDbgUsers(CDbgVals, &C);
+  SmallVector<DbgVariableIntrinsic *> CDbgVals = findDbgUsers(&C);
   EXPECT_EQ(2U, CDbgVals.size());
   EXPECT_TRUE(all_of(CDbgVals, [](DbgVariableIntrinsic *DII) {
     return isa<DbgDeclareInst>(DII);
@@ -842,8 +837,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
 
   EXPECT_TRUE(replaceAllDbgUsesWith(C, D, D, DT));
 
-  SmallVector<DbgVariableIntrinsic *, 2> DDbgVals;
-  findDbgUsers(DDbgVals, &D);
+  SmallVector<DbgVariableIntrinsic *> DDbgVals = findDbgUsers(&D);
   EXPECT_EQ(2U, DDbgVals.size());
   EXPECT_TRUE(all_of(DDbgVals, [](DbgVariableIntrinsic *DII) {
     return isa<DbgDeclareInst>(DII);
@@ -863,9 +857,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
   EXPECT_EQ(FDbgVal->getNumVariableLocationOps(), 1u);
   EXPECT_TRUE(FDbgVal->isKillLocation());
 
-  SmallVector<DbgValueInst *, 1> FDbgVals;
-  findDbgValues(FDbgVals, &F_);
-  EXPECT_EQ(0U, FDbgVals.size());
+  EXPECT_EQ(0U, findDbgValues(&F).size());
 
   // Simulate i32 -> i64 conversion to test sign-extension. Here are some
   // interesting cases to handle:
@@ -875,9 +867,8 @@ TEST(Local, ReplaceAllDbgUsesWith) {
   //  4-6) like (1-3), but with a fragment
   EXPECT_TRUE(replaceAllDbgUsesWith(B, A, A, DT));
 
-  SmallVector<DbgValueInst *, 8> ADbgVals;
-  findDbgValues(ADbgVals, &A);
-  EXPECT_EQ(6U, ADbgVals.size());
+  SmallVector<DbgValueInst *> ADbgVals = findDbgValues(&A);
+  EXPECT_EQ(6U, findDbgValues(&A).size());
 
   // Check that %a has a dbg.value with a DIExpression matching \p Ops.
   auto hasADbgVal = [&](ArrayRef<uint64_t> Ops) {

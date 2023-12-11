@@ -44,7 +44,7 @@ using namespace llvm;
 using namespace llvm::at;
 using namespace llvm::dwarf;
 
-TinyPtrVector<DbgDeclareInst *> llvm::FindDbgDeclareUses(Value *V) {
+TinyPtrVector<DbgDeclareInst *> llvm::findDbgDeclares(Value *V) {
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
@@ -66,12 +66,12 @@ TinyPtrVector<DbgDeclareInst *> llvm::FindDbgDeclareUses(Value *V) {
 }
 
 template <typename IntrinsicT>
-static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result,
-                              Value *V, SmallVectorImpl<DPValue *> *DPValues) {
+static SmallVector<IntrinsicT *> findDbgIntrinsics(Value *V) {
+  SmallVector<IntrinsicT *> Result;
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
-    return;
+    return Result;
 
   LLVMContext &Ctx = V->getContext();
   // TODO: If this value appears multiple times in a DIArgList, we should still
@@ -80,25 +80,14 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result,
   // V will also appear twice in a dbg.assign if its used in the both the value
   // and address components.
   SmallPtrSet<IntrinsicT *, 4> EncounteredIntrinsics;
-  SmallPtrSet<DPValue *, 4> EncounteredDPValues;
 
   /// Append IntrinsicT users of MetadataAsValue(MD).
-  auto AppendUsers = [&Ctx, &EncounteredIntrinsics, &Result,
-                      DPValues](Metadata *MD) {
+  auto AppendUsers = [&Ctx, &EncounteredIntrinsics, &Result](Metadata *MD) {
     if (auto *MDV = MetadataAsValue::getIfExists(Ctx, MD)) {
       for (User *U : MDV->users())
         if (IntrinsicT *DVI = dyn_cast<IntrinsicT>(U))
           if (EncounteredIntrinsics.insert(DVI).second)
             Result.push_back(DVI);
-    }
-    if (!DPValues)
-      return;
-    // Get DPValues that use this as a single value.
-    if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
-      for (DPValue *DPV : L->getAllDPValueUsers()) {
-        if (DPV->getType() == DPValue::LocationType::Value)
-          DPValues->push_back(DPV);
-      }
     }
   };
 
@@ -106,25 +95,47 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result,
     AppendUsers(L);
     for (Metadata *AL : L->getAllArgListUsers()) {
       AppendUsers(AL);
-      if (!DPValues)
-        continue;
-      DIArgList *DI = cast<DIArgList>(AL);
-      for (DPValue *DPV : DI->getAllDPValueUsers())
-        if (DPV->getType() == DPValue::LocationType::Value)
-          if (EncounteredDPValues.insert(DPV).second)
-            DPValues->push_back(DPV);
     }
   }
+  return Result;
 }
 
-void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues,
-                         Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgValueInst>(DbgValues, V, DPValues);
+static SmallVector<DPValue *> findDbgRecords(Value *V) {
+  SmallVector<DPValue *> Result;
+  // This function is hot. Check whether the value has any metadata to avoid a
+  // DenseMap lookup.
+  if (!V->isUsedByMetadata())
+    return Result;
+
+  // TODO: If this value appears multiple times in a DIArgList, we should still
+  // only add the owning DbgValueInst once; use this set to track ArgListUsers.
+  // This behaviour can be removed when we can automatically remove duplicates.
+  // V will also appear twice in a dbg.assign if its used in the both the value
+  // and address components.
+  SmallPtrSet<DPValue *, 4> EncounteredDPValues;
+
+  if (auto *L = LocalAsMetadata::getIfExists(V)) {
+    for (DPValue *DPV : L->getAllDPValueUsers()) {
+      if (DPV->getType() == DPValue::LocationType::Value)
+        Result.push_back(DPV);
+    }
+
+    for (Metadata *AL : L->getAllArgListUsers()) {
+      for (DPValue *DPV : cast<DIArgList>(AL)->getAllDPValueUsers())
+        if (DPV->getType() == DPValue::LocationType::Value)
+          if (EncounteredDPValues.insert(DPV).second)
+            Result.push_back(DPV);
+    }
+  }
+  return Result;
 }
 
-void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
-                        Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgVariableIntrinsic>(DbgUsers, V, DPValues);
+SmallVector<DbgValueInst *> llvm::findDbgValues(Value *V) {
+  return findDbgIntrinsics<DbgValueInst>(V);
+}
+
+SmallVector<DbgVariableIntrinsic *> llvm::findDbgUsers(Value *V) {
+  return findDbgIntrinsics<DbgVariableIntrinsic>(V);
 }
 
 DISubprogram *llvm::getDISubprogram(const MDNode *Scope) {

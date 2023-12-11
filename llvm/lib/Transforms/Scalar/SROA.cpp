@@ -4940,7 +4940,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
   TinyPtrVector<DbgVariableIntrinsic *> DbgVariables;
-  for (auto *DbgDeclare : FindDbgDeclareUses(&AI))
+  for (auto *DbgDeclare : findDbgDeclares(&AI))
     DbgVariables.push_back(DbgDeclare);
   for (auto *DbgAssign : at::getAssignmentMarkers(&AI))
     DbgVariables.push_back(DbgAssign);
@@ -4997,7 +4997,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
       // Remove any existing intrinsics on the new alloca describing
       // the variable fragment.
-      for (DbgDeclareInst *OldDII : FindDbgDeclareUses(Fragment.Alloca)) {
+      for (DbgDeclareInst *OldDII : findDbgDeclares(Fragment.Alloca)) {
         auto SameVariableFragment = [](const DbgVariableIntrinsic *LHS,
                                        const DbgVariableIntrinsic *RHS) {
           return LHS->getVariable() == RHS->getVariable() &&
@@ -5147,7 +5147,7 @@ bool SROA::deleteDeadInstructions(
     // not be able to find it.
     if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
       DeletedAllocas.insert(AI);
-      for (DbgDeclareInst *OldDII : FindDbgDeclareUses(AI))
+      for (DbgDeclareInst *OldDII : findDbgDeclares(AI))
         OldDII->eraseFromParent();
     }
 

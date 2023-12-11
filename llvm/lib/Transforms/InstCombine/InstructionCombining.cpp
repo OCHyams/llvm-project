@@ -2679,7 +2679,8 @@ Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
   SmallVector<DPValue *, 8> DPVs;
   std::unique_ptr<DIBuilder> DIB;
   if (isa<AllocaInst>(MI)) {
-    findDbgUsers(DVIs, &MI, &DPVs);
+    DVIs = findDbgUsers(&MI);
+    DPVs = findDPVUsers(&MI);
     DIB.reset(new DIBuilder(*MI.getModule(), /*AllowUnresolved=*/false));
   }
 
@@ -4076,8 +4077,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   // maximise the range variables have location for. If we cannot salvage, then
   // mark the location undef: we know it was supposed to receive a new location
   // here, but that computation has been sunk.
-  SmallVector<DbgVariableIntrinsic *, 2> DbgUsers;
-  findDbgUsers(DbgUsers, I);
+  SmallVector<DbgVariableIntrinsic *> DbgUsers = findDbgUsers(I);
 
   // For all debug values in the destination block, the sunk instruction
   // will still be available, so they do not need to be dropped.

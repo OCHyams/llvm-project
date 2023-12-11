@@ -241,12 +241,8 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
       SSAUpdate.RewriteUse(*UseToRewrite);
     }
 
-    SmallVector<DbgValueInst *, 4> DbgValues;
-    SmallVector<DPValue *, 4> DPValues;
-    llvm::findDbgValues(DbgValues, I, &DPValues);
-
     // Update pre-existing debug value uses that reside outside the loop.
-    for (auto *DVI : DbgValues) {
+    for (auto *DVI : llvm::findDbgValues(I)) {
       BasicBlock *UserBB = DVI->getParent();
       if (InstBB == UserBB || L->contains(UserBB))
         continue;
@@ -261,7 +257,7 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
 
     // RemoveDIs: copy-paste of block above, using non-instruction debug-info
     // records.
-    for (DPValue *DPV : DPValues) {
+    for (DPValue *DPV : llvm::findDPValues(I)) {
       BasicBlock *UserBB = DPV->getMarker()->getParent();
       if (InstBB == UserBB || L->contains(UserBB))
         continue;

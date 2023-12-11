@@ -322,7 +322,7 @@ void MemoryOpRemark::visitVariable(const Value *V,
   // Try to get an llvm.dbg.declare, which has a DILocalVariable giving us the
   // real debug info name and size of the variable.
   for (const DbgVariableIntrinsic *DVI :
-       FindDbgDeclareUses(const_cast<Value *>(V))) {
+       findDbgDeclares(const_cast<Value *>(V))) {
     if (DILocalVariable *DILV = DVI->getVariable()) {
       std::optional<uint64_t> DISize = getSizeInBytes(DILV->getSizeInBits());
       VariableInfo Var{DILV->getName(), DISize};

@@ -1972,10 +1972,11 @@ void JumpThreadingPass::updateSSA(
     }
 
     // Find debug values outside of the block
-    findDbgValues(DbgValues, &I, &DPValues);
+    DbgValues = findDbgValues(&I);
     llvm::erase_if(DbgValues, [&](const DbgValueInst *DbgVal) {
       return DbgVal->getParent() == BB;
     });
+    DPValues = findDPValues(&I);
     llvm::erase_if(DPValues, [&](const DPValue *DPVal) {
       return DPVal->getParent() == BB;
     });

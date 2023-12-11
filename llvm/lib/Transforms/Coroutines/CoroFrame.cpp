@@ -963,7 +963,7 @@ static void cacheDIVar(FrameDataInfo &FrameData,
     if (DIVarCache.contains(V))
       continue;
 
-    auto DDIs = FindDbgDeclareUses(V);
+    auto DDIs = findDbgDeclares(V);
     auto *I = llvm::find_if(DDIs, [](DbgDeclareInst *DDI) {
       return DDI->getExpression()->getNumElements() == 0;
     });
@@ -1119,7 +1119,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
   assert(PromiseAlloca &&
          "Coroutine with switch ABI should own Promise alloca");
 
-  TinyPtrVector<DbgDeclareInst *> DIs = FindDbgDeclareUses(PromiseAlloca);
+  TinyPtrVector<DbgDeclareInst *> DIs = findDbgDeclares(PromiseAlloca);
   if (DIs.empty())
     return;
 
@@ -1840,7 +1840,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
               FrameTy->getElementType(FrameData.getFieldIndex(E.first)), GEP,
               SpillAlignment, E.first->getName() + Twine(".reload"));
 
-        TinyPtrVector<DbgDeclareInst *> DIs = FindDbgDeclareUses(Def);
+        TinyPtrVector<DbgDeclareInst *> DIs = findDbgDeclares(Def);
         // Try best to find dbg.declare. If the spill is a temp, there may not
         // be a direct dbg.declare. Walk up the load chain to find one from an
         // alias.
@@ -1854,7 +1854,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
             CurDef = LdInst->getPointerOperand();
             if (!isa<AllocaInst, LoadInst>(CurDef))
               break;
-            DIs = FindDbgDeclareUses(CurDef);
+            DIs = findDbgDeclares(CurDef);
           }
         }
 
@@ -1938,9 +1938,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
     auto *G = GetFramePointer(Alloca);
     G->setName(Alloca->getName() + Twine(".reload.addr"));
 
-    SmallVector<DbgVariableIntrinsic *, 4> DIs;
-    findDbgUsers(DIs, Alloca);
-    for (auto *DVI : DIs)
+    for (auto *DVI : findDbgUsers(Alloca))
       DVI->replaceUsesOfWith(Alloca, G);
 
     for (Instruction *I : UsersToUpdate) {
@@ -3082,9 +3080,7 @@ void coro::buildCoroutineFrame(
   // We would handle the dbg.values for allocas specially
   for (auto &Iter : FrameData.Spills) {
     auto *V = Iter.first;
-    SmallVector<DbgValueInst *, 16> DVIs;
-    findDbgValues(DVIs, V);
-    for (DbgValueInst *DVI : DVIs)
+    for (DbgValueInst *DVI : findDbgValues(V))
       if (Checker.isDefinitionAcrossSuspend(*V, DVI))
         FrameData.Spills[V].push_back(DVI);
   }
