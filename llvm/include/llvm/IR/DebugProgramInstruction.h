@@ -69,14 +69,17 @@ class raw_ostream;
 /// functions:
 ///   deleteEntity();
 ///   clone()
-class DPEntity : public ilist_node<DPEntity> {
+class DPEntity : public ilist_node<DPEntity>, protected DebugValueUser {
+  friend class DebugValueUser;
+
 public:
   /// Marker that this DPValue is linked into.
   DPMarker *Marker = nullptr;
   DebugLoc DbgLoc;
   enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
 
-  DPEntity(Kind EntityKind, DebugLoc DL) : DbgLoc(DL), EntityKind(EntityKind) {}
+  DPEntity(Kind EntityKind, DebugLoc DL, Metadata *TrackedMD)
+      : DebugValueUser(TrackedMD), DbgLoc(DL), EntityKind(EntityKind) {}
   void deleteEntity();
 
   DPEntity *clone() const;
@@ -107,6 +110,10 @@ public:
   DebugLoc getDebugLoc() const { return DbgLoc; }
   void setDebugLoc(DebugLoc Loc) { DbgLoc = std::move(Loc); }
 
+  /// Handle changes to the location of the Value(s) that we refer to happening
+  /// "under our feet".
+  void handleChangedLocation(Metadata *NewLocation);
+
   using self_iterator = simple_ilist<DPEntity>::iterator;
   using const_self_iterator = simple_ilist<DPEntity>::const_iterator;
 
@@ -119,10 +126,9 @@ protected:
 
 // XXX  it does need a DebugValueUser after all, to make use of the
 // established tracking infra?
-class DPLabel : protected DebugValueUser, public DPEntity {
+class DPLabel : public DPEntity {
 public:
-  DPLabel(DILabel *Label, DebugLoc DL)
-      : DebugValueUser(Label), DPEntity(LabelKind, DL) {
+  DPLabel(DILabel *Label, DebugLoc DL) : DPEntity(LabelKind, DL, Label) {
     assert(Label && "unexpected nullptr");
   }
 
@@ -143,10 +149,8 @@ public:
 ///
 /// This class inherits from DebugValueUser to allow LLVM's metadata facilities
 /// to update our references to metadata beneath our feet.
-class DPValue : private DebugValueUser, public DPEntity {
+class DPValue : public DPEntity {
 public:
-  friend class DebugValueUser;
-
   enum class LocationType : uint8_t {
     Declare,
     Value,
@@ -290,9 +294,6 @@ public:
   /// \returns A new dbg.value intrinsic representiung this DPValue.
   DbgVariableIntrinsic *createDebugIntrinsic(Module *M,
                                              Instruction *InsertBefore) const;
-  /// Handle changes to the location of the Value(s) that we refer to happening
-  /// "under our feet".
-  void handleChangedLocation(Metadata *NewLocation);
 
   void print(raw_ostream &O, bool IsForDebug = false) const;
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
@@ -308,6 +309,12 @@ inline auto filterValues(iterator_range<simple_ilist<DPEntity>::iterator> R) {
   return map_range(
       make_filter_range(R, [](DPEntity &E) { return isa<DPValue>(E); }),
       [](DPEntity &E) { return std::ref(cast<DPValue>(E)); });
+}
+inline auto
+filterValues2(iterator_range<SmallVectorImpl<DPEntity *>::iterator> R) {
+  return map_range(
+      make_filter_range(R, [](DPEntity *E) { return isa<DPValue>(E); }),
+      [](DPEntity *E) { return cast<DPValue>(E); });
 }
 
 /// Per-instruction record of debug-info. If an Instruction is the position of

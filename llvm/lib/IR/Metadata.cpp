@@ -148,9 +148,9 @@ void MetadataAsValue::untrack() {
     MetadataTracking::untrack(MD);
 }
 
-DPValue *DebugValueUser::getUser() { return static_cast<DPValue *>(this); }
-const DPValue *DebugValueUser::getUser() const {
-  return static_cast<const DPValue *>(this);
+DPEntity *DebugValueUser::getUser() { return static_cast<DPEntity *>(this); }
+const DPEntity *DebugValueUser::getUser() const {
+  return static_cast<const DPEntity *>(this);
 }
 void DebugValueUser::handleChangedValue(Metadata *NewMD) {
   getUser()->handleChangedLocation(NewMD);
@@ -239,7 +239,7 @@ SmallVector<Metadata *> ReplaceableMetadataImpl::getAllArgListUsers() {
   return MDUsers;
 }
 
-SmallVector<DPValue *> ReplaceableMetadataImpl::getAllDPValueUsers() {
+SmallVector<DPEntity *> ReplaceableMetadataImpl::getAllDPValueUsers() {
   SmallVector<std::pair<OwnerTy, uint64_t> *> DPVUsersWithID;
   for (auto Pair : UseMap) {
     OwnerTy Owner = Pair.second.first;
@@ -257,7 +257,7 @@ SmallVector<DPValue *> ReplaceableMetadataImpl::getAllDPValueUsers() {
   llvm::sort(DPVUsersWithID, [](auto UserA, auto UserB) {
     return UserA->second > UserB->second;
   });
-  SmallVector<DPValue *> DPVUsers;
+  SmallVector<DPEntity *> DPVUsers;
   for (auto UserWithID : DPVUsersWithID)
     DPVUsers.push_back(UserWithID->first.get<DebugValueUser *>()->getUser());
   return DPVUsers;

@@ -44,6 +44,7 @@ class Module;
 class ModuleSlotTracker;
 class raw_ostream;
 class DPValue;
+class DPEntity;
 template <typename T> class StringMapEntry;
 template <typename ValueTy> class StringMapEntryStorage;
 class Type;
@@ -214,8 +215,8 @@ protected:
   Metadata *DebugValue;
 
 public:
-  DPValue *getUser();
-  const DPValue *getUser() const;
+  DPEntity *getUser();
+  const DPEntity *getUser() const;
   void handleChangedValue(Metadata *NewDebugValue);
   DebugValueUser() = default;
   explicit DebugValueUser(Metadata *DebugValue) : DebugValue(DebugValue) {
@@ -388,7 +389,7 @@ public:
   /// Returns the list of all DIArgList users of this.
   SmallVector<Metadata *> getAllArgListUsers();
   /// Returns the list of all DPValue users of this.
-  SmallVector<DPValue *> getAllDPValueUsers();
+  SmallVector<DPEntity *> getAllDPValueUsers();
 
   /// Resolve all uses of this.
   ///
@@ -472,7 +473,7 @@ public:
   SmallVector<Metadata *> getAllArgListUsers() {
     return ReplaceableMetadataImpl::getAllArgListUsers();
   }
-  SmallVector<DPValue *> getAllDPValueUsers() {
+  SmallVector<DPEntity *> getAllDPValueUsers() {
     return ReplaceableMetadataImpl::getAllDPValueUsers();
   }
 
