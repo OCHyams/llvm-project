@@ -1395,7 +1395,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty1) {
   ASSERT_TRUE(BInst->hasDbgValues());
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 2u);
   SmallVector<DPValue *, 2> DPValues;
-  for (DPValue &DPV : BInst->getDbgValueRange())
+  for (DPValue &DPV : filterValues(BInst->getDbgValueRange()))
     DPValues.push_back(&DPV);
 
   EXPECT_EQ(DPValues[0]->getVariableLocationOp(0), F.getArg(0));
@@ -1465,7 +1465,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty2) {
   ASSERT_TRUE(BInst->hasDbgValues());
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 1u);
   SmallVector<DPValue *, 2> DPValues;
-  for (DPValue &DPV : BInst->getDbgValueRange())
+  for (DPValue &DPV : filterValues(BInst->getDbgValueRange()))
     DPValues.push_back(&DPV);
 
   EXPECT_EQ(DPValues[0]->getVariableLocationOp(0), F.getArg(0));
