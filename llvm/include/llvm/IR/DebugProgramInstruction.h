@@ -117,6 +117,18 @@ protected:
   ~DPEntity() = default; // Use deleteEntity to delete a generic entity.
 };
 
+class DPLabel : public DPEntity {
+  DILabel *Label;
+public:
+  DILabel *getLabel() { return nullptr; }
+  Metadata *getRawLabel() { return nullptr; }
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  /// @{
+  static bool classof(const DPEntity *I) { return I->EntityKind == LabelKind; }
+  /// @}
+};
+
 /// Record of a variable value-assignment, aka a non instruction representation
 /// of the dbg.value intrinsic. Features various methods copied across from the
 /// Instruction class to aid ease-of-use. DPValue objects should always be
