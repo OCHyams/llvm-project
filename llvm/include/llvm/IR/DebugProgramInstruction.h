@@ -50,6 +50,7 @@
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/iterator.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/Casting.h"
 
@@ -100,7 +101,6 @@ public:
   const BasicBlock *getParent() const;
   BasicBlock *getParent();
 
-  void deleteInstr();
   void removeFromParent();
   void eraseFromParent();
 
@@ -117,11 +117,17 @@ protected:
   ~DPEntity() = default; // Use deleteEntity to delete a generic entity.
 };
 
-class DPLabel : public DPEntity {
-  DILabel *Label;
+// XXX  it does need a DebugValueUser after all, to make use of the
+// established tracking infra?
+class DPLabel : protected DebugValueUser, public DPEntity {
 public:
-  DILabel *getLabel() { return nullptr; }
-  Metadata *getRawLabel() { return nullptr; }
+  DPLabel(DILabel *Label, DebugLoc DL)
+      : DebugValueUser(Label), DPEntity(LabelKind, DL) {
+    assert(Label && "unexpected nullptr");
+  }
+
+  DILabel *getLabel() { return cast<DILabel>(getRawLabel()); }
+  Metadata *getRawLabel() { return DebugValue; }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
