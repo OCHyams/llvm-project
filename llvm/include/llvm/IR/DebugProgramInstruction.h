@@ -134,7 +134,7 @@ public:
     Value,
 
     End, ///< Marks the end of the concrete types.
-    Any, ///< To indicate all LocationTypes in searches.    
+    Any, ///< To indicate all LocationTypes in searches.
   };
   /// Classification of the debug-info record that this DPValue represents.
   /// Essentially, "is this a dbg.value or dbg.declare?". dbg.declares are not
