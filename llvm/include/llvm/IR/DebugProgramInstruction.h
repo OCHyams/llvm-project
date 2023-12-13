@@ -132,9 +132,10 @@ public:
     assert(Label && "unexpected nullptr");
   }
 
-  DILabel *getLabel() { return cast<DILabel>(getRawLabel()); }
-  Metadata *getRawLabel() { return DebugValue; }
+  DILabel *getLabel() const { return cast<DILabel>(getRawLabel()); }
+  Metadata *getRawLabel() const { return DebugValue; }
 
+  DPLabel *clone() const;
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
   static bool classof(const DPEntity *I) { return I->EntityKind == LabelKind; }

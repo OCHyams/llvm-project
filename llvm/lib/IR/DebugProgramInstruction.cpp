@@ -44,6 +44,9 @@ void DPEntity::deleteEntity() {
   case ValueKind:
     delete cast<DPValue>(this);
     break;
+  case LabelKind:
+    delete cast<DPLabel>(this);
+    break;
   default:
     llvm_unreachable("unsupported entity kind");
   }
@@ -192,11 +195,16 @@ DPEntity *DPEntity::clone() const {
   switch (EntityKind) {
   case ValueKind:
     return cast<DPValue>(this)->clone();
+  case LabelKind:
+    return cast<DPLabel>(this)->clone();
   default:
     llvm_unreachable("unsupported entity kind");
   };
 }
 
+DPLabel *DPLabel::clone() const {
+  return new DPLabel(getLabel(), getDebugLoc());
+}
 DPValue *DPValue::clone() const { return new DPValue(*this); }
 
 DbgVariableIntrinsic *
