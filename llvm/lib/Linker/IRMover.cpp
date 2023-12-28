@@ -615,6 +615,8 @@ Value *IRLinker::materialize(Value *V, bool ForIndirectSymbol) {
 
   // If we already created the body, just return.
   if (auto *F = dyn_cast<Function>(New)) {
+    if (auto *OldFunc = dyn_cast<Function>(SGV))
+      F->IsNewDbgInfoFormat = OldFunc->IsNewDbgInfoFormat;
     if (!F->isDeclaration())
       return New;
   } else if (auto *V = dyn_cast<GlobalVariable>(New)) {
@@ -1135,7 +1137,7 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
     Dst.setPrologueData(Src.getPrologueData());
   if (Src.hasPersonalityFn())
     Dst.setPersonalityFn(Src.getPersonalityFn());
-  assert(Src.IsNewDbgInfoFormat == Dst.IsNewDbgInfoFormat);
+  Src.setIsNewDbgInfoFormat(Dst.IsNewDbgInfoFormat);
 
   // Copy over the metadata attachments without remapping.
   Dst.copyMetadata(&Src, 0);
