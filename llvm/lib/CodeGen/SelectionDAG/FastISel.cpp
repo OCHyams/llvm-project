@@ -1198,13 +1198,16 @@ void FastISel::handleDbgInfo(const Instruction *II) {
       V = DPV.getVariableLocationOp(0);
 
     bool Res = false;
-    if (DPV.getType() == DPValue::LocationType::Value)
+    if (DPV.getType() == DPValue::LocationType::Value) {
       Res = lowerDbgValue(V, DPV.getExpression(), DPV.getVariable(),
                           DPV.getDebugLoc());
-    else
+    } else {
       assert(DPV.getType() == DPValue::LocationType::Declare);
-    Res = lowerDbgDeclare(V, DPV.getExpression(), DPV.getVariable(),
-                          DPV.getDebugLoc());
+      if (FuncInfo.PreprocessedDPVDeclares.contains(&DPV))
+        return;
+      Res = lowerDbgDeclare(V, DPV.getExpression(), DPV.getVariable(),
+                            DPV.getDebugLoc());
+    }
 
     if (!Res)
       LLVM_DEBUG(dbgs() << "Dropping debug-info for " << DPV << "\n";);
@@ -1218,7 +1221,8 @@ bool FastISel::lowerDbgValue(const Value *V, DIExpression *Expr,
   if (!V || isa<UndefValue>(V)) {
     // DI is either undef or cannot produce a valid DBG_VALUE, so produce an
     // undef DBG_VALUE to terminate any prior location.
-    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL, II, false, 0U, Var, Expr);
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(), II, false, 0U, Var,
+            Expr);
     return true;
   }
   if (const auto *CI = dyn_cast<ConstantInt>(V)) {
@@ -1255,21 +1259,29 @@ bool FastISel::lowerDbgValue(const Value *V, DIExpression *Expr,
     Register Reg = getRegForValue(Arg);
     for (auto [PhysReg, VirtReg] : FuncInfo.RegInfo->liveins())
       if (Reg == VirtReg || Reg == PhysReg) {
-        BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL, II, false /*IsIndirect*/,
-                PhysReg, Var, Expr);
+        BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(), II,
+                false /*IsIndirect*/, PhysReg, Var, Expr);
         return true;
       }
 
-    LLVM_DEBUG(dbgs() << "Expression is entry_value but "
+    LLVM_DEBUG(dbgs() << "Dropping dbg.value: expression is entry_value but "
                          "couldn't find a physical register\n");
     return false;
+  }
+  if (auto SI = FuncInfo.StaticAllocaMap.find(dyn_cast<AllocaInst>(V));
+      SI != FuncInfo.StaticAllocaMap.end()) {
+    MachineOperand FrameIndexOp = MachineOperand::CreateFI(SI->second);
+    bool IsIndirect = false;
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(), II, IsIndirect,
+            FrameIndexOp, Var, Expr);
+    return true;
   }
   if (Register Reg = lookUpRegForValue(V)) {
     // FIXME: This does not handle register-indirect values at offset 0.
     if (!FuncInfo.MF->useDebugInstrRef()) {
       bool IsIndirect = false;
-      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL, II, IsIndirect, Reg, Var,
-              Expr);
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(), II, IsIndirect,
+              Reg, Var, Expr);
       return true;
     }
     // If using instruction referencing, produce this as a DBG_INSTR_REF,
@@ -1281,7 +1293,7 @@ bool FastISel::lowerDbgValue(const Value *V, DIExpression *Expr,
         /* SubReg */ 0, /* isDebug */ true)});
     SmallVector<uint64_t, 2> Ops({dwarf::DW_OP_LLVM_arg, 0});
     auto *NewExpr = DIExpression::prependOpcodes(Expr, Ops);
-    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL,
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(),
             TII.get(TargetOpcode::DBG_INSTR_REF), /*IsIndirect*/ false, MOs,
             Var, NewExpr);
     return true;
@@ -1395,8 +1407,10 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
 
     assert(Var->isValidLocationForIntrinsic(MIMD.getDL()) &&
            "Expected inlined-at fields to agree");
+
     if (!lowerDbgValue(V, Expr, Var, MIMD.getDL()))
       LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+
     return true;
   }
   case Intrinsic::dbg_label: {
