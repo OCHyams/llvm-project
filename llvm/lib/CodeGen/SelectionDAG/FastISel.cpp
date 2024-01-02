@@ -1378,10 +1378,9 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
 
     assert(Var->isValidLocationForIntrinsic(MIMD.getDL()) &&
            "Expected inlined-at fields to agree");
-    bool Res = lowerDbgValue(V, Expr, Var, MIMD.getDL());
-    if (!Res)
+    if (!lowerDbgValue(V, Expr, Var, MIMD.getDL()))
       LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
-    return Res;
+    return true;
   }
   case Intrinsic::dbg_label: {
     const DbgLabelInst *DI = cast<DbgLabelInst>(II);
