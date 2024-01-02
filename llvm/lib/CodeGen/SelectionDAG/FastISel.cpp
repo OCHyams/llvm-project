@@ -1191,14 +1191,21 @@ void FastISel::handleDbgInfo(const Instruction *II) {
 
   // Reverse order of debug records, because fast-isel walks through backwards.
   for (DPValue &DPV : llvm::reverse(II->getDbgValueRange())) {
-    assert(DPV.Type == DPValue::LocationType::Value);
     recomputeInsertPt();
 
     Value *V = nullptr;
     if (!DPV.hasArgList())
       V = DPV.getVariableLocationOp(0);
-    bool Res = lowerDbgValue(V, DPV.getExpression(), DPV.getVariable(),
-                             DPV.getDebugLoc());
+
+    bool Res = false;
+    if (DPV.getType() == DPValue::LocationType::Value)
+      Res = lowerDbgValue(V, DPV.getExpression(), DPV.getVariable(),
+                          DPV.getDebugLoc());
+    else
+      assert(DPV.getType() == DPValue::LocationType::Declare);
+    Res = lowerDbgDeclare(V, DPV.getExpression(), DPV.getVariable(),
+                          DPV.getDebugLoc());
+
     if (!Res)
       LLVM_DEBUG(dbgs() << "Dropping debug-info for " << DPV << "\n";);
   }
@@ -1282,6 +1289,65 @@ bool FastISel::lowerDbgValue(const Value *V, DIExpression *Expr,
   return false;
 }
 
+bool FastISel::lowerDbgDeclare(const Value *Address, DIExpression *Expr,
+                               DILocalVariable *Var, const DebugLoc &DL) {
+  if (!Address || isa<UndefValue>(Address)) {
+    LLVM_DEBUG(dbgs() << "Dropping debug info (bad/undef address)\n");
+    return false;
+  }
+
+  std::optional<MachineOperand> Op;
+  if (Register Reg = lookUpRegForValue(Address))
+    Op = MachineOperand::CreateReg(Reg, false);
+
+  // If we have a VLA that has a "use" in a metadata node that's then used
+  // here but it has no other uses, then we have a problem. E.g.,
+  //
+  //   int foo (const int *x) {
+  //     char a[*x];
+  //     return 0;
+  //   }
+  //
+  // If we assign 'a' a vreg and fast isel later on has to use the selection
+  // DAG isel, it will want to copy the value to the vreg. However, there are
+  // no uses, which goes counter to what selection DAG isel expects.
+  if (!Op && !Address->use_empty() && isa<Instruction>(Address) &&
+      (!isa<AllocaInst>(Address) ||
+       !FuncInfo.StaticAllocaMap.count(cast<AllocaInst>(Address))))
+    Op = MachineOperand::CreateReg(FuncInfo.InitializeRegForValue(Address),
+                                   false);
+
+  if (Op) {
+    assert(Var->isValidLocationForIntrinsic(MIMD.getDL()) &&
+           "Expected inlined-at fields to agree");
+    if (FuncInfo.MF->useDebugInstrRef() && Op->isReg()) {
+      // If using instruction referencing, produce this as a DBG_INSTR_REF,
+      // to be later patched up by finalizeDebugInstrRefs. Tack a deref onto
+      // the expression, we don't have an "indirect" flag in DBG_INSTR_REF.
+      SmallVector<uint64_t, 3> Ops(
+          {dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_deref});
+      auto *NewExpr = DIExpression::prependOpcodes(Expr, Ops);
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(),
+              TII.get(TargetOpcode::DBG_INSTR_REF), /*IsIndirect*/ false, *Op,
+              Var, NewExpr);
+      return true;
+    }
+
+    // A dbg.declare describes the address of a source variable, so lower it
+    // into an indirect DBG_VALUE.
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(),
+            TII.get(TargetOpcode::DBG_VALUE), /*IsIndirect*/ true, *Op, Var,
+            Expr);
+    return true;
+  }
+
+  // We can't yet handle anything else here because it would require
+  // generating code, thus altering codegen because of debug info.
+  LLVM_DEBUG(
+      dbgs() << "Dropping debug info (no materialized reg for address)\n");
+  return false;
+}
+
 bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
   switch (II->getIntrinsicID()) {
   default:
@@ -1311,59 +1377,10 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       return true;
 
     const Value *Address = DI->getAddress();
-    if (!Address || isa<UndefValue>(Address)) {
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
-                        << " (bad/undef address)\n");
-      return true;
-    }
+    if (!lowerDbgDeclare(Address, DI->getExpression(), DI->getVariable(),
+                         MIMD.getDL()))
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI);
 
-    std::optional<MachineOperand> Op;
-    if (Register Reg = lookUpRegForValue(Address))
-      Op = MachineOperand::CreateReg(Reg, false);
-
-    // If we have a VLA that has a "use" in a metadata node that's then used
-    // here but it has no other uses, then we have a problem. E.g.,
-    //
-    //   int foo (const int *x) {
-    //     char a[*x];
-    //     return 0;
-    //   }
-    //
-    // If we assign 'a' a vreg and fast isel later on has to use the selection
-    // DAG isel, it will want to copy the value to the vreg. However, there are
-    // no uses, which goes counter to what selection DAG isel expects.
-    if (!Op && !Address->use_empty() && isa<Instruction>(Address) &&
-        (!isa<AllocaInst>(Address) ||
-         !FuncInfo.StaticAllocaMap.count(cast<AllocaInst>(Address))))
-      Op = MachineOperand::CreateReg(FuncInfo.InitializeRegForValue(Address),
-                                     false);
-
-    if (Op) {
-      assert(DI->getVariable()->isValidLocationForIntrinsic(MIMD.getDL()) &&
-             "Expected inlined-at fields to agree");
-      if (FuncInfo.MF->useDebugInstrRef() && Op->isReg()) {
-        // If using instruction referencing, produce this as a DBG_INSTR_REF,
-        // to be later patched up by finalizeDebugInstrRefs. Tack a deref onto
-        // the expression, we don't have an "indirect" flag in DBG_INSTR_REF.
-        SmallVector<uint64_t, 3> Ops(
-            {dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_deref});
-        auto *NewExpr = DIExpression::prependOpcodes(DI->getExpression(), Ops);
-        BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(),
-                TII.get(TargetOpcode::DBG_INSTR_REF), /*IsIndirect*/ false, *Op,
-                DI->getVariable(), NewExpr);
-      } else {
-        // A dbg.declare describes the address of a source variable, so lower it
-        // into an indirect DBG_VALUE.
-        BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(),
-                TII.get(TargetOpcode::DBG_VALUE), /*IsIndirect*/ true, *Op,
-                DI->getVariable(), DI->getExpression());
-      }
-    } else {
-      // We can't yet handle anything else here because it would require
-      // generating code, thus altering codegen because of debug info.
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
-                        << " (no materialized reg for address)\n");
-    }
     return true;
   }
   case Intrinsic::dbg_value: {
