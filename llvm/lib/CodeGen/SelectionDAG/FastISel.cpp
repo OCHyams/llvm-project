@@ -1204,7 +1204,7 @@ void FastISel::handleDbgInfo(const Instruction *II) {
     } else {
       assert(DPV.getType() == DPValue::LocationType::Declare);
       if (FuncInfo.PreprocessedDPVDeclares.contains(&DPV))
-        return;
+        continue;
       Res = lowerDbgDeclare(V, DPV.getExpression(), DPV.getVariable(),
                             DPV.getDebugLoc());
     }
