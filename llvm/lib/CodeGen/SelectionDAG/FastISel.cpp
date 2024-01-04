@@ -1229,13 +1229,13 @@ bool FastISel::lowerDbgValue(const Value *V, DIExpression *Expr,
     if (Expr)
       std::tie(Expr, CI) = Expr->constantFold(CI);
     if (CI->getBitWidth() > 64)
-      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, II)
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL, II)
           .addCImm(CI)
           .addImm(0U)
           .addMetadata(Var)
           .addMetadata(Expr);
     else
-      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, II)
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL, II)
           .addImm(CI->getZExtValue())
           .addImm(0U)
           .addMetadata(Var)
@@ -1243,7 +1243,7 @@ bool FastISel::lowerDbgValue(const Value *V, DIExpression *Expr,
     return true;
   }
   if (const auto *CF = dyn_cast<ConstantFP>(V)) {
-    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, II)
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DL, II)
         .addFPImm(CF)
         .addImm(0U)
         .addMetadata(Var)
