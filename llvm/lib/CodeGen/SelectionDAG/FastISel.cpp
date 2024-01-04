@@ -1191,6 +1191,7 @@ void FastISel::handleDbgInfo(const Instruction *II) {
 
   // Reverse order of debug records, because fast-isel walks through backwards.
   for (DPValue &DPV : llvm::reverse(II->getDbgValueRange())) {
+    flushLocalValueMap();
     recomputeInsertPt();
 
     Value *V = nullptr;
