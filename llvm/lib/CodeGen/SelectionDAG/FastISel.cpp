@@ -1188,9 +1188,26 @@ void FastISel::handleDbgInfo(const Instruction *II) {
   MIMD = MIMetadata();
 
   // Reverse order of debug records, because fast-isel walks through backwards.
-  for (DPValue &DPV : llvm::reverse(filterValues(II->getDbgValueRange()))) {
+  for (DPEntity &DPE : llvm::reverse(II->getDbgValueRange())) {
     flushLocalValueMap();
     recomputeInsertPt();
+
+    if (DPLabel *DPL = dyn_cast<DPLabel>(&DPE)) {
+      assert(DPL->getLabel() && "Missing label");
+      if (!FuncInfo.MF->getMMI().hasDebugInfo()) {
+        LLVM_DEBUG(
+            dbgs()
+            << "Dropping debug info for XXX - label print " /*<< DPE <<*/ "\n");
+        continue;
+      }
+
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
+              TII.get(TargetOpcode::DBG_LABEL))
+          .addMetadata(DPL->getLabel());
+      continue;
+    }
+
+    DPValue &DPV = cast<DPValue>(DPE);
 
     Value *V = nullptr;
     if (!DPV.hasArgList())
