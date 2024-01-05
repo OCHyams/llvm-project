@@ -70,7 +70,7 @@ void BasicBlock::convertToNewDbgValues() {
   // Iterate over all instructions in the instruction list, collecting dbg.value
   // instructions and converting them to DPValues. Once we find a "real"
   // instruction, attach all those DPValues to a DPMarker in that instruction.
-  SmallVector<DPValue *, 4> DPVals;
+  SmallVector<DPEntity *, 4> DPVals;
   for (Instruction &I : make_early_inc_range(InstList)) {
     assert(!I.DbgMarker && "DbgMarker already set on old-format instrs?");
     if (DbgVariableIntrinsic *DVI = dyn_cast<DbgVariableIntrinsic>(&I)) {
@@ -83,13 +83,18 @@ void BasicBlock::convertToNewDbgValues() {
       DVI->eraseFromParent();
       continue;
     }
+    if (DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(&I)) {
+      DPVals.push_back(new DPLabel(DLI->getLabel(), DLI->getDebugLoc()));
+      DLI->eraseFromParent();
+      continue;
+    }
 
     // Create a marker to store DPValues in. Technically we don't need to store
     // one marker per instruction, but that's a future optimisation.
     createMarker(&I);
     DPMarker *Marker = I.DbgMarker;
 
-    for (DPValue *DPV : DPVals)
+    for (DPEntity *DPV : DPVals)
       Marker->insertDPValue(DPV, false);
 
     DPVals.clear();
