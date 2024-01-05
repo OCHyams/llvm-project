@@ -275,6 +275,7 @@ bool SpeculativeExecutionPass::considerHoistingFromTo(
       });
     }
 
+    // XXX - not sure what DPLabel implications are.
     // Usially debug label intrinsic corresponds to label in LLVM IR. In these
     // cases we should not move it here.
     // TODO: Possible special processing needed to detect it is related to a

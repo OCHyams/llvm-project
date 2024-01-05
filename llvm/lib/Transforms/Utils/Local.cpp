@@ -429,6 +429,7 @@ bool llvm::wouldInstructionBeTriviallyDead(const Instruction *I,
   if (isa<DbgVariableIntrinsic>(I))
     return false;
 
+  // XXX -- could be an issue for DPLabels.
   if (const DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(I)) {
     if (DLI->getLabel())
       return false;

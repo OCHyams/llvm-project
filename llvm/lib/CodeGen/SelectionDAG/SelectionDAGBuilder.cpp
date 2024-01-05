@@ -1232,6 +1232,14 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
   // Is there is any debug-info attached to this instruction, in the form of
   // DPValue non-instruction debug-info records.
   for (DPEntity &DPE : I.getDbgValueRange()) {
+    if (DPLabel *DPL = dyn_cast<DPLabel>(&DPE)) {
+      assert(DPL->getLabel() && "Missing label");
+      SDDbgLabel *SDV =
+          DAG.getDbgLabel(DPL->getLabel(), DPL->getDebugLoc(), SDNodeOrder);
+      DAG.AddDbgLabel(SDV);
+      continue;
+    }
+
     DPValue &DPV = cast<DPValue>(DPE);
     DILocalVariable *Variable = DPV.getVariable();
     DIExpression *Expression = DPV.getExpression();
