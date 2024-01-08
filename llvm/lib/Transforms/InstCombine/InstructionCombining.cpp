@@ -4389,10 +4389,10 @@ bool InstCombinerImpl::run() {
           if (isa<PHINode>(I)) // PHI -> Non-PHI
             InsertPos = InstParent->getFirstInsertionPt();
           else // Non-PHI -> PHI
-            InsertPos = InstParent->getFirstNonPHIIt();
+            InsertPos = InstParent->getFirstNonPHI()->getIterator();
         }
 
-        Result->insertBefore(*InstParent, InsertPos);
+        Result->insertInto(InstParent, InsertPos);
 
         // Push the new instruction and any users onto the worklist.
         Worklist.pushUsersToWorkList(*Result);
