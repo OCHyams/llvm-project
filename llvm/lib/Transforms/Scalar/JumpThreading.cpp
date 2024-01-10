@@ -401,9 +401,13 @@ static bool replaceFoldableUses(Instruction *Cond, Value *ToVal,
     Changed |= replaceNonLocalUsesWith(Cond, ToVal);
   for (Instruction &I : reverse(*KnownAtEndOfBB)) {
     // Replace any debug-info record users of Cond with ToVal.
-    for (DPValue &DPV : filterValues(I.getDbgValueRange()))
+    for (auto &DPE : I.getDbgValueRange()) {
+      auto *DPVp = dyn_cast<DPValue>(&DPE);
+      if (!DPVp)
+        continue;
+      DPValue &DPV = *DPVp;
       DPV.replaceVariableLocationOp(Cond, ToVal, true);
-
+    }
     // Reached the Cond whose uses we are trying to replace, so there are no
     // more uses.
     if (&I == Cond)
@@ -2081,8 +2085,13 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
 
   auto CloneAndRemapDbgInfo = [&](Instruction *NewInst, Instruction *From) {
     auto DPVRange = NewInst->cloneDebugInfoFrom(From);
-    for (DPValue &DPV : filterValues(DPVRange))
+    for (auto &DPE : DPVRange) {
+      auto *DPVp = dyn_cast<DPValue>(&DPE);
+      if (!DPVp)
+        continue;
+      DPValue &DPV = *DPVp;
       RetargetDPValueIfPossible(&DPV);
+    }
   };
 
   // Clone the non-phi instructions of the source basic block into NewBB,
@@ -2116,8 +2125,13 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
     DPMarker *Marker = RangeBB->getMarker(BE);
     DPMarker *EndMarker = NewBB->createMarker(NewBB->end());
     auto DPVRange = EndMarker->cloneDebugInfoFrom(Marker, std::nullopt);
-    for (DPValue &DPV : filterValues(DPVRange))
+    for (auto &DPE : DPVRange) {
+      auto *DPVp = dyn_cast<DPValue>(&DPE);
+      if (!DPVp)
+        continue;
+      DPValue &DPV = *DPVp;
       RetargetDPValueIfPossible(&DPV);
+    }
   }
 
   return ValueMapping;
