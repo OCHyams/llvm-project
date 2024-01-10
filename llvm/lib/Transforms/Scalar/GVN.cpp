@@ -278,7 +278,8 @@ struct llvm::gvn::AvailableValue {
 
   /// Emit code at the specified insertion point to adjust the value defined
   /// here to the specified type. This handles various coercion cases.
-  Value *MaterializeAdjustedValue(LoadInst *Load, Instruction *InsertPt,
+  Value *MaterializeAdjustedValue(LoadInst *Load, BasicBlock *InsertBB,
+                                  BasicBlock::iterator InsertPt,
                                   GVNPass &gvn) const;
 };
 
@@ -315,7 +316,8 @@ struct llvm::gvn::AvailableValueInBlock {
   /// Emit code at the end of this block to adjust the value defined here to
   /// the specified type. This handles various coercion cases.
   Value *MaterializeAdjustedValue(LoadInst *Load, GVNPass &gvn) const {
-    return AV.MaterializeAdjustedValue(Load, BB->getTerminator(), gvn);
+    return AV.MaterializeAdjustedValue(Load, BB,
+                                       BB->getTerminator()->getIterator(), gvn);
   }
 };
 
@@ -1004,7 +1006,8 @@ ConstructSSAForLoadSet(LoadInst *Load,
 }
 
 Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
-                                                Instruction *InsertPt,
+                                                BasicBlock *InsertBB,
+                                                BasicBlock::iterator InsertPt,
                                                 GVNPass &gvn) const {
   Value *Res;
   Type *LoadTy = Load->getType();
@@ -1012,7 +1015,7 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
   if (isSimpleValue()) {
     Res = getSimpleValue();
     if (Res->getType() != LoadTy) {
-      Res = getValueForLoad(Res, Offset, LoadTy, InsertPt, DL);
+      Res = getValueForLoad(Res, Offset, LoadTy, InsertBB, InsertPt, DL);
 
       LLVM_DEBUG(dbgs() << "GVN COERCED NONLOCAL VAL:\nOffset: " << Offset
                         << "  " << *getSimpleValue() << '\n'
@@ -1025,7 +1028,8 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
       Res = CoercedLoad;
       combineMetadataForCSE(CoercedLoad, Load, false);
     } else {
-      Res = getValueForLoad(CoercedLoad, Offset, LoadTy, InsertPt, DL);
+      Res =
+          getValueForLoad(CoercedLoad, Offset, LoadTy, InsertBB, InsertPt, DL);
       // We are adding a new user for this load, for which the original
       // metadata may not hold. Additionally, the new load may have a different
       // size and type, so their metadata cannot be combined in any
@@ -1046,7 +1050,7 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
                         << "\n\n\n");
     }
   } else if (isMemIntrinValue()) {
-    Res = getMemInstValueForLoad(getMemIntrinValue(), Offset, LoadTy,
+    Res = getMemInstValueForLoad(getMemIntrinValue(), Offset, LoadTy, InsertBB,
                                  InsertPt, DL);
     LLVM_DEBUG(dbgs() << "GVN COERCED NONLOCAL MEM INTRIN:\nOffset: " << Offset
                       << "  " << *getMemIntrinValue() << '\n'
@@ -2164,7 +2168,8 @@ bool GVNPass::processLoad(LoadInst *L) {
   if (!AV)
     return false;
 
-  Value *AvailableValue = AV->MaterializeAdjustedValue(L, L, *this);
+  Value *AvailableValue =
+      AV->MaterializeAdjustedValue(L, L->getParent(), L->getIterator(), *this);
 
   // MaterializeAdjustedValue is responsible for combining metadata.
   ICF->removeUsersOf(L);

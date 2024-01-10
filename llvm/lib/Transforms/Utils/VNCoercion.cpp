@@ -333,14 +333,15 @@ static Value *getStoreValueForLoadHelper(Value *SrcVal, unsigned Offset,
 }
 
 Value *getValueForLoad(Value *SrcVal, unsigned Offset, Type *LoadTy,
-                       Instruction *InsertPt, const DataLayout &DL) {
+                       BasicBlock *InsertBB, BasicBlock::iterator InsertPt,
+                       const DataLayout &DL) {
 
 #ifndef NDEBUG
   unsigned SrcValSize = DL.getTypeStoreSize(SrcVal->getType()).getFixedValue();
   unsigned LoadSize = DL.getTypeStoreSize(LoadTy).getFixedValue();
   assert(Offset + LoadSize <= SrcValSize);
 #endif
-  IRBuilder<> Builder(InsertPt);
+  IRBuilder<> Builder(InsertBB, InsertPt);
   SrcVal = getStoreValueForLoadHelper(SrcVal, Offset, LoadTy, Builder, DL);
   return coerceAvailableValueToLoadType(SrcVal, LoadTy, Builder, DL);
 }
@@ -358,11 +359,12 @@ Constant *getConstantValueForLoad(Constant *SrcVal, unsigned Offset,
 /// This function is called when we have a
 /// memdep query of a load that ends up being a clobbering mem intrinsic.
 Value *getMemInstValueForLoad(MemIntrinsic *SrcInst, unsigned Offset,
-                              Type *LoadTy, Instruction *InsertPt,
+                              Type *LoadTy, BasicBlock *InsertBB,
+                              BasicBlock::iterator InsertPt,
                               const DataLayout &DL) {
   LLVMContext &Ctx = LoadTy->getContext();
   uint64_t LoadSize = DL.getTypeSizeInBits(LoadTy).getFixedValue() / 8;
-  IRBuilder<> Builder(InsertPt);
+  IRBuilder<> Builder(InsertBB, InsertPt);
 
   // We know that this method is only called when the mem transfer fully
   // provides the bits for the load.
