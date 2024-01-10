@@ -117,8 +117,22 @@ void BasicBlock::convertFromNewDbgValues() {
       if (auto *DPV = dyn_cast<DPValue>(&DPE))
         InstList.insert(Inst.getIterator(),
                         DPV->createDebugIntrinsic(getModule(), nullptr));
-      else
+      else if (auto *DPL = dyn_cast<DPLabel>(&DPE)) {
+        auto *LabelFn =
+            Intrinsic::getDeclaration(getModule(), Intrinsic::dbg_label);
+        Value *Args[] = {
+            MetadataAsValue::get(getModule()->getContext(), DPL->getLabel())};
+        DbgLabelInst *DbgLabel = cast<DbgLabelInst>(
+            CallInst::Create(LabelFn->getFunctionType(), LabelFn, Args));
+        DbgLabel->setTailCall();
+        DbgLabel->setDebugLoc(DPL->getDebugLoc());
+        InstList.insert(Inst.getIterator(), DbgLabel);
+        // XXX TODO: Add this function
+        // InstList.insert(Inst.getIterator(),
+        //                DPL->createLabelIntrinsic(getModule(), nullptr));
+      } else {
         llvm_unreachable("unsupported entity kind");
+      }
     }
 
     Marker.eraseFromParent();
