@@ -1,4 +1,5 @@
 ; RUN: opt -passes=hotcoldsplit -hotcoldsplit-threshold=0 -S < %s | FileCheck %s
+; RUN: opt --try-experimental-debuginfo-iterators  -passes=hotcoldsplit -hotcoldsplit-threshold=0 -S < %s | FileCheck %s
 
 ; When an llvm.dbg.label intrinsic is extracted into a new function, make sure
 ; that its metadata argument is a DILabel that points to a scope within the new
@@ -18,7 +19,7 @@ target triple = "x86_64-apple-macosx10.14.0"
 ; CHECK: [[FILE:![0-9]+]] = !DIFile
 ; CHECK: [[INLINE_ME_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "inline_me"
 ; CHECK: [[SCOPE:![0-9]+]] = distinct !DISubprogram(name: "foo.cold.1"
-; CHECK: [[LINE]] = !DILocation(line: 1, column: 1, scope: [[SCOPE]]
+; : [[LINE]] = !DILocation(line: 1, column: 1, scope: [[SCOPE]]
 ; CHECK: [[LABEL]] = !DILabel(scope: [[SCOPE]], name: "bye", file: [[FILE]], line: 28
 ; CHECK: [[LABEL_IN_INLINE_ME]] = !DILabel(scope: [[INLINE_ME_SCOPE]], name: "label_in_@inline_me", file: [[FILE]], line: 29
 ; CHECK: [[LINE2]] = !DILocation(line: 2, column: 2, scope: [[INLINE_ME_SCOPE]], inlinedAt: [[LINE]]

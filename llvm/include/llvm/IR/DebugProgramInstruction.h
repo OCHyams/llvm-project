@@ -132,6 +132,7 @@ public:
     assert(Label && "unexpected nullptr");
   }
 
+  void setLabel(DILabel *NewLabel) { resetDebugValue(NewLabel); }
   DILabel *getLabel() const { return cast<DILabel>(getRawLabel()); }
   Metadata *getRawLabel() const { return DebugValue; }
 

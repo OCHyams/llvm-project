@@ -1587,18 +1587,36 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
 
   auto UpdateDPValuesOnInst = [&](Instruction &I) -> void {
     for (auto &DPE : I.getDbgValueRange()) {
-      DPValue &DPV = cast<DPValue>(DPE);
-      // Apply the two updates that dbg.values get: invalid operands, and
-      // variable metadata fixup.
-      // FIXME: support dbg.assign form of DPValues.
-      if (any_of(DPV.location_ops(), IsInvalidLocation)) {
-        DPVsToDelete.push_back(&DPV);
-        continue;
-      }
-      if (!DPV.getDebugLoc().getInlinedAt())
-        DPV.setVariable(GetUpdatedDIVariable(DPV.getVariable()));
-      DPV.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DPV.getDebugLoc(),
+      DPE.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DPE.getDebugLoc(),
                                                            *NewSP, Ctx, Cache));
+      if (DPValue *DPVp = dyn_cast<DPValue>(&DPE)) {
+        DPValue &DPV = *DPVp;
+        // Apply the two updates that dbg.values get: invalid operands, and
+        // variable metadata fixup.
+        // FIXME: support dbg.assign form of DPValues.
+        if (any_of(DPV.location_ops(), IsInvalidLocation)) {
+          DPVsToDelete.push_back(&DPV);
+          continue;
+        }
+        if (!DPV.getDebugLoc().getInlinedAt())
+          DPV.setVariable(GetUpdatedDIVariable(DPV.getVariable()));
+        DPV.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(
+            DPV.getDebugLoc(), *NewSP, Ctx, Cache));
+      } else if (DPLabel *DLI = dyn_cast<DPLabel>(&DPE)) {
+        // Point the intrinsic to a fresh label within the new function if the
+        // intrinsic was not inlined from some other function.
+        if (DLI->getDebugLoc().getInlinedAt())
+          continue;
+        DILabel *OldLabel = DLI->getLabel();
+        DINode *&NewLabel = RemappedMetadata[OldLabel];
+        if (!NewLabel) {
+          DILocalScope *NewScope = DILocalScope::cloneScopeForSubprogram(
+              *OldLabel->getScope(), *NewSP, Ctx, Cache);
+          NewLabel = DILabel::get(Ctx, NewScope, OldLabel->getName(),
+                                  OldLabel->getFile(), OldLabel->getLine());
+        }
+        DLI->setLabel(cast<DILabel>(NewLabel));
+      }
     }
   };
 
