@@ -1130,9 +1130,8 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
   processGlobalObjectMetadata(F);
   for (auto &BB : F) {
     for (auto &I : BB) {
-      for (const auto &DPE : I.getDbgValueRange())
-        if (auto *DPV = dyn_cast<DPValue>(&DPE))
-          processDPValueMetadata(*DPV);
+      for (const DPValue &DPV : filterValues(I.getDbgValueRange()))
+        processDPValueMetadata(DPV);
       processInstructionMetadata(I);
     }
   }
