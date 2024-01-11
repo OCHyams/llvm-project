@@ -1388,7 +1388,7 @@ static void SplitLandingPadPredecessorsImpl(
 
   // The new block unconditionally branches to the old block.
   BranchInst *BI1 = BranchInst::Create(OrigBB, NewBB1);
-  BI1->setDebugLoc(OrigBB->getFirstNonPHIOrDbg()->getDebugLoc());
+  BI1->setDebugLoc(OrigBB->getFirstNonPHI()->getDebugLoc());
 
   // Move the edges from Preds to point to NewBB1 instead of OrigBB.
   for (BasicBlock *Pred : Preds) {
@@ -1429,7 +1429,7 @@ static void SplitLandingPadPredecessorsImpl(
 
     // The new block unconditionally branches to the old block.
     BranchInst *BI2 = BranchInst::Create(OrigBB, NewBB2);
-    BI2->setDebugLoc(OrigBB->getFirstNonPHIOrDbg()->getDebugLoc());
+    BI2->setDebugLoc(OrigBB->getFirstNonPHI()->getDebugLoc());
 
     // Move the remaining edges from OrigBB to point to NewBB2.
     for (BasicBlock *NewBB2Pred : NewBB2Preds)
@@ -1626,7 +1626,7 @@ void llvm::SplitBlockAndInsertIfThenElse(
         (void)BranchInst::Create(Tail, BB);
         ToTailEdge = true;
       }
-      BB->getTerminator()->setDebugLoc(SplitBefore->getStableDebugLoc());
+      BB->getTerminator()->setDebugLoc(SplitBefore->getDebugLoc());
       // Pass the new block back to the caller.
       *PBB = BB;
     }

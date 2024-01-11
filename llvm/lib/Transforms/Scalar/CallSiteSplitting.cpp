@@ -239,7 +239,7 @@ static Instruction *cloneInstForMustTail(Instruction *I, Instruction *Before,
 static void copyMustTailReturn(BasicBlock *SplitBB, Instruction *CI,
                                Instruction *NewCI) {
   bool IsVoid = SplitBB->getParent()->getReturnType()->isVoidTy();
-  auto II = CI->getNextNonDebugInstruction()->getIterator();
+  auto II = std::next(CI->getIterator());
 
   BitCastInst* BCI = dyn_cast<BitCastInst>(&*II);
   if (BCI)
@@ -324,12 +324,12 @@ static void splitCallSite(CallBase &CB,
   for (unsigned i = 0; i < Preds.size(); i++) {
     BasicBlock *PredBB = Preds[i].first;
     BasicBlock *SplitBlock = DuplicateInstructionsInSplitBetween(
-        TailBB, PredBB, CB.getNextNonDebugInstruction(), ValueToValueMaps[i],
+        TailBB, PredBB, &*std::next(CB.getIterator()), ValueToValueMaps[i],
         DTU);
     assert(SplitBlock && "Unexpected new basic block split.");
 
     auto *NewCI =
-        cast<CallBase>(SplitBlock->getTerminator()->getPrevNonDebugInstruction());
+        cast<CallBase>(&*std::prev(SplitBlock->getTerminator()->getIterator()));
     addConditions(*NewCI, Preds[i].second);
 
     // Handle PHIs used as arguments in the call-site.

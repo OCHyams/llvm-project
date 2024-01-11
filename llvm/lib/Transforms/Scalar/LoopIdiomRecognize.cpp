@@ -1870,7 +1870,7 @@ bool LoopIdiomRecognize::recognizePopcount() {
     return false;
 
   BasicBlock *LoopBody = *(CurLoop->block_begin());
-  if (LoopBody->sizeWithoutDebug() >= 20) {
+  if (LoopBody->size() >= 20) {
     // The loop is too big, bail out.
     return false;
   }

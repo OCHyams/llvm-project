@@ -515,7 +515,7 @@ static void setInsertionPoint(IRBuilder<> &Builder, Value *V,
   }
   if (auto *I = dyn_cast<Instruction>(V)) {
     if (!Before)
-      I = I->getNextNonDebugInstruction();
+      I = &*std::next(I->getIterator());
     Builder.SetInsertPoint(I);
     return;
   }
