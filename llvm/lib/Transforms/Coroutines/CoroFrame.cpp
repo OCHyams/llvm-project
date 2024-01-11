@@ -1931,8 +1931,13 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       U->replaceUsesOfWith(Def, CurrentReload);
       // Instructions are added to Def's user list if the attached
       // debug records use Def. Update those now.
-      for (DPValue &DPV : filterValues(U->getDbgValueRange()))
+      for (auto &DPE : U->getDbgValueRange()) {
+        auto *DPVp = dyn_cast<DPValue>(&DPE);
+        if (!DPVp)
+          continue;
+        DPValue &DPV = *DPVp;
         DPV.replaceVariableLocationOp(Def, CurrentReload, true);
+      }
     }
   }
 

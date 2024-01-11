@@ -1926,7 +1926,11 @@ bool llvm::LowerDbgDeclare(Function &F) {
     for (Instruction &BI : FI) {
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&BI))
         Dbgs.push_back(DDI);
-      for (DPValue &DPV : filterValues(BI.getDbgValueRange())) {
+      for (auto &DPE : BI.getDbgValueRange()) {
+        auto *DPVp = dyn_cast<DPValue>(&DPE);
+        if (!DPVp)
+          continue;
+        DPValue &DPV = *DPVp;
         if (DPV.getType() == DPValue::LocationType::Declare)
           DPVs.push_back(&DPV);
       }
@@ -2011,7 +2015,11 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
   // Map existing PHI nodes to their DPValues.
   DenseMap<Value *, DPValue *> DbgValueMap;
   for (auto &I : *BB) {
-    for (DPValue &DPV : filterValues(I.getDbgValueRange())) {
+    for (auto &DPE : I.getDbgValueRange()) {
+      auto *DPVp = dyn_cast<DPValue>(&DPE);
+      if (!DPVp)
+        continue;
+      DPValue &DPV = *DPVp;
       for (Value *V : DPV.location_ops())
         if (auto *Loc = dyn_cast_or_null<PHINode>(V))
           DbgValueMap.insert({Loc, &DPV});
