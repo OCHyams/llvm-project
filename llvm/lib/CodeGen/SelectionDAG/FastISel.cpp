@@ -1201,7 +1201,7 @@ void FastISel::handleDbgInfo(const Instruction *II) {
         continue;
       }
 
-      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DPL->getDebugLoc(),
               TII.get(TargetOpcode::DBG_LABEL))
           .addMetadata(DPL->getLabel());
       continue;
