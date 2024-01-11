@@ -21,8 +21,6 @@
 #ifndef LLVM_TRANSFORMS_UTILS_VNCOERCION_H
 #define LLVM_TRANSFORMS_UTILS_VNCOERCION_H
 
-#include "llvm/IR/BasicBlock.h"
-
 namespace llvm {
 class Constant;
 class StoreInst;
@@ -77,8 +75,7 @@ int analyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
 /// It inserts instructions to do so at InsertPt, and returns the extracted
 /// value.
 Value *getValueForLoad(Value *SrcVal, unsigned Offset, Type *LoadTy,
-                       BasicBlock *InsertBB, BasicBlock::iterator InsertPt,
-                       const DataLayout &DL);
+                            Instruction *InsertPt, const DataLayout &DL);
 // This is the same as getValueForLoad, except it performs no insertion.
 // It only allows constant inputs.
 Constant *getConstantValueForLoad(Constant *SrcVal, unsigned Offset,
@@ -89,8 +86,7 @@ Constant *getConstantValueForLoad(Constant *SrcVal, unsigned Offset,
 /// intrinsic.  It inserts instructions to do so at InsertPt, and returns the
 /// extracted value.
 Value *getMemInstValueForLoad(MemIntrinsic *SrcInst, unsigned Offset,
-                              Type *LoadTy, BasicBlock *InsertBB,
-                              BasicBlock::iterator InsertPt,
+                              Type *LoadTy, Instruction *InsertPt,
                               const DataLayout &DL);
 // This is the same as getStoreValueForLoad, except it performs no insertion.
 // It returns nullptr if it cannot produce a constant.
