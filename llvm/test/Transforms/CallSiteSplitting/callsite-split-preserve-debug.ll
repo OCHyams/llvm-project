@@ -1,6 +1,5 @@
 ; RUN: opt -passes=callsite-splitting -S < %s | FileCheck %s --implicit-check-not=dbg.value
-;; FIXME: RemoveDIs not yet supported in callsite splitting.
-; run: opt -passes=callsite-splitting -S < %s --try-experimental-debuginfo-iterators | FileCheck %s --implicit-check-not=dbg.value
+; RUN: opt -passes=callsite-splitting -S < %s --try-experimental-debuginfo-iterators | FileCheck %s --implicit-check-not=dbg.value
 
 ;; Test that DebugLocs are preserved, and that dbg.values are duplicated.
 
