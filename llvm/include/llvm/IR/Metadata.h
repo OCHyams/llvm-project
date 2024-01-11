@@ -215,8 +215,8 @@ protected:
   Metadata *DebugValue;
 
 public:
-  DPEntity *getUser();
-  const DPEntity *getUser() const;
+  DPValue *getUser();
+  const DPValue *getUser() const;
   void handleChangedValue(Metadata *NewDebugValue);
   DebugValueUser() = default;
   explicit DebugValueUser(Metadata *DebugValue) : DebugValue(DebugValue) {
