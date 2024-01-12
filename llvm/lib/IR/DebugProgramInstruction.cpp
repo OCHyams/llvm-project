@@ -284,17 +284,17 @@ const LLVMContext &DPEntity::getContext() const {
 DPMarker DPMarker::EmptyDPMarker;
 
 void DPMarker::dropDPValues() {
-  while (!StoredDPValues.empty()) {
-    auto It = StoredDPValues.begin();
+  while (!StoredDPEntities.empty()) {
+    auto It = StoredDPEntities.begin();
     DPEntity *DPE = &*It;
-    StoredDPValues.erase(It);
+    StoredDPEntities.erase(It);
     DPE->deleteEntity();
   }
 }
 
 void DPMarker::dropOneDPValue(DPEntity *DPE) {
   assert(DPE->getMarker() == this);
-  StoredDPValues.erase(DPE->getIterator());
+  StoredDPEntities.erase(DPE->getIterator());
   DPE->deleteEntity();
 }
 
@@ -307,7 +307,7 @@ BasicBlock *DPMarker::getParent() { return MarkedInstr->getParent(); }
 void DPMarker::removeMarker() {
   // Are there any DPValues in this DPMarker? If not, nothing to preserve.
   Instruction *Owner = MarkedInstr;
-  if (StoredDPValues.empty()) {
+  if (StoredDPEntities.empty()) {
     eraseFromParent();
     Owner->DbgMarker = nullptr;
     return;
@@ -339,11 +339,11 @@ void DPMarker::eraseFromParent() {
 }
 
 iterator_range<DPEntity::self_iterator> DPMarker::getDbgEntityRange() {
-  return make_range(StoredDPValues.begin(), StoredDPValues.end());
+  return make_range(StoredDPEntities.begin(), StoredDPEntities.end());
 }
 
 void DPEntity::removeFromParent() {
-  getMarker()->StoredDPValues.erase(getIterator());
+  getMarker()->StoredDPEntities.erase(getIterator());
 }
 
 void DPEntity::eraseFromParent() {
@@ -352,17 +352,17 @@ void DPEntity::eraseFromParent() {
 }
 
 void DPMarker::insertDPValue(DPEntity *New, bool InsertAtHead) {
-  auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
-  StoredDPValues.insert(It, *New);
+  auto It = InsertAtHead ? StoredDPEntities.begin() : StoredDPEntities.end();
+  StoredDPEntities.insert(It, *New);
   New->setMarker(this);
 }
 
 void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
-  auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
-  for (DPEntity &DPV : Src.StoredDPValues)
+  auto It = InsertAtHead ? StoredDPEntities.begin() : StoredDPEntities.end();
+  for (DPEntity &DPV : Src.StoredDPEntities)
     DPV.setMarker(this);
 
-  StoredDPValues.splice(It, Src.StoredDPValues);
+  StoredDPEntities.splice(It, Src.StoredDPEntities);
 }
 
 void DPMarker::absorbDebugValues(iterator_range<DPEntity::self_iterator> Range,
@@ -371,10 +371,10 @@ void DPMarker::absorbDebugValues(iterator_range<DPEntity::self_iterator> Range,
     DPE.setMarker(this);
 
   auto InsertPos =
-      (InsertAtHead) ? StoredDPValues.begin() : StoredDPValues.end();
+      (InsertAtHead) ? StoredDPEntities.begin() : StoredDPEntities.end();
 
-  StoredDPValues.splice(InsertPos, Src.StoredDPValues, Range.begin(),
-                        Range.end());
+  StoredDPEntities.splice(InsertPos, Src.StoredDPEntities, Range.begin(),
+                          Range.end());
 }
 
 iterator_range<simple_ilist<DPEntity>::iterator> DPMarker::cloneDebugInfoFrom(
@@ -385,31 +385,31 @@ iterator_range<simple_ilist<DPEntity>::iterator> DPMarker::cloneDebugInfoFrom(
   // "From" marker, optionally we can start from the from_here position down to
   // end().
   auto Range =
-      make_range(From->StoredDPValues.begin(), From->StoredDPValues.end());
+      make_range(From->StoredDPEntities.begin(), From->StoredDPEntities.end());
   if (from_here.has_value())
-    Range = make_range(*from_here, From->StoredDPValues.end());
+    Range = make_range(*from_here, From->StoredDPEntities.end());
 
   // Clone each DPValue and insert into StoreDPValues; optionally place them at
   // the start or the end of the list.
-  auto Pos = (InsertAtHead) ? StoredDPValues.begin() : StoredDPValues.end();
+  auto Pos = (InsertAtHead) ? StoredDPEntities.begin() : StoredDPEntities.end();
   for (DPEntity &DPE : Range) {
     DPEntity *New = DPE.clone();
     New->setMarker(this);
-    StoredDPValues.insert(Pos, *New);
+    StoredDPEntities.insert(Pos, *New);
     if (!First)
       First = New;
   }
 
   if (!First)
-    return {StoredDPValues.end(), StoredDPValues.end()};
+    return {StoredDPEntities.end(), StoredDPEntities.end()};
 
   if (InsertAtHead)
     // If InsertAtHead is set, we cloned a range onto the front of of the
     // StoredDPValues collection, return that range.
-    return {StoredDPValues.begin(), Pos};
+    return {StoredDPEntities.begin(), Pos};
   else
     // We inserted a block at the end, return that range.
-    return {First->getIterator(), StoredDPValues.end()};
+    return {First->getIterator(), StoredDPEntities.end()};
 }
 
 } // end namespace llvm

@@ -16,9 +16,9 @@
 //
 // and all information is stored in the Value / Metadata hierachy defined
 // elsewhere in LLVM. In the "DPValue" design, each instruction /may/ have a
-// connection with a DPMarker, which identifies a position immediately before the
-// instruction, and each DPMarker /may/ then have connections to DPValues which
-// record the variable assignment information. To illustrate:
+// connection with a DPMarker, which identifies a position immediately before
+// the instruction, and each DPMarker /may/ then have connections to DPValues
+// which record the variable assignment information. To illustrate:
 //
 //    %foo = add i32 1, %0
 //       ; foo->DbgMarker == nullptr
@@ -26,7 +26,7 @@
 //       ;; the instruction for %foo, therefore it has no DbgMarker.
 //    %bar = void call @ext(%foo)
 //       ; bar->DbgMarker = {
-//       ;   StoredDPValues = {
+//       ;   StoredDPEntities = {
 //       ;     DPValue(metadata i32 %foo, ...)
 //       ;   }
 //       ; }
@@ -65,21 +65,35 @@ class DPMarker;
 class DPValue;
 class raw_ostream;
 
-/// In order to avoid paying for a vtable, inheritors must add cases to a few
-/// functions:
+/// Base class for non-instruction debug metadata records that have positions
+/// within IR. Features various methods copied across from the Instruction
+/// class to aid ease-of-use. DPEntity objects should always be linked into a
+/// DPMarker's StoredDPEntities list. The marker connects a DPEntity back to
+/// it's position in the BasicBlock.
+///
+/// We need a discriminator for dyn/isa casts. In order to avoid paying for a
+/// vtable for "virtual" functions too, subclasses must add a new discriminator
+/// value (EntitiyKind) and cases to a few functions in the base class:
 ///   deleteEntity();
 ///   clone()
 class DPEntity : public ilist_node<DPEntity> {
 public:
   /// Marker that this DPValue is linked into.
+  /// FIXME: Make this private.
   DPMarker *Marker = nullptr;
-  DebugLoc DbgLoc;
-  enum Kind : uint8_t { ValueKind, LabelKind } EntityKind;
+  enum Kind : uint8_t { ValueKind, LabelKind };
 
-  DPEntity(Kind EntityKind, DebugLoc DL) : EntityKind(EntityKind), DbgLoc(DL) {}
+protected:
+  DebugLoc DbgLoc;
+  Kind EntityKind;
+
+public:
+  DPEntity(Kind EntityKind, DebugLoc DL) : DbgLoc(DL), EntityKind(EntityKind) {}
   void deleteEntity();
 
   DPEntity *clone() const;
+
+  Kind getEntityKind() const { return EntityKind; }
 
   void setMarker(DPMarker *M) { Marker = M; }
 
@@ -117,8 +131,8 @@ protected:
   ~DPEntity() = default; // Use deleteEntity to delete a generic entity.
 };
 
-// XXX  it does need a DebugValueUser after all, to make use of the
-// established tracking infra?
+/// Records a position in IR for a source label (DILabel). Corresponds to the
+/// llvm.dbg.label intrinsic.
 class DPLabel : public DPEntity {
   DILabel *Label;
 
@@ -126,23 +140,19 @@ public:
   DPLabel(DILabel *Label, DebugLoc DL) : DPEntity(LabelKind, DL), Label(Label) {
     assert(Label && "unexpected nullptr");
   }
+  DPLabel *clone() const;
 
   void setLabel(DILabel *NewLabel) { Label = NewLabel; }
   DILabel *getLabel() const { return Label; }
-  Metadata *getRawLabel() const { return getLabel(); }
 
-  DPLabel *clone() const;
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
-  /// @{
-  static bool classof(const DPEntity *I) { return I->EntityKind == LabelKind; }
-  /// @}
+  /// Support type inquiry through isa, cast, and dyn_cast.
+  static bool classof(const DPEntity *E) {
+    return E->getEntityKind() == LabelKind;
+  }
 };
 
 /// Record of a variable value-assignment, aka a non instruction representation
-/// of the dbg.value intrinsic. Features various methods copied across from the
-/// Instruction class to aid ease-of-use. DPValue objects should always be
-/// linked into a DPMarker's StoredDPValues list. The marker connects a DPValue
-/// back to it's position in the BasicBlock.
+/// of the dbg.value intrinsic.
 ///
 /// This class inherits from DebugValueUser to allow LLVM's metadata facilities
 /// to update our references to metadata beneath our feet.
@@ -160,6 +170,7 @@ public:
   /// Classification of the debug-info record that this DPValue represents.
   /// Essentially, "is this a dbg.value or dbg.declare?". dbg.declares are not
   /// currently supported, but it would be trivial to do so.
+  /// FIXME: We could use spare padding bits from DPEntity for this.
   LocationType Type;
 
   // NB: there is no explicit "Value" field in this class, it's effectively the
@@ -171,9 +182,6 @@ public:
 
 public:
   void dump() const;
-
-  // using self_iterator = simple_ilist<DPValue>::iterator;
-  // using const_self_iterator = simple_ilist<DPValue>::const_iterator;
 
   /// Create a new DPValue representing the intrinsic \p DVI, for example the
   /// assignment represented by a dbg.value.
@@ -301,10 +309,10 @@ public:
   void print(raw_ostream &O, bool IsForDebug = false) const;
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast:
-  /// @{
-  static bool classof(const DPEntity *I) { return I->EntityKind == ValueKind; }
-  /// @}
+  /// Support type inquiry through isa, cast, and dyn_cast.
+  static bool classof(const DPEntity *E) {
+    return E->getEntityKind() == ValueKind;
+  }
 };
 
 /// Filter the DPEntity range to the DPValues only and downcast.
@@ -317,12 +325,12 @@ inline auto filterValues(iterator_range<simple_ilist<DPEntity>::iterator> R) {
 /// Per-instruction record of debug-info. If an Instruction is the position of
 /// some debugging information, it points at a DPMarker storing that info. Each
 /// marker points back at the instruction that owns it. Various utilities are
-/// provided for manipulating the DPValues contained within this marker.
+/// provided for manipulating the DPEntity objects contained within this marker.
 ///
-/// This class has a rough surface area, because it's needed to preserve the one
-/// arefact that we can't yet eliminate from the intrinsic / dbg.value
-/// debug-info design: the order of DPValues/records is significant, and
-/// duplicates can exist. Thus, if one has a run of debug-info records such as:
+/// This class has a rough surface area, because it's needed to preserve the
+/// one arefact that we can't yet eliminate from the intrinsic / dbg.value
+/// debug-info design: the order of records is significant, and duplicates can
+/// exist. Thus, if one has a run of debug-info records such as:
 ///    dbg.value(...
 ///    %foo = barinst
 ///    dbg.value(...
@@ -342,13 +350,12 @@ public:
   /// operations that move a marker from one instruction to another.
   Instruction *MarkedInstr = nullptr;
 
-  /// List of DPValues, each recording a single variable assignment, the
-  /// equivalent of a dbg.value intrinsic. There is a one-to-one relationship
-  /// between each dbg.value in a block and each DPValue once the
-  /// representation has been converted, and the ordering of DPValues is
-  /// meaningful in the same was a dbg.values.
-  simple_ilist<DPEntity> StoredDPValues;
-  bool empty() const { return StoredDPValues.empty(); }
+  /// List of DPEntity objects, the non-instruction equivalent of llvm.dbg.*
+  /// intrinsics. There is a one-to-one relationship between each debug
+  /// intrinsic in a block and each DPEntity once the representation has been
+  /// converted, and the ordering is meaningful in the same way.
+  simple_ilist<DPEntity> StoredDPEntities;
+  bool empty() const { return StoredDPEntities.empty(); }
 
   const BasicBlock *getParent() const;
   BasicBlock *getParent();
@@ -409,7 +416,8 @@ public:
   static DPMarker EmptyDPMarker;
   static iterator_range<simple_ilist<DPEntity>::iterator>
   getEmptyDPValueRange() {
-    return make_range(EmptyDPMarker.StoredDPValues.end(), EmptyDPMarker.StoredDPValues.end());
+    return make_range(EmptyDPMarker.StoredDPEntities.end(),
+                      EmptyDPMarker.StoredDPEntities.end());
   }
 };
 
