@@ -31,7 +31,7 @@ PrintModulePass::PrintModulePass(raw_ostream &OS, const std::string &Banner,
       EmitSummaryIndex(EmitSummaryIndex) {}
 
 PreservedAnalyses PrintModulePass::run(Module &M, ModuleAnalysisManager &AM) {
-  // RemoveDIs: there's no textual representation of the DPValue debug-info,
+  // RemoveDIs: there's no textual representation of the DbgRecord debug-info,
   // convert to dbg.values before writing out.
   bool ShouldConvert = M.IsNewDbgInfoFormat;
   if (ShouldConvert)
@@ -75,7 +75,7 @@ PrintFunctionPass::PrintFunctionPass(raw_ostream &OS, const std::string &Banner)
 
 PreservedAnalyses PrintFunctionPass::run(Function &F,
                                          FunctionAnalysisManager &) {
-  // RemoveDIs: there's no textual representation of the DPValue debug-info,
+  // RemoveDIs: there's no textual representation of the DbgRecord debug-info,
   // convert to dbg.values before writing out.
   bool ShouldConvert = F.IsNewDbgInfoFormat;
   if (ShouldConvert)

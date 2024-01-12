@@ -2960,7 +2960,7 @@ void Verifier::visitBasicBlock(BasicBlock &BB) {
   if (BB.IsNewDbgInfoFormat) {
     // Configure the validate function to not fire assertions, instead print
     // errors and return true if there's a problem.
-    bool RetVal = BB.validateDbgValues(false, true, OS);
+    bool RetVal = BB.validateDbgRecords(false, true, OS);
     Check(!RetVal, "Invalid configuration of new-debug-info data found");
   }
 }

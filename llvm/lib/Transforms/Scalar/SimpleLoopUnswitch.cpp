@@ -1260,8 +1260,8 @@ static BasicBlock *buildClonedLoopBlocks(
   Module *M = ClonedPH->getParent()->getParent();
   for (auto *ClonedBB : NewBlocks)
     for (Instruction &I : *ClonedBB) {
-      RemapDPValueRange(M, I.getDbgValueRange(), VMap,
-                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+      RemapDbgVariableRecords(M, I.getDbgRecordRange(), VMap,
+                              RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
       RemapInstruction(&I, VMap,
                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
       if (auto *II = dyn_cast<AssumeInst>(&I))

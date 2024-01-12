@@ -42,7 +42,7 @@ DebugVariable::DebugVariable(const DbgVariableIntrinsic *DII)
       Fragment(DII->getExpression()->getFragmentInfo()),
       InlinedAt(DII->getDebugLoc().getInlinedAt()) {}
 
-DebugVariable::DebugVariable(const DPValue *DPV)
+DebugVariable::DebugVariable(const DbgVariableRecord *DPV)
     : Variable(DPV->getVariable()),
       Fragment(DPV->getExpression()->getFragmentInfo()),
       InlinedAt(DPV->getDebugLoc().getInlinedAt()) {}

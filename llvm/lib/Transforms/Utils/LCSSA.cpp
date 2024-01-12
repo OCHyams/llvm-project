@@ -242,8 +242,8 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
     }
 
     SmallVector<DbgValueInst *, 4> DbgValues;
-    SmallVector<DPValue *, 4> DPValues;
-    llvm::findDbgValues(DbgValues, I, &DPValues);
+    SmallVector<DbgVariableRecord *, 4> DbgVarRecs;
+    llvm::findDbgValues(DbgValues, I, &DbgVarRecs);
 
     // Update pre-existing debug value uses that reside outside the loop.
     for (auto *DVI : DbgValues) {
@@ -261,7 +261,7 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
 
     // RemoveDIs: copy-paste of block above, using non-instruction debug-info
     // records.
-    for (DPValue *DPV : DPValues) {
+    for (DbgVariableRecord *DPV : DbgVarRecs) {
       BasicBlock *UserBB = DPV->getMarker()->getParent();
       if (InstBB == UserBB || L->contains(UserBB))
         continue;

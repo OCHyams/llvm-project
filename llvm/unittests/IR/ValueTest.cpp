@@ -317,9 +317,9 @@ TEST(ValueTest, replaceUsesOutsideBlock) {
   ASSERT_TRUE(Ret->getOperand(0) == cast<Value>(B));
 }
 
-TEST(ValueTest, replaceUsesOutsideBlockDPValue) {
+TEST(ValueTest, replaceUsesOutsideBlockDbgVariableRecord) {
   // Check that Value::replaceUsesOutsideBlock(New, BB) replaces uses outside
-  // BB, including DPValues.
+  // BB, including DbgVariableRecords.
   const auto *IR = R"(
     define i32 @f() !dbg !6 {
     entry:
@@ -376,11 +376,13 @@ TEST(ValueTest, replaceUsesOutsideBlockDPValue) {
   BasicBlock *Exit = GetNext(Entry);
   Instruction *Ret = &Exit->front();
 
-  EXPECT_TRUE(Branch->hasDbgValues());
-  EXPECT_TRUE(Ret->hasDbgValues());
+  EXPECT_TRUE(Branch->hasDbgRecords());
+  EXPECT_TRUE(Ret->hasDbgRecords());
 
-  DPValue *DPV1 = &*Branch->getDbgValueRange().begin();
-  DPValue *DPV2 = &*Ret->getDbgValueRange().begin();
+  DbgVariableRecord *DPV1 =
+      cast<DbgVariableRecord>(&*Branch->getDbgRecordRange().begin());
+  DbgVariableRecord *DPV2 =
+      cast<DbgVariableRecord>(&*Ret->getDbgRecordRange().begin());
 
   A->replaceUsesOutsideBlock(B, Entry);
   // These users are in Entry so shouldn't be changed.

@@ -725,17 +725,19 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 }
 
 /// Returns all DbgVariableIntrinsic in F.
-static std::pair<SmallVector<DbgVariableIntrinsic *, 8>, SmallVector<DPValue *>>
+static std::pair<SmallVector<DbgVariableIntrinsic *, 8>,
+                 SmallVector<DbgVariableRecord *>>
 collectDbgVariableIntrinsics(Function &F) {
   SmallVector<DbgVariableIntrinsic *, 8> Intrinsics;
-  SmallVector<DPValue *> DPValues;
+  SmallVector<DbgVariableRecord *> DbgVarRecs;
   for (auto &I : instructions(F)) {
-    for (DPValue &DPV : I.getDbgValueRange())
-      DPValues.push_back(&DPV);
+    for (DbgVariableRecord &DPV :
+         DbgVariableRecord::filter(I.getDbgRecordRange()))
+      DbgVarRecs.push_back(&DPV);
     if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
       Intrinsics.push_back(DVI);
   }
-  return {Intrinsics, DPValues};
+  return {Intrinsics, DbgVarRecs};
 }
 
 void CoroCloner::replaceSwiftErrorOps() {
@@ -743,7 +745,7 @@ void CoroCloner::replaceSwiftErrorOps() {
 }
 
 void CoroCloner::salvageDebugInfo() {
-  auto [Worklist, DPValues] = collectDbgVariableIntrinsics(*NewF);
+  auto [Worklist, DbgVarRecs] = collectDbgVariableIntrinsics(*NewF);
   SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
 
   // Only 64-bit ABIs have a register we can refer to with the entry value.
@@ -752,7 +754,7 @@ void CoroCloner::salvageDebugInfo() {
   for (DbgVariableIntrinsic *DVI : Worklist)
     coro::salvageDebugInfo(ArgToAllocaMap, *DVI, Shape.OptimizeFrame,
                            UseEntryValue);
-  for (DPValue *DPV : DPValues)
+  for (DbgVariableRecord *DPV : DbgVarRecs)
     coro::salvageDebugInfo(ArgToAllocaMap, *DPV, Shape.OptimizeFrame,
                            UseEntryValue);
 
@@ -778,7 +780,7 @@ void CoroCloner::salvageDebugInfo() {
     }
   };
   for_each(Worklist, RemoveOne);
-  for_each(DPValues, RemoveOne);
+  for_each(DbgVarRecs, RemoveOne);
 }
 
 void CoroCloner::replaceEntryBlock() {
@@ -2047,11 +2049,11 @@ splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
   // original function. The Cloner has already salvaged debug info in the new
   // coroutine funclets.
   SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
-  auto [DbgInsts, DPValues] = collectDbgVariableIntrinsics(F);
+  auto [DbgInsts, DbgVarRecs] = collectDbgVariableIntrinsics(F);
   for (auto *DDI : DbgInsts)
     coro::salvageDebugInfo(ArgToAllocaMap, *DDI, Shape.OptimizeFrame,
                            false /*UseEntryValue*/);
-  for (DPValue *DPV : DPValues)
+  for (DbgVariableRecord *DPV : DbgVarRecs)
     coro::salvageDebugInfo(ArgToAllocaMap, *DPV, Shape.OptimizeFrame,
                            false /*UseEntryValue*/);
   return Shape;

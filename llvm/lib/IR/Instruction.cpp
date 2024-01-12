@@ -84,10 +84,10 @@ void Instruction::removeFromParent() {
 }
 
 void Instruction::handleMarkerRemoval() {
-  if (!Parent->IsNewDbgInfoFormat || !DbgMarker)
+  if (!Parent->IsNewDbgInfoFormat || !DbgRecordMarker)
     return;
 
-  DbgMarker->removeMarker();
+  DbgRecordMarker->removeMarker();
 }
 
 BasicBlock::iterator Instruction::eraseFromParent() {
@@ -112,8 +112,8 @@ void Instruction::insertAfter(Instruction *InsertPos) {
 
   DestParent->getInstList().insertAfter(InsertPos->getIterator(), this);
 
-  // No need to manually update DPValues: if we insert after an instruction
-  // position, then we can never have any DPValues on "this".
+  // No need to manually update DbgRecords: if we insert after an instruction
+  // position, then we can never have any DbgRecords on "this".
   if (DestParent->IsNewDbgInfoFormat)
     DestParent->createMarker(this);
 }
@@ -131,7 +131,7 @@ extern cl::opt<bool> UseNewDbgInfoFormat;
 
 void Instruction::insertBefore(BasicBlock &BB,
                                InstListType::iterator InsertPos) {
-  assert(!DbgMarker);
+  assert(!DbgRecordMarker);
 
   BB.getInstList().insert(InsertPos, this);
 
@@ -141,20 +141,20 @@ void Instruction::insertBefore(BasicBlock &BB,
   BB.createMarker(this);
 
   // We've inserted "this": if InsertAtHead is set then it comes before any
-  // DPValues attached to InsertPos. But if it's not set, then any DPValues
+  // DbgRecords attached to InsertPos. But if it's not set, then any DbgRecords
   // should now come before "this".
   bool InsertAtHead = InsertPos.getHeadBit();
   if (!InsertAtHead) {
-    DPMarker *SrcMarker = BB.getMarker(InsertPos);
+    DbgMarker *SrcMarker = BB.getMarker(InsertPos);
     if (!SrcMarker)
       SrcMarker = BB.createMarker(InsertPos);
-    DbgMarker->absorbDebugValues(*SrcMarker, false);
+    DbgRecordMarker->absorbDbgRecords(*SrcMarker, false);
   }
 
   // If we're inserting a terminator, check if we need to flush out
-  // TrailingDPValues.
+  // TrailingDbgRecords.
   if (isTerminator())
-    getParent()->flushTerminatorDbgValues();
+    getParent()->flushTerminatorDbgRecords();
 }
 
 /// Unlink this instruction from its current basic block and insert it into the
@@ -197,12 +197,12 @@ void Instruction::moveBeforeImpl(BasicBlock &BB, InstListType::iterator I,
   assert(I == BB.end() || I->getParent() == &BB);
   bool InsertAtHead = I.getHeadBit();
 
-  // If we've been given the "Preserve" flag, then just move the DPValues with
+  // If we've been given the "Preserve" flag, then just move the DbgRecords with
   // the instruction, no more special handling needed.
-  if (BB.IsNewDbgInfoFormat && DbgMarker && !Preserve) {
+  if (BB.IsNewDbgInfoFormat && DbgRecordMarker && !Preserve) {
     if (I != this->getIterator() || InsertAtHead) {
       // "this" is definitely moving in the list, or it's moving ahead of its
-      // attached DPValues. Detach any existing DPValues.
+      // attached DbgRecords. Detach any existing DbgRecords.
       handleMarkerRemoval();
     }
   }
@@ -212,71 +212,72 @@ void Instruction::moveBeforeImpl(BasicBlock &BB, InstListType::iterator I,
   BB.getInstList().splice(I, getParent()->getInstList(), getIterator());
 
   if (BB.IsNewDbgInfoFormat && !Preserve) {
-    if (!DbgMarker)
+    if (!DbgRecordMarker)
       BB.createMarker(this);
-    DPMarker *NextMarker = getParent()->getNextMarker(this);
+    DbgMarker *NextMarker = getParent()->getNextMarker(this);
 
-    // If we're inserting at point I, and not in front of the DPValues attached
-    // there, then we should absorb the DPValues attached to I.
+    // If we're inserting at point I, and not in front of the DbgRecords
+    // attached there, then we should absorb the DbgRecords attached to I.
     if (NextMarker && !InsertAtHead)
-      DbgMarker->absorbDebugValues(*NextMarker, false);
+      DbgRecordMarker->absorbDbgRecords(*NextMarker, false);
   }
 
   if (isTerminator())
-    getParent()->flushTerminatorDbgValues();
+    getParent()->flushTerminatorDbgRecords();
 }
 
-iterator_range<DPValue::self_iterator>
-Instruction::cloneDebugInfoFrom(const Instruction *From,
-                                std::optional<DPValue::self_iterator> FromHere,
-                                bool InsertAtHead) {
-  if (!From->DbgMarker)
-    return DPMarker::getEmptyDPValueRange();
+iterator_range<DbgRecord::self_iterator> Instruction::cloneDebugInfoFrom(
+    const Instruction *From, std::optional<DbgRecord::self_iterator> FromHere,
+    bool InsertAtHead) {
+  if (!From->DbgRecordMarker)
+    return DbgMarker::getEmptyDbgRecordRange();
 
   assert(getParent()->IsNewDbgInfoFormat);
   assert(getParent()->IsNewDbgInfoFormat ==
          From->getParent()->IsNewDbgInfoFormat);
 
-  if (!DbgMarker)
+  if (!DbgRecordMarker)
     getParent()->createMarker(this);
 
-  return DbgMarker->cloneDebugInfoFrom(From->DbgMarker, FromHere, InsertAtHead);
+  return DbgRecordMarker->cloneDebugInfoFrom(From->DbgRecordMarker, FromHere,
+                                             InsertAtHead);
 }
 
-iterator_range<DPValue::self_iterator>
-Instruction::getDbgValueRange() const {
+iterator_range<DbgRecord::self_iterator>
+Instruction::getDbgRecordRange() const {
   BasicBlock *Parent = const_cast<BasicBlock *>(getParent());
-  assert(Parent && "Instruction must be inserted to have DPValues");
+  assert(Parent && "Instruction must be inserted to have DbgRecords");
   (void)Parent;
 
-  if (!DbgMarker)
-    return DPMarker::getEmptyDPValueRange();
+  if (!DbgRecordMarker)
+    return DbgMarker::getEmptyDbgRecordRange();
 
-  return DbgMarker->getDbgValueRange();
+  return DbgRecordMarker->getDbgRecordRange();
 }
 
-std::optional<DPValue::self_iterator> Instruction::getDbgReinsertionPosition() {
+std::optional<DbgRecord::self_iterator>
+Instruction::getDbgReinsertionPosition() {
   // Is there a marker on the next instruction?
-  DPMarker *NextMarker = getParent()->getNextMarker(this);
+  DbgMarker *NextMarker = getParent()->getNextMarker(this);
   if (!NextMarker)
     return std::nullopt;
 
-  // Are there any DPValues in the next marker?
-  if (NextMarker->StoredDPValues.empty())
+  // Are there any DbgRecords in the next marker?
+  if (NextMarker->StoredDbgRecords.empty())
     return std::nullopt;
 
-  return NextMarker->StoredDPValues.begin();
+  return NextMarker->StoredDbgRecords.begin();
 }
 
-bool Instruction::hasDbgValues() const { return !getDbgValueRange().empty(); }
+bool Instruction::hasDbgRecords() const { return !getDbgRecordRange().empty(); }
 
-void Instruction::dropDbgValues() {
-  if (DbgMarker)
-    DbgMarker->dropDPValues();
+void Instruction::dropDbgRecords() {
+  if (DbgRecordMarker)
+    DbgRecordMarker->dropDbgRecords();
 }
 
-void Instruction::dropOneDbgValue(DPValue *DPV) {
-  DbgMarker->dropOneDPValue(DPV);
+void Instruction::dropOneDbgRecord(DbgRecord *DPV) {
+  DbgRecordMarker->dropOneDbgRecord(DPV);
 }
 
 bool Instruction::comesBefore(const Instruction *Other) const {

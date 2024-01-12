@@ -1,6 +1,6 @@
 ; RUN: opt -passes=instcombine %s -o - -S | FileCheck %s
 ; FIXME RemoveDIs project: this can't yet be enabled because we haven't
-; implemented DPValue sinking for instcombine-sinks.
+; implemented DbgVariableRecord sinking for instcombine-sinks.
 ; run: opt -passes=instcombine %s -o - -S --try-experimental-debuginfo-iterators | FileCheck %s
 ; typedef struct v *v_t;
 ; struct v {

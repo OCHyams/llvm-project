@@ -199,14 +199,14 @@ void SSAUpdater::RewriteUse(Use &U) {
 
 void SSAUpdater::UpdateDebugValues(Instruction *I) {
   SmallVector<DbgValueInst *, 4> DbgValues;
-  SmallVector<DPValue *, 4> DPValues;
-  llvm::findDbgValues(DbgValues, I, &DPValues);
+  SmallVector<DbgVariableRecord *, 4> DbgVarRecs;
+  llvm::findDbgValues(DbgValues, I, &DbgVarRecs);
   for (auto &DbgValue : DbgValues) {
     if (DbgValue->getParent() == I->getParent())
       continue;
     UpdateDebugValue(I, DbgValue);
   }
-  for (auto &DPV : DPValues) {
+  for (auto &DPV : DbgVarRecs) {
     if (DPV->getParent() == I->getParent())
       continue;
     UpdateDebugValue(I, DPV);
@@ -220,9 +220,9 @@ void SSAUpdater::UpdateDebugValues(Instruction *I,
   }
 }
 
-void SSAUpdater::UpdateDebugValues(Instruction *I,
-                                   SmallVectorImpl<DPValue *> &DPValues) {
-  for (auto &DPV : DPValues) {
+void SSAUpdater::UpdateDebugValues(
+    Instruction *I, SmallVectorImpl<DbgVariableRecord *> &DbgVarRecs) {
+  for (auto &DPV : DbgVarRecs) {
     UpdateDebugValue(I, DPV);
   }
 }
@@ -236,7 +236,7 @@ void SSAUpdater::UpdateDebugValue(Instruction *I, DbgValueInst *DbgValue) {
     DbgValue->setKillLocation();
 }
 
-void SSAUpdater::UpdateDebugValue(Instruction *I, DPValue *DPV) {
+void SSAUpdater::UpdateDebugValue(Instruction *I, DbgVariableRecord *DPV) {
   BasicBlock *UserBB = DPV->getParent();
   if (HasValueForBlock(UserBB)) {
     Value *NewVal = GetValueAtEndOfBlock(UserBB);

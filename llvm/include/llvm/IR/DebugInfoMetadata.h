@@ -65,7 +65,7 @@ enum Tag : uint16_t;
 }
 
 class DbgVariableIntrinsic;
-class DPValue;
+class DbgVariableRecord;
 
 extern cl::opt<bool> EnableFSDiscriminator;
 
@@ -3784,8 +3784,8 @@ public:
     return MD->getMetadataID() == DIArgListKind;
   }
 
-  SmallVector<DPValue *> getAllDPValueUsers() {
-    return ReplaceableMetadataImpl::getAllDPValueUsers();
+  SmallVector<DbgVariableRecord *> getAllDbgVariableRecordUsers() {
+    return ReplaceableMetadataImpl::getAllDbgVariableRecordUsers();
   }
 
   void handleChangedOperand(void *Ref, Metadata *New);
@@ -3815,7 +3815,7 @@ class DebugVariable {
 
 public:
   DebugVariable(const DbgVariableIntrinsic *DII);
-  DebugVariable(const DPValue *DPV);
+  DebugVariable(const DbgVariableRecord *DPV);
 
   DebugVariable(const DILocalVariable *Var,
                 std::optional<FragmentInfo> FragmentInfo,

@@ -2758,7 +2758,7 @@ Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
   // If we are removing an alloca with a dbg.declare, insert dbg.value calls
   // before each store.
   SmallVector<DbgVariableIntrinsic *, 8> DVIs;
-  SmallVector<DPValue *, 8> DPVs;
+  SmallVector<DbgVariableRecord *, 8> DPVs;
   std::unique_ptr<DIBuilder> DIB;
   if (isa<AllocaInst>(MI)) {
     findDbgUsers(DVIs, &MI, &DPVs);
@@ -3095,14 +3095,14 @@ void InstCombinerImpl::handleUnreachableFrom(
     if (Inst.isEHPad() || Inst.getType()->isTokenTy())
       continue;
     // RemoveDIs: erase debug-info on this instruction manually.
-    Inst.dropDbgValues();
+    Inst.dropDbgRecords();
     eraseInstFromFunction(Inst);
     MadeIRChange = true;
   }
 
   // RemoveDIs: to match behaviour in dbg.value mode, drop debug-info on
   // terminator too.
-  BB->getTerminator()->dropDbgValues();
+  BB->getTerminator()->dropDbgRecords();
 
   // Handle potentially dead successors.
   for (BasicBlock *Succ : successors(BB))
@@ -4176,7 +4176,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   // For all debug values in the destination block, the sunk instruction
   // will still be available, so they do not need to be dropped.
   SmallVector<DbgVariableIntrinsic *, 2> DbgUsersToSalvage;
-  SmallVector<DPValue *, 2> DPValuesToSalvage;
+  SmallVector<DbgVariableRecord *, 2> DbgVarRecsToSalvage;
   for (auto &DbgUser : DbgUsers)
     if (DbgUser->getParent() != DestBlock)
       DbgUsersToSalvage.push_back(DbgUser);
@@ -4220,10 +4220,10 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
 
   // Perform salvaging without the clones, then sink the clones.
   if (!DIIClones.empty()) {
-    // RemoveDIs: pass in empty vector of DPValues until we get to instrumenting
-    // this pass.
-    SmallVector<DPValue *, 1> DummyDPValues;
-    salvageDebugInfoForDbgValues(*I, DbgUsersToSalvage, DummyDPValues);
+    // RemoveDIs: pass in empty vector of DbgVariableRecords until we get to
+    // instrumenting this pass.
+    SmallVector<DbgVariableRecord *, 1> DummyDbgVarRecs;
+    salvageDebugInfoForDbgValues(*I, DbgUsersToSalvage, DummyDbgVarRecs);
     // The clones are in reverse order of original appearance, reverse again to
     // maintain the original order.
     for (auto &DIIClone : llvm::reverse(DIIClones)) {

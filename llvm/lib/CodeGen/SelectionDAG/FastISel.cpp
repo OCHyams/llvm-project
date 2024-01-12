@@ -1181,27 +1181,29 @@ bool FastISel::selectCall(const User *I) {
 }
 
 void FastISel::handleDbgInfo(const Instruction *II) {
-  if (!II->hasDbgValues())
+  if (!II->hasDbgRecords())
     return;
 
   // Clear any metadata.
   MIMD = MIMetadata();
 
   // Reverse order of debug records, because fast-isel walks through backwards.
-  for (DPValue &DPV : llvm::reverse(II->getDbgValueRange())) {
+  for (DbgRecord &DPR : llvm::reverse(II->getDbgRecordRange())) {
     flushLocalValueMap();
     recomputeInsertPt();
+
+    DbgVariableRecord &DPV = cast<DbgVariableRecord>(DPR);
 
     Value *V = nullptr;
     if (!DPV.hasArgList())
       V = DPV.getVariableLocationOp(0);
 
     bool Res = false;
-    if (DPV.getType() == DPValue::LocationType::Value) {
+    if (DPV.getType() == DbgVariableRecord::LocationType::Value) {
       Res = lowerDbgValue(V, DPV.getExpression(), DPV.getVariable(),
                           DPV.getDebugLoc());
     } else {
-      assert(DPV.getType() == DPValue::LocationType::Declare);
+      assert(DPV.getType() == DbgVariableRecord::LocationType::Declare);
       if (FuncInfo.PreprocessedDPVDeclares.contains(&DPV))
         continue;
       Res = lowerDbgDeclare(V, DPV.getExpression(), DPV.getVariable(),

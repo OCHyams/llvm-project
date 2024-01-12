@@ -1126,8 +1126,8 @@ static void CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
 
     NewBonusInst->insertInto(PredBlock, PTI->getIterator());
     auto Range = NewBonusInst->cloneDebugInfoFrom(&BonusInst);
-    RemapDPValueRange(NewBonusInst->getModule(), Range, VMap,
-                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+    RemapDbgVariableRecords(NewBonusInst->getModule(), Range, VMap,
+                            RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
 
     if (isa<DbgInfoIntrinsic>(BonusInst))
       continue;
@@ -3129,11 +3129,11 @@ bool SimplifyCFGOpt::SpeculativelyExecuteBB(BranchInst *BI,
   }
 
   // Hoist the instructions.
-  // In "RemoveDIs" non-instr debug-info mode, drop DPValues attached to these
+  // In "RemoveDIs" non-instr debug-info mode, drop DbgRecords attached to these
   // instructions, in the same way that dbg.value intrinsics are dropped at the
   // end of this block.
   for (auto &It : make_range(ThenBB->begin(), ThenBB->end()))
-    It.dropDbgValues();
+    It.dropDbgRecords();
   BB->splice(BI->getIterator(), ThenBB, ThenBB->begin(),
              std::prev(ThenBB->end()));
 
@@ -3307,7 +3307,7 @@ FoldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
     TranslateMap[Cond] = CB;
 
     // RemoveDIs: track instructions that we optimise away while folding, so
-    // that we can copy DPValues from them later.
+    // that we can copy DbgRecords from them later.
     BasicBlock::iterator SrcDbgCursor = BB->begin();
     for (BasicBlock::iterator BBI = BB->begin(); &*BBI != BI; ++BBI) {
       if (PHINode *PN = dyn_cast<PHINode>(BBI)) {
@@ -3771,9 +3771,10 @@ static bool performBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
 
   if (PredBlock->IsNewDbgInfoFormat) {
     PredBlock->getTerminator()->cloneDebugInfoFrom(BB->getTerminator());
-    for (DPValue &DPV : PredBlock->getTerminator()->getDbgValueRange()) {
-      RemapDPValue(M, &DPV, VMap,
-                   RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+    for (DbgVariableRecord &DPV : DbgVariableRecord::filter(
+             PredBlock->getTerminator()->getDbgRecordRange())) {
+      RemapDbgVariableRecord(M, &DPV, VMap,
+                             RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     }
   }
 
@@ -5226,11 +5227,11 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
   // Ensure that any debug-info records that used to occur after the Unreachable
   // are moved to in front of it -- otherwise they'll "dangle" at the end of
   // the block.
-  BB->flushTerminatorDbgValues();
+  BB->flushTerminatorDbgRecords();
 
   // Debug-info records on the unreachable inst itself should be deleted, as
   // below we delete everything past the final executable instruction.
-  UI->dropDbgValues();
+  UI->dropDbgRecords();
 
   // If there are any instructions immediately before the unreachable that can
   // be removed, do so.
@@ -5249,8 +5250,8 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
     // and we can therefore guarantee this block will be erased.
 
     // If we're deleting this, we're deleting any subsequent dbg.values, so
-    // delete DPValue records of variable information.
-    BBI->dropDbgValues();
+    // delete debug records too.
+    BBI->dropDbgRecords();
 
     // Delete this instruction (any uses are guaranteed to be dead)
     BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));

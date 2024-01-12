@@ -70,7 +70,7 @@ struct SIModeRegisterDefaults {
 
   /// Get the encoding value for the FP_DENORM bits of the mode register for the
   /// FP64/FP16 denormal mode.
-  uint32_t fpDenormModeDPValue() const {
+  uint32_t fpDenormModeDbgVariableRecord() const {
     if (FP64FP16Denormals == DenormalMode::getPreserveSign())
       return FP_DENORM_FLUSH_IN_FLUSH_OUT;
     if (FP64FP16Denormals.Output == DenormalMode::PreserveSign)

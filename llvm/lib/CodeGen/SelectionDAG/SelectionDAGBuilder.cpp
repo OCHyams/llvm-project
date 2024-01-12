@@ -1230,13 +1230,14 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
   }
 
   // Is there is any debug-info attached to this instruction, in the form of
-  // DPValue non-instruction debug-info records.
-  for (DPValue &DPV : I.getDbgValueRange()) {
+  // DbgRecord non-instruction debug-info records.
+  for (DbgRecord &DPR : I.getDbgRecordRange()) {
+    DbgVariableRecord &DPV = cast<DbgVariableRecord>(DPR);
     DILocalVariable *Variable = DPV.getVariable();
     DIExpression *Expression = DPV.getExpression();
     dropDanglingDebugInfo(Variable, Expression);
 
-    if (DPV.getType() == DPValue::LocationType::Declare) {
+    if (DPV.getType() == DbgVariableRecord::LocationType::Declare) {
       if (FuncInfo.PreprocessedDPVDeclares.contains(&DPV))
         continue;
       LLVM_DEBUG(dbgs() << "SelectionDAG visiting dbg_declare: " << DPV
@@ -1246,7 +1247,7 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
       continue;
     }
 
-    // A DPValue with no locations is a kill location.
+    // A DbgVariableRecord with no locations is a kill location.
     SmallVector<Value *, 4> Values(DPV.location_ops());
     if (Values.empty()) {
       handleKillDebugValue(Variable, Expression, DPV.getDebugLoc(),
@@ -1254,7 +1255,8 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
       continue;
     }
 
-    // A DPValue with an undef or absent location is also a kill location.
+    // A DbgVariableRecord with an undef or absent location is also a kill
+    // location.
     if (llvm::any_of(Values,
                      [](Value *V) { return !V || isa<UndefValue>(V); })) {
       handleKillDebugValue(Variable, Expression, DPV.getDebugLoc(),

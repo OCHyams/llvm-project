@@ -34,22 +34,23 @@ namespace llvm {
 class DbgDeclareInst;
 class DbgValueInst;
 class DbgVariableIntrinsic;
-class DPValue;
+class DbgVariableRecord;
 class Instruction;
 class Module;
 
 /// Finds dbg.declare intrinsics declaring local variables as living in the
 /// memory that 'V' points to.
-void findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers, Value *V,
-                     SmallVectorImpl<DPValue *> *DPValues = nullptr);
+void findDbgDeclares(
+    SmallVectorImpl<DbgDeclareInst *> &DbgUsers, Value *V,
+    SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs = nullptr);
 
 /// Finds the llvm.dbg.value intrinsics describing a value.
-void findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues,
-                   Value *V, SmallVectorImpl<DPValue *> *DPValues = nullptr);
+void findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
+                   SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs = nullptr);
 
 /// Finds the debug info intrinsics describing a value.
-void findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgInsts,
-                  Value *V, SmallVectorImpl<DPValue *> *DPValues = nullptr);
+void findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgInsts, Value *V,
+                  SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs = nullptr);
 
 /// Find subprogram that is enclosing this scope.
 DISubprogram *getDISubprogram(const MDNode *Scope);
@@ -107,8 +108,10 @@ public:
   void processVariable(const Module &M, const DILocalVariable *DVI);
   /// Process debug info location.
   void processLocation(const Module &M, const DILocation *Loc);
-  // Process a DPValue, much like a DbgVariableIntrinsic.
-  void processDPValue(const Module &M, const DPValue &DPV);
+  // Process a DbgVariableRecord, much like a DbgVariableIntrinsic.
+  void processDbgVariableRecord(const Module &M, const DbgVariableRecord &DPV);
+  /// Dispatch to DbgRecord subclasses handlers.
+  void processDbgRecord(const Module &M, const DbgRecord &DPE);
 
   /// Process subprogram.
   void processSubprogram(DISubprogram *SP);

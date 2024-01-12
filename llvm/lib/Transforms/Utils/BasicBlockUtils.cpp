@@ -382,14 +382,16 @@ bool llvm::MergeBlockSuccessorsIntoGivenBlocks(
 /// - Check fully overlapping fragments and not only identical fragments.
 /// - Support dbg.declare. dbg.label, and possibly other meta instructions being
 ///   part of the sequence of consecutive instructions.
-static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
-  SmallVector<DPValue *, 8> ToBeRemoved;
+static bool
+DbgRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
+  SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
-    for (DPValue &DPV : reverse(I.getDbgValueRange())) {
+    for (DbgVariableRecord &DPV :
+         reverse(DbgVariableRecord::filter(I.getDbgRecordRange()))) {
       // Skip declare-type records, as the debug intrinsic method only works
       // on dbg.value intrinsics.
-      if (DPV.getType() == DPValue::LocationType::Declare) {
+      if (DPV.getType() == DbgVariableRecord::LocationType::Declare) {
         // The debug intrinsic method treats dbg.declares are "non-debug"
         // instructions (i.e., a break in a consecutive range of debug
         // intrinsics). Emulate that to create identical outputs. See
@@ -425,7 +427,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
 
 static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   if (BB->IsNewDbgInfoFormat)
-    return DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BB);
+    return DbgRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BB);
 
   SmallVector<DbgValueInst *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
@@ -484,13 +486,14 @@ static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
 ///
 /// Possible improvements:
 /// - Keep track of non-overlapping fragments.
-static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
-  SmallVector<DPValue *, 8> ToBeRemoved;
+static bool DbgRecordsRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
+  SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>
       VariableMap;
   for (auto &I : *BB) {
-    for (DPValue &DPV : I.getDbgValueRange()) {
-      if (DPV.getType() == DPValue::LocationType::Declare)
+    for (DbgVariableRecord &DPV :
+         DbgVariableRecord::filter(I.getDbgRecordRange())) {
+      if (DPV.getType() == DbgVariableRecord::LocationType::Declare)
         continue;
       DebugVariable Key(DPV.getVariable(), std::nullopt,
                         DPV.getDebugLoc()->getInlinedAt());
@@ -516,7 +519,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
 
 static bool removeRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
   if (BB->IsNewDbgInfoFormat)
-    return DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BB);
+    return DbgRecordsRemoveRedundantDbgInstrsUsingForwardScan(BB);
 
   SmallVector<DbgValueInst *, 8> ToBeRemoved;
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>

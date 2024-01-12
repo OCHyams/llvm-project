@@ -44,10 +44,11 @@ using namespace llvm;
 using namespace llvm::at;
 using namespace llvm::dwarf;
 
-template <typename IntrinsicT,
-          DPValue::LocationType Type = DPValue::LocationType::Any>
-static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
-                              SmallVectorImpl<DPValue *> *DPValues) {
+template <typename IntrinsicT, DbgVariableRecord::LocationType Type =
+                                   DbgVariableRecord::LocationType::Any>
+static void
+findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
+                  SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
@@ -60,24 +61,27 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
   // V will also appear twice in a dbg.assign if its used in the both the value
   // and address components.
   SmallPtrSet<IntrinsicT *, 4> EncounteredIntrinsics;
-  SmallPtrSet<DPValue *, 4> EncounteredDPValues;
+  SmallPtrSet<DbgVariableRecord *, 4> EncounteredDbgVarRecs;
 
   /// Append IntrinsicT users of MetadataAsValue(MD).
   auto AppendUsers = [&Ctx, &EncounteredIntrinsics, &Result,
-                      DPValues](Metadata *MD) {
+                      DbgVarRecs](Metadata *MD) {
     if (auto *MDV = MetadataAsValue::getIfExists(Ctx, MD)) {
       for (User *U : MDV->users())
         if (IntrinsicT *DVI = dyn_cast<IntrinsicT>(U))
           if (EncounteredIntrinsics.insert(DVI).second)
             Result.push_back(DVI);
     }
-    if (!DPValues)
+    if (!DbgVarRecs)
       return;
-    // Get DPValues that use this as a single value.
+    // Get DbgVariableRecords that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
-      for (DPValue *DPV : L->getAllDPValueUsers()) {
-        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
-          DPValues->push_back(DPV);
+      for (DbgRecord *DPR : L->getAllDbgVariableRecordUsers()) {
+        if (auto *DPV = dyn_cast<DbgVariableRecord>(DPR)) {
+          if (Type == DbgVariableRecord::LocationType::Any ||
+              DPV->getType() == Type)
+            DbgVarRecs->push_back(DPV);
+        }
       }
     }
   };
@@ -86,33 +90,37 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
     AppendUsers(L);
     for (Metadata *AL : L->getAllArgListUsers()) {
       AppendUsers(AL);
-      if (!DPValues)
+      if (!DbgVarRecs)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
-      for (DPValue *DPV : DI->getAllDPValueUsers())
-        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
-          if (EncounteredDPValues.insert(DPV).second)
-            DPValues->push_back(DPV);
+      for (DbgVariableRecord *DPV : DI->getAllDbgVariableRecordUsers()) {
+        if (Type == DbgVariableRecord::LocationType::Any ||
+            DPV->getType() == Type)
+          if (EncounteredDbgVarRecs.insert(DPV).second)
+            DbgVarRecs->push_back(DPV);
+      }
     }
   }
 }
 
 void llvm::findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers,
-                           Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgDeclareInst, DPValue::LocationType::Declare>(DbgUsers, V,
-                                                                    DPValues);
+                           Value *V,
+                           SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
+  findDbgIntrinsics<DbgDeclareInst, DbgVariableRecord::LocationType::Declare>(
+      DbgUsers, V, DbgVarRecs);
 }
 
-void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues,
-                         Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgValueInst, DPValue::LocationType::Value>(DbgValues, V,
-                                                                DPValues);
+void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
+                         SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
+  findDbgIntrinsics<DbgValueInst, DbgVariableRecord::LocationType::Value>(
+      DbgValues, V, DbgVarRecs);
 }
 
 void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
-                        Value *V, SmallVectorImpl<DPValue *> *DPValues) {
-  findDbgIntrinsics<DbgVariableIntrinsic, DPValue::LocationType::Any>(
-      DbgUsers, V, DPValues);
+                        Value *V,
+                        SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
+  findDbgIntrinsics<DbgVariableIntrinsic, DbgVariableRecord::LocationType::Any>(
+      DbgUsers, V, DbgVarRecs);
 }
 
 DISubprogram *llvm::getDISubprogram(const MDNode *Scope) {
@@ -198,8 +206,8 @@ void DebugInfoFinder::processInstruction(const Module &M,
   if (auto DbgLoc = I.getDebugLoc())
     processLocation(M, DbgLoc.get());
 
-  for (const DPValue &DPV : I.getDbgValueRange())
-    processDPValue(M, DPV);
+  for (const DbgRecord &DPR : I.getDbgRecordRange())
+    processDbgRecord(M, DPR);
 }
 
 void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
@@ -209,9 +217,14 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
   processLocation(M, Loc->getInlinedAt());
 }
 
-void DebugInfoFinder::processDPValue(const Module &M, const DPValue &DPV) {
+void DebugInfoFinder::processDbgVariableRecord(const Module &M,
+                                               const DbgVariableRecord &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
+}
+
+void DebugInfoFinder::processDbgRecord(const Module &M, const DbgRecord &DPR) {
+  processDbgVariableRecord(M, cast<DbgVariableRecord>(DPR));
 }
 
 void DebugInfoFinder::processType(DIType *DT) {
@@ -535,7 +548,7 @@ bool llvm::stripDebugInfo(Function &F) {
         // DIAssignID are debug info metadata primitives.
         I.setMetadata(LLVMContext::MD_DIAssignID, nullptr);
       }
-      I.dropDbgValues();
+      I.dropDbgRecords();
     }
   }
   return Changed;

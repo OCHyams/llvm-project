@@ -4761,7 +4761,7 @@ static void toggleSPDenormMode(bool Enable, MachineIRBuilder &B,
 
   if (ST.hasDenormModeInst()) {
     // Preserve default FP64FP16 denorm mode while updating FP32 mode.
-    uint32_t DPDenormModeDefault = Mode.fpDenormModeDPValue();
+    uint32_t DPDenormModeDefault = Mode.fpDenormModeDbgVariableRecord();
 
     uint32_t NewDenormModeValue = SPDenormMode | (DPDenormModeDefault << 2);
     B.buildInstr(AMDGPU::S_DENORM_MODE)
