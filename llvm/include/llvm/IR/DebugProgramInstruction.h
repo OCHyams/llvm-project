@@ -148,7 +148,6 @@ protected:
 /// to update our references to metadata beneath our feet.
 class DPValue : public DbgRecord, protected DebugValueUser {
   friend class DebugValueUser;
-
 public:
   enum class LocationType : uint8_t {
     Declare,

@@ -49,7 +49,6 @@ void DbgRecord::deleteRecord() {
     llvm_unreachable("unsupported record kind");
   }
 }
-
 void DbgRecord::print(raw_ostream &O, bool IsForDebug) const {
   switch (RecordKind) {
   case ValueKind:
