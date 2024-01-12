@@ -40,7 +40,7 @@ DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
     : DbgRecord(ValueKind, DI), DebugValueUser(Location), Type(Type),
       Variable(DV), Expression(Expr) {}
 
-void DbgRecord::deleteEntity() {
+void DbgRecord::deleteRecord() {
   switch (RecordKind) {
   case ValueKind:
     delete cast<DPValue>(this);
@@ -49,7 +49,7 @@ void DbgRecord::deleteEntity() {
     delete cast<DPLabel>(this);
     break;
   default:
-    llvm_unreachable("unsupported entity kind");
+    llvm_unreachable("unsupported record kind");
   }
 }
 
@@ -199,7 +199,7 @@ DbgRecord *DbgRecord::clone() const {
   case LabelKind:
     return cast<DPLabel>(this)->clone();
   default:
-    llvm_unreachable("unsupported entity kind");
+    llvm_unreachable("unsupported record kind");
   };
 }
 
@@ -288,14 +288,14 @@ void DPMarker::dropDbgRecords() {
     auto It = StoredDbgRecords.begin();
     DbgRecord *DPE = &*It;
     StoredDbgRecords.erase(It);
-    DPE->deleteEntity();
+    DPE->deleteRecord();
   }
 }
 
 void DPMarker::dropOneDbgRecord(DbgRecord *DPE) {
   assert(DPE->getMarker() == this);
   StoredDbgRecords.erase(DPE->getIterator());
-  DPE->deleteEntity();
+  DPE->deleteRecord();
 }
 
 const BasicBlock *DPMarker::getParent() const {
@@ -348,7 +348,7 @@ void DbgRecord::removeFromParent() {
 
 void DbgRecord::eraseFromParent() {
   removeFromParent();
-  deleteEntity();
+  deleteRecord();
 }
 
 void DPMarker::insertDbgRecord(DbgRecord *New, bool InsertAtHead) {
