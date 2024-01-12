@@ -1130,7 +1130,7 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
   processGlobalObjectMetadata(F);
   for (auto &BB : F) {
     for (auto &I : BB) {
-      for (const DPValue &DPV : I.getDbgValueRange())
+      for (const DPValue &DPV : DPValue::filter(I.getDbgValueRange()))
         processDPValueMetadata(DPV);
       processInstructionMetadata(I);
     }
@@ -4557,8 +4557,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   // There's no formal representation of a DPMarker -- print purely as a
   // debugging aid.
-  for (const DPValue &DPI2 : Marker.StoredDPValues) {
-    printDPValue(DPI2);
+  for (const DbgRecord &DPR : Marker.StoredDPValues) {
+    if (auto *DPV = dyn_cast<DPValue>(&DPR))
+      printDPValue(*DPV);
+    else
+      llvm_unreachable("unsupported dbg record");
     Out << "\n";
   }
 
