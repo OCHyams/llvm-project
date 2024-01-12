@@ -75,7 +75,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       return;
     // Get DPValues that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
-      for (DPEntity *DPE : L->getAllDPValueUsers()) {
+      for (DbgRecord *DPE : L->getAllDPValueUsers()) {
         if (auto *DPV = dyn_cast<DPValue>(DPE)) {
           if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
             DPValues->push_back(DPV);
@@ -91,7 +91,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       if (!DPValues)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
-      for (DPEntity *DPE : DI->getAllDPValueUsers()) {
+      for (DbgRecord *DPE : DI->getAllDPValueUsers()) {
         if (auto *DPV = dyn_cast<DPValue>(DPE)) {
           if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
             if (EncounteredDPValues.insert(DPV).second)
@@ -203,7 +203,7 @@ void DebugInfoFinder::processInstruction(const Module &M,
   if (auto DbgLoc = I.getDebugLoc())
     processLocation(M, DbgLoc.get());
 
-  for (const DPEntity &DPE : I.getDbgValueRange())
+  for (const DbgRecord &DPE : I.getDbgRecordRange())
     processDPEntity(M, DPE);
 }
 
@@ -219,7 +219,7 @@ void DebugInfoFinder::processDPValue(const Module &M, const DPValue &DPV) {
   processLocation(M, DPV.getDebugLoc().get());
 }
 
-void DebugInfoFinder::processDPEntity(const Module &M, const DPEntity &DPE) {
+void DebugInfoFinder::processDPEntity(const Module &M, const DbgRecord &DPE) {
   processDPValue(M, cast<DPValue>(DPE));
 }
 
@@ -544,7 +544,7 @@ bool llvm::stripDebugInfo(Function &F) {
         // DIAssignID are debug info metadata primitives.
         I.setMetadata(LLVMContext::MD_DIAssignID, nullptr);
       }
-      I.dropDbgValues();
+      I.dropDbgRecords();
     }
   }
   return Changed;
@@ -837,7 +837,7 @@ bool llvm::stripNonLineTableDebugInfo(Module &M) {
     }
     for (auto &BB : F) {
       for (auto &I : BB) {
-        I.dropDbgValues();
+        I.dropDbgRecords();
         auto remapDebugLoc = [&](const DebugLoc &DL) -> DebugLoc {
           auto *Scope = DL.getScope();
           MDNode *InlinedAt = DL.getInlinedAt();

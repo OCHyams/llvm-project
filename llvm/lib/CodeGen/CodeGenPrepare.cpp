@@ -2876,7 +2876,7 @@ class TypePromotionTransaction {
           Inst->insertBefore(*Point.BB, Position);
       }
 
-      Inst->getParent()->reinsertInstInDPValues(Inst, BeforeDPValue);
+      Inst->getParent()->reinsertInstInDbgRecords(Inst, BeforeDPValue);
     }
   };
 
@@ -8400,7 +8400,7 @@ bool CodeGenPrepare::fixupDbgValue(Instruction *I) {
 
 bool CodeGenPrepare::fixupDPValuesOnInst(Instruction &I) {
   bool AnyChange = false;
-  for (DPValue &DPV : filterValues(I.getDbgValueRange()))
+  for (DPValue &DPV : filterValues(I.getDbgRecordRange()))
     AnyChange |= fixupDPValue(DPV);
   return AnyChange;
 }
@@ -8443,9 +8443,9 @@ static void DbgInserterHelper(DPValue *DPV, Instruction *VI) {
   DPV->removeFromParent();
   BasicBlock *VIBB = VI->getParent();
   if (isa<PHINode>(VI))
-    VIBB->insertDPValueBefore(DPV, VIBB->getFirstInsertionPt());
+    VIBB->insertDbgRecordBefore(DPV, VIBB->getFirstInsertionPt());
   else
-    VIBB->insertDPValueAfter(DPV, VI);
+    VIBB->insertDbgRecordAfter(DPV, VI);
 }
 
 // A llvm.dbg.value may be using a value before its definition, due to
@@ -8513,7 +8513,7 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
       // If this isn't a dbg.value, process any attached DPValue records
       // attached to this instruction.
       for (DPValue &DPV :
-           llvm::make_early_inc_range(filterValues(Insn.getDbgValueRange()))) {
+           llvm::make_early_inc_range(filterValues(Insn.getDbgRecordRange()))) {
         if (DPV.Type != DPValue::LocationType::Value)
           continue;
         DbgProcessor(&DPV, &Insn);

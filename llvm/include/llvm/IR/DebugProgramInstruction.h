@@ -26,7 +26,7 @@
 //       ;; the instruction for %foo, therefore it has no DbgMarker.
 //    %bar = void call @ext(%foo)
 //       ; bar->DbgMarker = {
-//       ;   StoredDPEntities = {
+//       ;   StoredDbgRecords = {
 //       ;     DPValue(metadata i32 %foo, ...)
 //       ;   }
 //       ; }
@@ -67,33 +67,33 @@ class raw_ostream;
 
 /// Base class for non-instruction debug metadata records that have positions
 /// within IR. Features various methods copied across from the Instruction
-/// class to aid ease-of-use. DPEntity objects should always be linked into a
-/// DPMarker's StoredDPEntities list. The marker connects a DPEntity back to
+/// class to aid ease-of-use. DbgRecords should always be linked into a
+/// DPMarker's StoredDbgRecords list. The marker connects a DbgRecord back to
 /// it's position in the BasicBlock.
 ///
 /// We need a discriminator for dyn/isa casts. In order to avoid paying for a
 /// vtable for "virtual" functions too, subclasses must add a new discriminator
-/// value (EntitiyKind) and cases to a few functions in the base class:
-///   deleteEntity();
+/// value (RecordKind) and cases to a few functions in the base class:
+///   deleteRecord();
 ///   clone()
-class DPEntity : public ilist_node<DPEntity> {
+class DbgRecord : public ilist_node<DbgRecord> {
 public:
-  /// Marker that this DPValue is linked into.
-  /// FIXME: Make this private.
+  /// Marker that this DbgRecord is linked into.
   DPMarker *Marker = nullptr;
+  /// Subclass discriminator.
   enum Kind : uint8_t { ValueKind, LabelKind };
 
 protected:
   DebugLoc DbgLoc;
-  Kind EntityKind;
+  Kind RecordKind; ///< Subclass discriminator.
 
 public:
-  DPEntity(Kind EntityKind, DebugLoc DL) : DbgLoc(DL), EntityKind(EntityKind) {}
-  void deleteEntity();
+  DbgRecord(Kind RecordKind, DebugLoc DL) : DbgLoc(DL), RecordKind(RecordKind) {}
+  void deleteRecord();
 
-  DPEntity *clone() const;
+  DbgRecord *clone() const;
 
-  Kind getEntityKind() const { return EntityKind; }
+  Kind getRecordKind() const { return RecordKind; }
 
   void setMarker(DPMarker *M) { Marker = M; }
 
@@ -121,23 +121,24 @@ public:
   DebugLoc getDebugLoc() const { return DbgLoc; }
   void setDebugLoc(DebugLoc Loc) { DbgLoc = std::move(Loc); }
 
-  using self_iterator = simple_ilist<DPEntity>::iterator;
-  using const_self_iterator = simple_ilist<DPEntity>::const_iterator;
+  using self_iterator = simple_ilist<DbgRecord>::iterator;
+  using const_self_iterator = simple_ilist<DbgRecord>::const_iterator;
 
 protected:
-  // Similarly to Value, we avoid paying the cost of a vtable
-  // by protecting the dtor and having deleteEntity dispatch
-  // cleanup.
-  ~DPEntity() = default; // Use deleteEntity to delete a generic entity.
+  /// Similarly to Value, we avoid paying the cost of a vtable
+  /// by protecting the dtor and having deleteRecord dispatch
+  /// cleanup.
+  /// Use deleteRecord to delete a generic record.
+  ~DbgRecord() = default;
 };
 
 /// Records a position in IR for a source label (DILabel). Corresponds to the
 /// llvm.dbg.label intrinsic.
-class DPLabel : public DPEntity {
+class DPLabel : public DbgRecord {
   DILabel *Label;
 
 public:
-  DPLabel(DILabel *Label, DebugLoc DL) : DPEntity(LabelKind, DL), Label(Label) {
+  DPLabel(DILabel *Label, DebugLoc DL) : DbgRecord(LabelKind, DL), Label(Label) {
     assert(Label && "unexpected nullptr");
   }
   DPLabel *clone() const;
@@ -146,8 +147,8 @@ public:
   DILabel *getLabel() const { return Label; }
 
   /// Support type inquiry through isa, cast, and dyn_cast.
-  static bool classof(const DPEntity *E) {
-    return E->getEntityKind() == LabelKind;
+  static bool classof(const DbgRecord *E) {
+    return E->getRecordKind() == LabelKind;
   }
 };
 
@@ -156,7 +157,7 @@ public:
 ///
 /// This class inherits from DebugValueUser to allow LLVM's metadata facilities
 /// to update our references to metadata beneath our feet.
-class DPValue : public DPEntity, protected DebugValueUser {
+class DPValue : public DbgRecord, protected DebugValueUser {
   friend class DebugValueUser;
 
 public:
@@ -170,7 +171,7 @@ public:
   /// Classification of the debug-info record that this DPValue represents.
   /// Essentially, "is this a dbg.value or dbg.declare?". dbg.declares are not
   /// currently supported, but it would be trivial to do so.
-  /// FIXME: We could use spare padding bits from DPEntity for this.
+  /// FIXME: We could use spare padding bits from DbgRecord for this.
   LocationType Type;
 
   // NB: there is no explicit "Value" field in this class, it's effectively the
@@ -310,22 +311,22 @@ public:
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
   /// Support type inquiry through isa, cast, and dyn_cast.
-  static bool classof(const DPEntity *E) {
-    return E->getEntityKind() == ValueKind;
+  static bool classof(const DbgRecord *E) {
+    return E->getRecordKind() == ValueKind;
   }
 };
 
-/// Filter the DPEntity range to the DPValues only and downcast.
-inline auto filterValues(iterator_range<simple_ilist<DPEntity>::iterator> R) {
+/// Filter the DbgRecord range to the DPValues only and downcast.
+inline auto filterValues(iterator_range<simple_ilist<DbgRecord>::iterator> R) {
   return map_range(
-      make_filter_range(R, [](DPEntity &E) { return isa<DPValue>(E); }),
-      [](DPEntity &E) { return std::ref(cast<DPValue>(E)); });
+      make_filter_range(R, [](DbgRecord &E) { return isa<DPValue>(E); }),
+      [](DbgRecord &E) { return std::ref(cast<DPValue>(E)); });
 }
 
 /// Per-instruction record of debug-info. If an Instruction is the position of
 /// some debugging information, it points at a DPMarker storing that info. Each
 /// marker points back at the instruction that owns it. Various utilities are
-/// provided for manipulating the DPEntity objects contained within this marker.
+/// provided for manipulating the DbgRecords contained within this marker.
 ///
 /// This class has a rough surface area, because it's needed to preserve the
 /// one arefact that we can't yet eliminate from the intrinsic / dbg.value
@@ -350,12 +351,12 @@ public:
   /// operations that move a marker from one instruction to another.
   Instruction *MarkedInstr = nullptr;
 
-  /// List of DPEntity objects, the non-instruction equivalent of llvm.dbg.*
+  /// List of DbgRecords, the non-instruction equivalent of llvm.dbg.*
   /// intrinsics. There is a one-to-one relationship between each debug
-  /// intrinsic in a block and each DPEntity once the representation has been
+  /// intrinsic in a block and each DbgRecord once the representation has been
   /// converted, and the ordering is meaningful in the same way.
-  simple_ilist<DPEntity> StoredDPEntities;
-  bool empty() const { return StoredDPEntities.empty(); }
+  simple_ilist<DbgRecord> StoredDbgRecords;
+  bool empty() const { return StoredDbgRecords.empty(); }
 
   const BasicBlock *getParent() const;
   BasicBlock *getParent();
@@ -374,37 +375,37 @@ public:
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
   // Return a range of DPValues.
-  auto getDbgValueRange() { return filterValues(getDbgEntityRange()); }
+  auto getDbgValueRange() { return filterValues(getDbgRecordRange()); }
 
   /// Produce a range over all the DPValues in this Marker.
-  iterator_range<simple_ilist<DPEntity>::iterator> getDbgEntityRange();
+  iterator_range<simple_ilist<DbgRecord>::iterator> getDbgRecordRange();
   /// Transfer any DPValues from \p Src into this DPMarker. If \p InsertAtHead
   /// is true, place them before existing DPValues, otherwise afterwards.
-  void absorbDebugValues(DPMarker &Src, bool InsertAtHead);
+  void absorbDbgRecords(DPMarker &Src, bool InsertAtHead);
   /// Transfer the DPValues in \p Range from \p Src into this DPMarker. If
   /// \p InsertAtHead is true, place them before existing DPValues, otherwise
   // afterwards.
-  void absorbDebugValues(iterator_range<DPEntity::self_iterator> Range,
+  void absortDbgRecords(iterator_range<DbgRecord::self_iterator> Range,
                          DPMarker &Src, bool InsertAtHead);
   /// Insert a DPValue into this DPMarker, at the end of the list. If
   /// \p InsertAtHead is true, at the start.
-  void insertDPValue(DPEntity *New, bool InsertAtHead);
+  void insertDbgRecord(DbgRecord *New, bool InsertAtHead);
   /// Clone all DPMarkers from \p From into this marker. There are numerous
   /// options to customise the source/destination, due to gnarliness, see class
   /// comment.
   /// \p FromHere If non-null, copy from FromHere to the end of From's DPValues
   /// \p InsertAtHead Place the cloned DPValues at the start of StoredDPValues
   /// \returns Range over all the newly cloned DPValues
-  iterator_range<simple_ilist<DPEntity>::iterator>
+  iterator_range<simple_ilist<DbgRecord>::iterator>
   cloneDebugInfoFrom(DPMarker *From,
-                     std::optional<simple_ilist<DPEntity>::iterator> FromHere,
+                     std::optional<simple_ilist<DbgRecord>::iterator> FromHere,
                      bool InsertAtHead = false);
-  /// Erase all DPValues in this DPMarker.
-  void dropDPValues();
-  /// Erase a single DPValue from this marker. In an ideal future, we would
+  /// Erase all DbgRecords in this DPMarker.
+  void dropDbgRecords();
+  /// Erase a single DbgRecord from this marker. In an ideal future, we would
   /// never erase an assignment in this way, but it's the equivalent to
-  /// erasing a dbg.value from a block.
-  void dropOneDPValue(DPEntity *DPE);
+  /// erasing a debug intrinsic from a block.
+  void dropOneDbgRecord(DbgRecord *DPE);
 
   /// We generally act like all llvm Instructions have a range of DPValues
   /// attached to them, but in reality sometimes we don't allocate the DPMarker
@@ -414,10 +415,10 @@ public:
   /// DPValue in that range, but they should be using the Official (TM) API for
   /// that.
   static DPMarker EmptyDPMarker;
-  static iterator_range<simple_ilist<DPEntity>::iterator>
-  getEmptyDPValueRange() {
-    return make_range(EmptyDPMarker.StoredDPEntities.end(),
-                      EmptyDPMarker.StoredDPEntities.end());
+  static iterator_range<simple_ilist<DbgRecord>::iterator>
+  getEmptyDbgRecordRange() {
+    return make_range(EmptyDPMarker.StoredDbgRecords.end(),
+                      EmptyDPMarker.StoredDbgRecords.end());
   }
 };
 

@@ -1231,7 +1231,7 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
 
   // Is there is any debug-info attached to this instruction, in the form of
   // DPValue non-instruction debug-info records.
-  for (DPEntity &DPE : I.getDbgValueRange()) {
+  for (DbgRecord &DPE : I.getDbgRecordRange()) {
     if (DPLabel *DPL = dyn_cast<DPLabel>(&DPE)) {
       assert(DPL->getLabel() && "Missing label");
       SDDbgLabel *SDV =

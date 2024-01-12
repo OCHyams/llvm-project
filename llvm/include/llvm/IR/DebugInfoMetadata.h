@@ -3784,7 +3784,7 @@ public:
     return MD->getMetadataID() == DIArgListKind;
   }
 
-  SmallVector<DPEntity *> getAllDPValueUsers() {
+  SmallVector<DbgRecord *> getAllDPValueUsers() {
     return ReplaceableMetadataImpl::getAllDPValueUsers();
   }
 

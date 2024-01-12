@@ -1586,7 +1586,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   };
 
   auto UpdateDPValuesOnInst = [&](Instruction &I) -> void {
-    for (auto &DPE : I.getDbgValueRange()) {
+    for (auto &DPE : I.getDbgRecordRange()) {
       DPE.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DPE.getDebugLoc(),
                                                            *NewSP, Ctx, Cache));
       if (DPValue *DPVp = dyn_cast<DPValue>(&DPE)) {
@@ -1665,7 +1665,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   for (auto *DII : DebugIntrinsicsToDelete)
     DII->eraseFromParent();
   for (auto *DPV : DPVsToDelete)
-    DPV->getMarker()->MarkedInstr->dropOneDbgValue(DPV);
+    DPV->getMarker()->MarkedInstr->dropOneDbgRecord(DPV);
   DIB.finalizeSubprogram(NewSP);
 
   // Fix up the scope information attached to the line locations in the new

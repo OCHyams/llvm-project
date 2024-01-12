@@ -110,7 +110,7 @@ public:
   // Process a DPValue, much like a DbgVariableIntrinsic.
   void processDPValue(const Module &M, const DPValue &DPV);
   /// Dispatch to process DP<Type>,
-  void processDPEntity(const Module &M, const DPEntity &DPE);
+  void processDPEntity(const Module &M, const DbgRecord &DPE);
 
   /// Process subprogram.
   void processSubprogram(DISubprogram *SP);

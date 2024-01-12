@@ -14,7 +14,7 @@
 namespace llvm {
 
 DPValue::DPValue(const DbgVariableIntrinsic *DVI)
-    : DPEntity(ValueKind, DVI->getDebugLoc()),
+    : DbgRecord(ValueKind, DVI->getDebugLoc()),
       DebugValueUser(DVI->getRawLocation()), Variable(DVI->getVariable()),
       Expression(DVI->getExpression()) {
   switch (DVI->getIntrinsicID()) {
@@ -31,17 +31,17 @@ DPValue::DPValue(const DbgVariableIntrinsic *DVI)
 }
 
 DPValue::DPValue(const DPValue &DPV)
-    : DPEntity(ValueKind, DPV.getDebugLoc()),
+    : DbgRecord(ValueKind, DPV.getDebugLoc()),
       DebugValueUser(DPV.getRawLocation()), Type(DPV.getType()),
       Variable(DPV.getVariable()), Expression(DPV.getExpression()) {}
 
 DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
                  const DILocation *DI, LocationType Type)
-    : DPEntity(ValueKind, DI), DebugValueUser(Location), Type(Type),
+    : DbgRecord(ValueKind, DI), DebugValueUser(Location), Type(Type),
       Variable(DV), Expression(Expr) {}
 
-void DPEntity::deleteEntity() {
-  switch (EntityKind) {
+void DbgRecord::deleteEntity() {
+  switch (RecordKind) {
   case ValueKind:
     delete cast<DPValue>(this);
     break;
@@ -192,8 +192,8 @@ std::optional<uint64_t> DPValue::getFragmentSizeInBits() const {
   return getVariable()->getSizeInBits();
 }
 
-DPEntity *DPEntity::clone() const {
-  switch (EntityKind) {
+DbgRecord *DbgRecord::clone() const {
+  switch (RecordKind) {
   case ValueKind:
     return cast<DPValue>(this)->clone();
   case LabelKind:
@@ -251,29 +251,29 @@ void DPValue::handleChangedLocation(Metadata *NewLocation) {
   resetDebugValue(NewLocation);
 }
 
-const BasicBlock *DPEntity::getParent() const {
+const BasicBlock *DbgRecord::getParent() const {
   return Marker->MarkedInstr->getParent();
 }
 
-BasicBlock *DPEntity::getParent() { return Marker->MarkedInstr->getParent(); }
+BasicBlock *DbgRecord::getParent() { return Marker->MarkedInstr->getParent(); }
 
-BasicBlock *DPEntity::getBlock() { return Marker->getParent(); }
+BasicBlock *DbgRecord::getBlock() { return Marker->getParent(); }
 
-const BasicBlock *DPEntity::getBlock() const { return Marker->getParent(); }
+const BasicBlock *DbgRecord::getBlock() const { return Marker->getParent(); }
 
-Function *DPEntity::getFunction() { return getBlock()->getParent(); }
+Function *DbgRecord::getFunction() { return getBlock()->getParent(); }
 
-const Function *DPEntity::getFunction() const {
+const Function *DbgRecord::getFunction() const {
   return getBlock()->getParent();
 }
 
-Module *DPEntity::getModule() { return getFunction()->getParent(); }
+Module *DbgRecord::getModule() { return getFunction()->getParent(); }
 
-const Module *DPEntity::getModule() const { return getFunction()->getParent(); }
+const Module *DbgRecord::getModule() const { return getFunction()->getParent(); }
 
-LLVMContext &DPEntity::getContext() { return getBlock()->getContext(); }
+LLVMContext &DbgRecord::getContext() { return getBlock()->getContext(); }
 
-const LLVMContext &DPEntity::getContext() const {
+const LLVMContext &DbgRecord::getContext() const {
   return getBlock()->getContext();
 }
 
@@ -283,18 +283,18 @@ const LLVMContext &DPEntity::getContext() const {
 // DPValues.
 DPMarker DPMarker::EmptyDPMarker;
 
-void DPMarker::dropDPValues() {
-  while (!StoredDPEntities.empty()) {
-    auto It = StoredDPEntities.begin();
-    DPEntity *DPE = &*It;
-    StoredDPEntities.erase(It);
+void DPMarker::dropDbgRecords() {
+  while (!StoredDbgRecords.empty()) {
+    auto It = StoredDbgRecords.begin();
+    DbgRecord *DPE = &*It;
+    StoredDbgRecords.erase(It);
     DPE->deleteEntity();
   }
 }
 
-void DPMarker::dropOneDPValue(DPEntity *DPE) {
+void DPMarker::dropOneDbgRecord(DbgRecord *DPE) {
   assert(DPE->getMarker() == this);
-  StoredDPEntities.erase(DPE->getIterator());
+  StoredDbgRecords.erase(DPE->getIterator());
   DPE->deleteEntity();
 }
 
@@ -307,7 +307,7 @@ BasicBlock *DPMarker::getParent() { return MarkedInstr->getParent(); }
 void DPMarker::removeMarker() {
   // Are there any DPValues in this DPMarker? If not, nothing to preserve.
   Instruction *Owner = MarkedInstr;
-  if (StoredDPEntities.empty()) {
+  if (StoredDbgRecords.empty()) {
     eraseFromParent();
     Owner->DbgMarker = nullptr;
     return;
@@ -319,9 +319,9 @@ void DPMarker::removeMarker() {
   DPMarker *NextMarker = Owner->getParent()->getNextMarker(Owner);
   if (NextMarker == nullptr) {
     NextMarker = new DPMarker();
-    Owner->getParent()->setTrailingDPValues(NextMarker);
+    Owner->getParent()->setTrailingDbgRecords(NextMarker);
   }
-  NextMarker->absorbDebugValues(*this, true);
+  NextMarker->absorbDbgRecords(*this, true);
 
   eraseFromParent();
 }
@@ -334,82 +334,82 @@ void DPMarker::removeFromParent() {
 void DPMarker::eraseFromParent() {
   if (MarkedInstr)
     removeFromParent();
-  dropDPValues();
+  dropDbgRecords();
   delete this;
 }
 
-iterator_range<DPEntity::self_iterator> DPMarker::getDbgEntityRange() {
-  return make_range(StoredDPEntities.begin(), StoredDPEntities.end());
+iterator_range<DbgRecord::self_iterator> DPMarker::getDbgRecordRange() {
+  return make_range(StoredDbgRecords.begin(), StoredDbgRecords.end());
 }
 
-void DPEntity::removeFromParent() {
-  getMarker()->StoredDPEntities.erase(getIterator());
+void DbgRecord::removeFromParent() {
+  getMarker()->StoredDbgRecords.erase(getIterator());
 }
 
-void DPEntity::eraseFromParent() {
+void DbgRecord::eraseFromParent() {
   removeFromParent();
   deleteEntity();
 }
 
-void DPMarker::insertDPValue(DPEntity *New, bool InsertAtHead) {
-  auto It = InsertAtHead ? StoredDPEntities.begin() : StoredDPEntities.end();
-  StoredDPEntities.insert(It, *New);
+void DPMarker::insertDbgRecord(DbgRecord *New, bool InsertAtHead) {
+  auto It = InsertAtHead ? StoredDbgRecords.begin() : StoredDbgRecords.end();
+  StoredDbgRecords.insert(It, *New);
   New->setMarker(this);
 }
 
-void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
-  auto It = InsertAtHead ? StoredDPEntities.begin() : StoredDPEntities.end();
-  for (DPEntity &DPV : Src.StoredDPEntities)
+void DPMarker::absorbDbgRecords(DPMarker &Src, bool InsertAtHead) {
+  auto It = InsertAtHead ? StoredDbgRecords.begin() : StoredDbgRecords.end();
+  for (DbgRecord &DPV : Src.StoredDbgRecords)
     DPV.setMarker(this);
 
-  StoredDPEntities.splice(It, Src.StoredDPEntities);
+  StoredDbgRecords.splice(It, Src.StoredDbgRecords);
 }
 
-void DPMarker::absorbDebugValues(iterator_range<DPEntity::self_iterator> Range,
+void DPMarker::absortDbgRecords(iterator_range<DbgRecord::self_iterator> Range,
                                  DPMarker &Src, bool InsertAtHead) {
-  for (DPEntity &DPE : Range)
+  for (DbgRecord &DPE : Range)
     DPE.setMarker(this);
 
   auto InsertPos =
-      (InsertAtHead) ? StoredDPEntities.begin() : StoredDPEntities.end();
+      (InsertAtHead) ? StoredDbgRecords.begin() : StoredDbgRecords.end();
 
-  StoredDPEntities.splice(InsertPos, Src.StoredDPEntities, Range.begin(),
+  StoredDbgRecords.splice(InsertPos, Src.StoredDbgRecords, Range.begin(),
                           Range.end());
 }
 
-iterator_range<simple_ilist<DPEntity>::iterator> DPMarker::cloneDebugInfoFrom(
-    DPMarker *From, std::optional<simple_ilist<DPEntity>::iterator> from_here,
+iterator_range<simple_ilist<DbgRecord>::iterator> DPMarker::cloneDebugInfoFrom(
+    DPMarker *From, std::optional<simple_ilist<DbgRecord>::iterator> from_here,
     bool InsertAtHead) {
-  DPEntity *First = nullptr;
+  DbgRecord *First = nullptr;
   // Work out what range of DPValues to clone: normally all the contents of the
   // "From" marker, optionally we can start from the from_here position down to
   // end().
   auto Range =
-      make_range(From->StoredDPEntities.begin(), From->StoredDPEntities.end());
+      make_range(From->StoredDbgRecords.begin(), From->StoredDbgRecords.end());
   if (from_here.has_value())
-    Range = make_range(*from_here, From->StoredDPEntities.end());
+    Range = make_range(*from_here, From->StoredDbgRecords.end());
 
   // Clone each DPValue and insert into StoreDPValues; optionally place them at
   // the start or the end of the list.
-  auto Pos = (InsertAtHead) ? StoredDPEntities.begin() : StoredDPEntities.end();
-  for (DPEntity &DPE : Range) {
-    DPEntity *New = DPE.clone();
+  auto Pos = (InsertAtHead) ? StoredDbgRecords.begin() : StoredDbgRecords.end();
+  for (DbgRecord &DPE : Range) {
+    DbgRecord *New = DPE.clone();
     New->setMarker(this);
-    StoredDPEntities.insert(Pos, *New);
+    StoredDbgRecords.insert(Pos, *New);
     if (!First)
       First = New;
   }
 
   if (!First)
-    return {StoredDPEntities.end(), StoredDPEntities.end()};
+    return {StoredDbgRecords.end(), StoredDbgRecords.end()};
 
   if (InsertAtHead)
     // If InsertAtHead is set, we cloned a range onto the front of of the
     // StoredDPValues collection, return that range.
-    return {StoredDPEntities.begin(), Pos};
+    return {StoredDbgRecords.begin(), Pos};
   else
     // We inserted a block at the end, return that range.
-    return {First->getIterator(), StoredDPEntities.end()};
+    return {First->getIterator(), StoredDbgRecords.end()};
 }
 
 } // end namespace llvm

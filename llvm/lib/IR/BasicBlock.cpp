@@ -52,15 +52,15 @@ DPMarker *BasicBlock::createMarker(InstListType::iterator It) {
          "Tried to create a marker in a non new debug-info block!");
   if (It != end())
     return createMarker(&*It);
-  DPMarker *DPM = getTrailingDPValues();
+  DPMarker *DPM = getTrailingDbgRecords();
   if (DPM)
     return DPM;
   DPM = new DPMarker();
-  setTrailingDPValues(DPM);
+  setTrailingDbgRecords(DPM);
   return DPM;
 }
 
-void BasicBlock::convertToNewDbgValues() {
+void BasicBlock::convertToNewDbgInfoFormat() {
   // Is the command line option set?
   if (!UseNewDbgInfoFormat)
     return;
@@ -70,7 +70,7 @@ void BasicBlock::convertToNewDbgValues() {
   // Iterate over all instructions in the instruction list, collecting dbg.value
   // instructions and converting them to DPValues. Once we find a "real"
   // instruction, attach all those DPValues to a DPMarker in that instruction.
-  SmallVector<DPEntity *, 4> DPVals;
+  SmallVector<DbgRecord *, 4> DPVals;
   for (Instruction &I : make_early_inc_range(InstList)) {
     assert(!I.DbgMarker && "DbgMarker already set on old-format instrs?");
     if (DbgVariableIntrinsic *DVI = dyn_cast<DbgVariableIntrinsic>(&I)) {
@@ -94,14 +94,14 @@ void BasicBlock::convertToNewDbgValues() {
     createMarker(&I);
     DPMarker *Marker = I.DbgMarker;
 
-    for (DPEntity *DPV : DPVals)
-      Marker->insertDPValue(DPV, false);
+    for (DbgRecord *DPV : DPVals)
+      Marker->insertDbgRecord(DPV, false);
 
     DPVals.clear();
   }
 }
 
-void BasicBlock::convertFromNewDbgValues() {
+void BasicBlock::convertFromNewDbgInfoFormat() {
   invalidateOrders();
   IsNewDbgInfoFormat = false;
 
@@ -113,7 +113,7 @@ void BasicBlock::convertFromNewDbgValues() {
       continue;
 
     DPMarker &Marker = *Inst.DbgMarker;
-    for (DPEntity &DPE : Marker.getDbgEntityRange()) {
+    for (DbgRecord &DPE : Marker.getDbgRecordRange()) {
       if (auto *DPV = dyn_cast<DPValue>(&DPE))
         InstList.insert(Inst.getIterator(),
                         DPV->createDebugIntrinsic(getModule(), nullptr));
@@ -138,13 +138,13 @@ void BasicBlock::convertFromNewDbgValues() {
     Marker.eraseFromParent();
   };
 
-  // Assume no trailing DPValues: we could technically create them at the end
+  // Assume no trailing DbgRecords: we could technically create them at the end
   // of the block, after a terminator, but this would be non-cannonical and
   // indicates that something else is broken somewhere.
-  assert(!getTrailingDPValues());
+  assert(!getTrailingDbgRecords());
 }
 
-bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
+bool BasicBlock::validateDbgRecords(bool Assert, bool Msg, raw_ostream *OS) {
   bool RetVal = false;
   if (!OS)
     OS = &errs();
@@ -174,7 +174,7 @@ bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
     return RetVal;
 
   // Match every DPMarker to every Instruction and vice versa, and
-  // verify that there are no invalid DPValues.
+  // verify that there are no invalid DbgRecords.
   for (auto It = begin(); It != end(); ++It) {
     if (!It->DbgMarker)
       continue;
@@ -186,8 +186,8 @@ bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
     TestFailure(CurrentDebugMarker->MarkedInstr == &*It,
                 "Debug Marker points to incorrect instruction?");
 
-    // Now validate any DPValues in the marker.
-    for (DPEntity &DPE : CurrentDebugMarker->getDbgEntityRange()) {
+    // Now validate any DbgRecords in the marker.
+    for (DbgRecord &DPE : CurrentDebugMarker->getDbgRecordRange()) {
       // Validate DebugProgramValues.
       TestFailure(DPE.getMarker() == CurrentDebugMarker,
                   "Not pointing at correct next marker!");
@@ -200,8 +200,8 @@ bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
   }
 
   // Except transiently when removing + re-inserting the block terminator, there
-  // should be no trailing DPValues.
-  TestFailure(!getTrailingDPValues(), "Trailing DPValues in block");
+  // should be no trailing DbgRecords.
+  TestFailure(!getTrailingDbgRecords(), "Trailing DbgRecords in block");
   return RetVal;
 }
 
@@ -219,9 +219,9 @@ void BasicBlock::dumpDbgValues() const {
 
 void BasicBlock::setIsNewDbgInfoFormat(bool NewFlag) {
   if (NewFlag && !IsNewDbgInfoFormat)
-    convertToNewDbgValues();
+    convertToNewDbgInfoFormat();
   else if (!NewFlag && IsNewDbgInfoFormat)
-    convertFromNewDbgValues();
+    convertFromNewDbgInfoFormat();
 }
 
 ValueSymbolTable *BasicBlock::getValueSymbolTable() {
@@ -770,14 +770,14 @@ void BasicBlock::renumberInstructions() {
   NumInstrRenumberings++;
 }
 
-void BasicBlock::flushTerminatorDbgValues() {
-  // If we erase the terminator in a block, any DPValues will sink and "fall
+void BasicBlock::flushTerminatorDbgRecords() {
+  // If we erase the terminator in a block, any DbgRecords will sink and "fall
   // off the end", existing after any terminator that gets inserted. With
   // dbg.value intrinsics we would just insert the terminator at end() and
-  // the dbg.values would come before the terminator. With DPValues, we must
+  // the dbg.values would come before the terminator. With DbgRecords, we must
   // do this manually.
   // To get out of this unfortunate form, whenever we insert a terminator,
-  // check whether there's anything trailing at the end and move those DPValues
+  // check whether there's anything trailing at the end and move those DbgRecords
   // in front of the terminator.
 
   // Do nothing if we're not in new debug-info format.
@@ -789,15 +789,15 @@ void BasicBlock::flushTerminatorDbgValues() {
   if (!Term)
     return;
 
-  // Are there any dangling DPValues?
-  DPMarker *TrailingDPValues = getTrailingDPValues();
-  if (!TrailingDPValues)
+  // Are there any dangling DbgRecords?
+  DPMarker *TrailingDbgRecords = getTrailingDbgRecords();
+  if (!TrailingDbgRecords)
     return;
 
   // Transfer DPValues from the trailing position onto the terminator.
-  Term->DbgMarker->absorbDebugValues(*TrailingDPValues, false);
-  TrailingDPValues->eraseFromParent();
-  deleteTrailingDPValues();
+  Term->DbgMarker->absorbDbgRecords(*TrailingDbgRecords, false);
+  TrailingDbgRecords->eraseFromParent();
+  deleteTrailingDbgRecords();
 }
 
 void BasicBlock::spliceDebugInfoEmptyBlock(BasicBlock::iterator Dest,
@@ -834,14 +834,14 @@ void BasicBlock::spliceDebugInfoEmptyBlock(BasicBlock::iterator Dest,
   if (Src->empty()) {
     assert(Dest != end() &&
            "Transferring trailing DPValues to another trailing position");
-    DPMarker *SrcTrailingDPValues = Src->getTrailingDPValues();
+    DPMarker *SrcTrailingDPValues = Src->getTrailingDbgRecords();
     if (!SrcTrailingDPValues)
       return;
 
     DPMarker *M = Dest->DbgMarker;
-    M->absorbDebugValues(*SrcTrailingDPValues, InsertAtHead);
+    M->absorbDbgRecords(*SrcTrailingDPValues, InsertAtHead);
     SrcTrailingDPValues->eraseFromParent();
-    Src->deleteTrailingDPValues();
+    Src->deleteTrailingDbgRecords();
     return;
   }
 
@@ -849,7 +849,7 @@ void BasicBlock::spliceDebugInfoEmptyBlock(BasicBlock::iterator Dest,
   // with begin() / getFirstInsertionPt() then the caller intended debug-info
   // at the start of the block to be transferred.
   if (!Src->empty() && First == Src->begin() && ReadFromHead)
-    Dest->DbgMarker->absorbDebugValues(*First->DbgMarker, InsertAtHead);
+    Dest->DbgMarker->absorbDbgRecords(*First->DbgMarker, InsertAtHead);
 
   return;
 }
@@ -892,16 +892,16 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
   // move the DPValues onto "First". They'll then be moved naturally in the
   // splice process.
   DPMarker *MoreDanglingDPValues = nullptr;
-  DPMarker *OurTrailingDPValues = getTrailingDPValues();
+  DPMarker *OurTrailingDPValues = getTrailingDbgRecords();
   if (Dest == end() && !Dest.getHeadBit() && OurTrailingDPValues) {
     // Are the "+" DPValues not supposed to move? If so, detach them
     // temporarily.
-    if (!First.getHeadBit() && First->hasDbgValues()) {
+    if (!First.getHeadBit() && First->hasDbgRecords()) {
       MoreDanglingDPValues = Src->getMarker(First);
       MoreDanglingDPValues->removeFromParent();
     }
 
-    if (First->hasDbgValues()) {
+    if (First->hasDbgRecords()) {
       DPMarker *CurMarker = Src->getMarker(First);
       // Place them at the front, it would look like this:
       //            Dest
@@ -910,16 +910,16 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
       // Src-block: ~~~~~~~~++++B---B---B---B:::C
       //                        |               |
       //                       First           Last
-      CurMarker->absorbDebugValues(*OurTrailingDPValues, true);
+      CurMarker->absorbDbgRecords(*OurTrailingDPValues, true);
       OurTrailingDPValues->eraseFromParent();
     } else {
       // No current marker, create one and absorb in. (FIXME: we can avoid an
       // allocation in the future).
       DPMarker *CurMarker = Src->createMarker(&*First);
-      CurMarker->absorbDebugValues(*OurTrailingDPValues, false);
+      CurMarker->absorbDbgRecords(*OurTrailingDPValues, false);
       OurTrailingDPValues->eraseFromParent();
     }
-    deleteTrailingDPValues();
+    deleteTrailingDbgRecords();
     First.setHeadBit(true);
   }
 
@@ -933,7 +933,7 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
 
   // FIXME: we could avoid an allocation here sometimes.
   DPMarker *LastMarker = Src->createMarker(Last);
-  LastMarker->absorbDebugValues(*MoreDanglingDPValues, true);
+  LastMarker->absorbDbgRecords(*MoreDanglingDPValues, true);
   MoreDanglingDPValues->eraseFromParent();
 }
 
@@ -1023,20 +1023,20 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
   if (ReadFromTail && Src->getMarker(Last)) {
     DPMarker *OntoDest = getMarker(Dest);
     DPMarker *FromLast = Src->getMarker(Last);
-    OntoDest->absorbDebugValues(*FromLast, true);
+    OntoDest->absorbDbgRecords(*FromLast, true);
     if (LastIsEnd) {
       FromLast->eraseFromParent();
-      Src->deleteTrailingDPValues();
+      Src->deleteTrailingDbgRecords();
     }
   }
 
   // If we're _not_ reading from the head of First, i.e. the "++++" DPValues,
   // move their markers onto Last. They remain in the Src block. No action
   // needed.
-  if (!ReadFromHead && First->hasDbgValues()) {
+  if (!ReadFromHead && First->hasDbgRecords()) {
     DPMarker *OntoLast = Src->createMarker(Last);
     DPMarker *FromFirst = Src->createMarker(First);
-    OntoLast->absorbDebugValues(*FromFirst,
+    OntoLast->absorbDbgRecords(*FromFirst,
                                 true); // Always insert at head of it.
   }
 
@@ -1046,12 +1046,12 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
       // Insert them at the end of the DPValues at Dest. The "::::" DPValues
       // might be in front of them.
       DPMarker *NewDestMarker = getMarker(Dest);
-      NewDestMarker->absorbDebugValues(*DestMarker, false);
+      NewDestMarker->absorbDbgRecords(*DestMarker, false);
     } else {
       // Insert them right at the start of the range we moved, ahead of First
       // and the "++++" DPValues.
       DPMarker *FirstMarker = getMarker(First);
-      FirstMarker->absorbDebugValues(*DestMarker, true);
+      FirstMarker->absorbDbgRecords(*DestMarker, true);
     }
     DestMarker->eraseFromParent();
   } else if (Dest == end() && !InsertAtHead) {
@@ -1060,11 +1060,11 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
     // any trailing debug-info at the end of the block would "normally" have
     // been pushed in front of "First". Move it there now.
     DPMarker *FirstMarker = getMarker(First);
-    DPMarker *TrailingDPValues = getTrailingDPValues();
+    DPMarker *TrailingDPValues = getTrailingDbgRecords();
     if (TrailingDPValues) {
-      FirstMarker->absorbDebugValues(*TrailingDPValues, true);
+      FirstMarker->absorbDbgRecords(*TrailingDPValues, true);
       TrailingDPValues->eraseFromParent();
-      deleteTrailingDPValues();
+      deleteTrailingDbgRecords();
     }
   }
 }
@@ -1094,10 +1094,10 @@ void BasicBlock::splice(iterator Dest, BasicBlock *Src, iterator First,
   // And move the instructions.
   getInstList().splice(Dest, Src->getInstList(), First, Last);
 
-  flushTerminatorDbgValues();
+  flushTerminatorDbgRecords();
 }
 
-void BasicBlock::insertDPValueAfter(DPEntity *DPV, Instruction *I) {
+void BasicBlock::insertDbgRecordAfter(DbgRecord *DPV, Instruction *I) {
   assert(IsNewDbgInfoFormat);
   assert(I->getParent() == this);
 
@@ -1105,10 +1105,10 @@ void BasicBlock::insertDPValueAfter(DPEntity *DPV, Instruction *I) {
   DPMarker *NextMarker = getMarker(NextIt);
   if (!NextMarker)
     NextMarker = createMarker(NextIt);
-  NextMarker->insertDPValue(DPV, true);
+  NextMarker->insertDbgRecord(DPV, true);
 }
 
-void BasicBlock::insertDPValueBefore(DPEntity *DPV,
+void BasicBlock::insertDbgRecordBefore(DbgRecord *DPV,
                                      InstListType::iterator Where) {
   // We should never directly insert at the end of the block, new DPValues
   // shouldn't be generated at times when there's no terminator.
@@ -1117,7 +1117,7 @@ void BasicBlock::insertDPValueBefore(DPEntity *DPV,
   if (!Where->DbgMarker)
     createMarker(Where);
   bool InsertAtHead = Where.getHeadBit();
-  Where->DbgMarker->insertDPValue(DPV, InsertAtHead);
+  Where->DbgMarker->insertDbgRecord(DPV, InsertAtHead);
 }
 
 DPMarker *BasicBlock::getNextMarker(Instruction *I) {
@@ -1126,13 +1126,13 @@ DPMarker *BasicBlock::getNextMarker(Instruction *I) {
 
 DPMarker *BasicBlock::getMarker(InstListType::iterator It) {
   if (It == end()) {
-    DPMarker *DPM = getTrailingDPValues();
+    DPMarker *DPM = getTrailingDbgRecords();
     return DPM;
   }
   return It->DbgMarker;
 }
 
-void BasicBlock::reinsertInstInDPValues(
+void BasicBlock::reinsertInstInDbgRecords(
     Instruction *I, std::optional<DPValue::self_iterator> Pos) {
   // "I" was originally removed from a position where it was
   // immediately in front of Pos. Any DPValues on that position then "fell down"
@@ -1164,24 +1164,24 @@ void BasicBlock::reinsertInstInDPValues(
     DPMarker *NextMarker = getNextMarker(I);
     if (!NextMarker)
       return;
-    if (NextMarker->StoredDPEntities.empty())
+    if (NextMarker->StoredDbgRecords.empty())
       return;
     // There are DPMarkers there now -- they fell down from "I".
     DPMarker *ThisMarker = createMarker(I);
-    ThisMarker->absorbDebugValues(*NextMarker, false);
+    ThisMarker->absorbDbgRecords(*NextMarker, false);
     return;
   }
 
   // Is there even a range of DPValues to move?
   DPMarker *DPM = (*Pos)->getMarker();
-  auto Range = make_range(DPM->StoredDPEntities.begin(), (*Pos));
+  auto Range = make_range(DPM->StoredDbgRecords.begin(), (*Pos));
   if (Range.begin() == Range.end())
     return;
 
   // Otherwise: splice.
   DPMarker *ThisMarker = createMarker(I);
-  assert(ThisMarker->StoredDPEntities.empty());
-  ThisMarker->absorbDebugValues(Range, *DPM, true);
+  assert(ThisMarker->StoredDbgRecords.empty());
+  ThisMarker->absortDbgRecords(Range, *DPM, true);
 }
 
 #ifndef NDEBUG
@@ -1199,15 +1199,15 @@ void BasicBlock::validateInstrOrdering() const {
 }
 #endif
 
-void BasicBlock::setTrailingDPValues(DPMarker *foo) {
+void BasicBlock::setTrailingDbgRecords(DPMarker *foo) {
   getContext().pImpl->setTrailingDPValues(this, foo);
 }
 
-DPMarker *BasicBlock::getTrailingDPValues() {
+DPMarker *BasicBlock::getTrailingDbgRecords() {
   return getContext().pImpl->getTrailingDPValues(this);
 }
 
-void BasicBlock::deleteTrailingDPValues() {
+void BasicBlock::deleteTrailingDbgRecords() {
   getContext().pImpl->deleteTrailingDPValues(this);
 }
 

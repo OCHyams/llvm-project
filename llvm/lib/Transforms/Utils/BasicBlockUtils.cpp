@@ -386,7 +386,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallVector<DPValue *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
-    for (DPValue &DPV : reverse(filterValues(I.getDbgValueRange()))) {
+    for (DPValue &DPV : reverse(filterValues(I.getDbgRecordRange()))) {
       // DPValue &DPV = cast<DPValue>(DPE);
       //  Skip declare-type records, as the debug intrinsic method only works
       //  on dbg.value intrinsics.
@@ -490,7 +490,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>
       VariableMap;
   for (auto &I : *BB) {
-    for (DPValue &DPV : filterValues(I.getDbgValueRange())) {
+    for (DPValue &DPV : filterValues(I.getDbgRecordRange())) {
       if (DPV.getType() == DPValue::LocationType::Declare)
         continue;
       DebugVariable Key(DPV.getVariable(), std::nullopt,

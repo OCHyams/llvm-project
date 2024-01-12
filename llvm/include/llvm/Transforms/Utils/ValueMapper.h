@@ -23,7 +23,7 @@ namespace llvm {
 
 class Constant;
 class DIBuilder;
-class DPEntity;
+class DbgRecord;
 class Function;
 class GlobalVariable;
 class Instruction;
@@ -34,7 +34,7 @@ class Type;
 class Value;
 
 using ValueToValueMapTy = ValueMap<const Value *, WeakTrackingVH>;
-using DPEntityIterator = simple_ilist<DPEntity>::iterator;
+using DPEntityIterator = simple_ilist<DbgRecord>::iterator;
 
 /// This is a class that can be implemented by clients to remap types when
 /// cloning constants and instructions.

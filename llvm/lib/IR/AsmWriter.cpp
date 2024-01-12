@@ -1130,7 +1130,7 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
   processGlobalObjectMetadata(F);
   for (auto &BB : F) {
     for (auto &I : BB) {
-      for (const DPValue &DPV : filterValues(I.getDbgValueRange()))
+      for (const DPValue &DPV : filterValues(I.getDbgRecordRange()))
         processDPValueMetadata(DPV);
       processInstructionMetadata(I);
     }
@@ -4557,7 +4557,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   // There's no formal representation of a DPMarker -- print purely as a
   // debugging aid.
-  for (const DPEntity &DPI2 : Marker.StoredDPEntities) {
+  for (const DbgRecord &DPI2 : Marker.StoredDbgRecords) {
     if (auto *DPV = dyn_cast<DPValue>(&DPI2))
       printDPValue(*DPV);
     else
