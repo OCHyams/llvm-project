@@ -75,9 +75,11 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       return;
     // Get DPValues that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
-      for (DPValue *DPV : L->getAllDPValueUsers()) {
-        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
-          DPValues->push_back(DPV);
+      for (DbgRecord *DPR : L->getAllDPValueUsers()) {
+        if (auto *DPV = dyn_cast<DPValue>(DPR)) {
+          if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
+            DPValues->push_back(DPV);
+        }
       }
     }
   };
@@ -89,10 +91,13 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       if (!DPValues)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
-      for (DPValue *DPV : DI->getAllDPValueUsers())
-        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
-          if (EncounteredDPValues.insert(DPV).second)
-            DPValues->push_back(DPV);
+      for (DbgRecord *DPR : DI->getAllDPValueUsers()) {
+        if (auto *DPV = dyn_cast<DPValue>(DPR)) {
+          if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
+            if (EncounteredDPValues.insert(DPV).second)
+              DPValues->push_back(DPV);
+        }
+      }
     }
   }
 }
@@ -198,8 +203,8 @@ void DebugInfoFinder::processInstruction(const Module &M,
   if (auto DbgLoc = I.getDebugLoc())
     processLocation(M, DbgLoc.get());
 
-  for (const DPValue &DPV : I.getDbgValueRange())
-    processDPValue(M, DPV);
+  for (const DbgRecord &DPR : I.getDbgValueRange())
+    processDbgRecord(M, DPR);
 }
 
 void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
@@ -212,6 +217,10 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
 void DebugInfoFinder::processDPValue(const Module &M, const DPValue &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
+}
+
+void DebugInfoFinder::processDbgRecord(const Module &M, const DbgRecord &DPR) {
+  processDPValue(M, cast<DPValue>(DPR));
 }
 
 void DebugInfoFinder::processType(DIType *DT) {

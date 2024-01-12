@@ -14,8 +14,9 @@
 namespace llvm {
 
 DPValue::DPValue(const DbgVariableIntrinsic *DVI)
-    : DebugValueUser(DVI->getRawLocation()), Variable(DVI->getVariable()),
-      Expression(DVI->getExpression()), DbgLoc(DVI->getDebugLoc()) {
+    : DbgRecord(ValueKind, DVI->getDebugLoc()),
+      DebugValueUser(DVI->getRawLocation()), Variable(DVI->getVariable()),
+      Expression(DVI->getExpression()) {
   switch (DVI->getIntrinsicID()) {
   case Intrinsic::dbg_value:
     Type = LocationType::Value;
@@ -30,16 +31,24 @@ DPValue::DPValue(const DbgVariableIntrinsic *DVI)
 }
 
 DPValue::DPValue(const DPValue &DPV)
-    : DebugValueUser(DPV.getRawLocation()),
-      Variable(DPV.getVariable()), Expression(DPV.getExpression()),
-      DbgLoc(DPV.getDebugLoc()), Type(DPV.getType()) {}
+    : DbgRecord(ValueKind, DPV.getDebugLoc()),
+      DebugValueUser(DPV.getRawLocation()), Type(DPV.getType()),
+      Variable(DPV.getVariable()), Expression(DPV.getExpression()) {}
 
 DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
                  const DILocation *DI, LocationType Type)
-    : DebugValueUser(Location), Variable(DV), Expression(Expr), DbgLoc(DI),
-      Type(Type) {}
+    : DbgRecord(ValueKind, DI), DebugValueUser(Location), Type(Type),
+      Variable(DV), Expression(Expr) {}
 
-void DPValue::deleteInstr() { delete this; }
+void DbgRecord::deleteRecord() {
+  switch (RecordKind) {
+  case ValueKind:
+    delete cast<DPValue>(this);
+    break;
+  default:
+    llvm_unreachable("unsupported record kind");
+  }
+}
 
 iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
   auto *MD = getRawLocation();
@@ -180,6 +189,15 @@ std::optional<uint64_t> DPValue::getFragmentSizeInBits() const {
   return getVariable()->getSizeInBits();
 }
 
+DbgRecord *DbgRecord::clone() const {
+  switch (RecordKind) {
+  case ValueKind:
+    return cast<DPValue>(this)->clone();
+  default:
+    llvm_unreachable("unsupported record kind");
+  };
+}
+
 DPValue *DPValue::clone() const { return new DPValue(*this); }
 
 DbgVariableIntrinsic *
@@ -225,27 +243,31 @@ void DPValue::handleChangedLocation(Metadata *NewLocation) {
   resetDebugValue(NewLocation);
 }
 
-const BasicBlock *DPValue::getParent() const {
+const BasicBlock *DbgRecord::getParent() const {
   return Marker->MarkedInstr->getParent();
 }
 
-BasicBlock *DPValue::getParent() { return Marker->MarkedInstr->getParent(); }
+BasicBlock *DbgRecord::getParent() { return Marker->MarkedInstr->getParent(); }
 
-BasicBlock *DPValue::getBlock() { return Marker->getParent(); }
+BasicBlock *DbgRecord::getBlock() { return Marker->getParent(); }
 
-const BasicBlock *DPValue::getBlock() const { return Marker->getParent(); }
+const BasicBlock *DbgRecord::getBlock() const { return Marker->getParent(); }
 
-Function *DPValue::getFunction() { return getBlock()->getParent(); }
+Function *DbgRecord::getFunction() { return getBlock()->getParent(); }
 
-const Function *DPValue::getFunction() const { return getBlock()->getParent(); }
+const Function *DbgRecord::getFunction() const {
+  return getBlock()->getParent();
+}
 
-Module *DPValue::getModule() { return getFunction()->getParent(); }
+Module *DbgRecord::getModule() { return getFunction()->getParent(); }
 
-const Module *DPValue::getModule() const { return getFunction()->getParent(); }
+const Module *DbgRecord::getModule() const {
+  return getFunction()->getParent();
+}
 
-LLVMContext &DPValue::getContext() { return getBlock()->getContext(); }
+LLVMContext &DbgRecord::getContext() { return getBlock()->getContext(); }
 
-const LLVMContext &DPValue::getContext() const {
+const LLVMContext &DbgRecord::getContext() const {
   return getBlock()->getContext();
 }
 
@@ -255,19 +277,19 @@ const LLVMContext &DPValue::getContext() const {
 // DPValues.
 DPMarker DPMarker::EmptyDPMarker;
 
-void DPMarker::dropDPValues() {
+void DPMarker::dropDbgValues() {
   while (!StoredDPValues.empty()) {
     auto It = StoredDPValues.begin();
-    DPValue *DPV = &*It;
+    DbgRecord *DPE = &*It;
     StoredDPValues.erase(It);
-    DPV->deleteInstr();
+    DPE->deleteRecord();
   }
 }
 
-void DPMarker::dropOneDPValue(DPValue *DPV) {
-  assert(DPV->getMarker() == this);
-  StoredDPValues.erase(DPV->getIterator());
-  DPV->deleteInstr();
+void DPMarker::dropOneDbgValue(DbgRecord *DPE) {
+  assert(DPE->getMarker() == this);
+  StoredDPValues.erase(DPE->getIterator());
+  DPE->deleteRecord();
 }
 
 const BasicBlock *DPMarker::getParent() const {
@@ -306,24 +328,24 @@ void DPMarker::removeFromParent() {
 void DPMarker::eraseFromParent() {
   if (MarkedInstr)
     removeFromParent();
-  dropDPValues();
+  dropDbgValues();
   delete this;
 }
 
-iterator_range<DPValue::self_iterator> DPMarker::getDbgValueRange() {
+iterator_range<DbgRecord::self_iterator> DPMarker::getDbgValueRange() {
   return make_range(StoredDPValues.begin(), StoredDPValues.end());
 }
 
-void DPValue::removeFromParent() {
+void DbgRecord::removeFromParent() {
   getMarker()->StoredDPValues.erase(getIterator());
 }
 
-void DPValue::eraseFromParent() {
+void DbgRecord::eraseFromParent() {
   removeFromParent();
-  deleteInstr();
+  deleteRecord();
 }
 
-void DPMarker::insertDPValue(DPValue *New, bool InsertAtHead) {
+void DPMarker::insertDPValue(DbgRecord *New, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
   StoredDPValues.insert(It, *New);
   New->setMarker(this);
@@ -331,16 +353,16 @@ void DPMarker::insertDPValue(DPValue *New, bool InsertAtHead) {
 
 void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
-  for (DPValue &DPV : Src.StoredDPValues)
+  for (DbgRecord &DPV : Src.StoredDPValues)
     DPV.setMarker(this);
 
   StoredDPValues.splice(It, Src.StoredDPValues);
 }
 
-void DPMarker::absorbDebugValues(iterator_range<DPValue::self_iterator> Range,
+void DPMarker::absorbDebugValues(iterator_range<DbgRecord::self_iterator> Range,
                                  DPMarker &Src, bool InsertAtHead) {
-  for (DPValue &DPV : Range)
-    DPV.setMarker(this);
+  for (DbgRecord &DPE : Range)
+    DPE.setMarker(this);
 
   auto InsertPos =
       (InsertAtHead) ? StoredDPValues.begin() : StoredDPValues.end();
@@ -349,10 +371,10 @@ void DPMarker::absorbDebugValues(iterator_range<DPValue::self_iterator> Range,
                         Range.end());
 }
 
-iterator_range<simple_ilist<DPValue>::iterator> DPMarker::cloneDebugInfoFrom(
-    DPMarker *From, std::optional<simple_ilist<DPValue>::iterator> from_here,
+iterator_range<simple_ilist<DbgRecord>::iterator> DPMarker::cloneDebugInfoFrom(
+    DPMarker *From, std::optional<simple_ilist<DbgRecord>::iterator> from_here,
     bool InsertAtHead) {
-  DPValue *First = nullptr;
+  DbgRecord *First = nullptr;
   // Work out what range of DPValues to clone: normally all the contents of the
   // "From" marker, optionally we can start from the from_here position down to
   // end().
@@ -364,8 +386,8 @@ iterator_range<simple_ilist<DPValue>::iterator> DPMarker::cloneDebugInfoFrom(
   // Clone each DPValue and insert into StoreDPValues; optionally place them at
   // the start or the end of the list.
   auto Pos = (InsertAtHead) ? StoredDPValues.begin() : StoredDPValues.end();
-  for (DPValue &DPV : Range) {
-    DPValue *New = DPV.clone();
+  for (DbgRecord &DPE : Range) {
+    DbgRecord *New = DPE.clone();
     New->setMarker(this);
     StoredDPValues.insert(Pos, *New);
     if (!First)
@@ -385,4 +407,3 @@ iterator_range<simple_ilist<DPValue>::iterator> DPMarker::cloneDebugInfoFrom(
 }
 
 } // end namespace llvm
-

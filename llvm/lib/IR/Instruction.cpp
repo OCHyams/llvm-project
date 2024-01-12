@@ -226,10 +226,9 @@ void Instruction::moveBeforeImpl(BasicBlock &BB, InstListType::iterator I,
     getParent()->flushTerminatorDbgValues();
 }
 
-iterator_range<DPValue::self_iterator>
-Instruction::cloneDebugInfoFrom(const Instruction *From,
-                                std::optional<DPValue::self_iterator> FromHere,
-                                bool InsertAtHead) {
+iterator_range<DbgRecord::self_iterator> Instruction::cloneDebugInfoFrom(
+    const Instruction *From, std::optional<DbgRecord::self_iterator> FromHere,
+    bool InsertAtHead) {
   if (!From->DbgMarker)
     return DPMarker::getEmptyDPValueRange();
 
@@ -243,8 +242,7 @@ Instruction::cloneDebugInfoFrom(const Instruction *From,
   return DbgMarker->cloneDebugInfoFrom(From->DbgMarker, FromHere, InsertAtHead);
 }
 
-iterator_range<DPValue::self_iterator>
-Instruction::getDbgValueRange() const {
+iterator_range<DbgRecord::self_iterator> Instruction::getDbgValueRange() const {
   BasicBlock *Parent = const_cast<BasicBlock *>(getParent());
   assert(Parent && "Instruction must be inserted to have DPValues");
   (void)Parent;
@@ -255,7 +253,8 @@ Instruction::getDbgValueRange() const {
   return DbgMarker->getDbgValueRange();
 }
 
-std::optional<DPValue::self_iterator> Instruction::getDbgReinsertionPosition() {
+std::optional<DbgRecord::self_iterator>
+Instruction::getDbgReinsertionPosition() {
   // Is there a marker on the next instruction?
   DPMarker *NextMarker = getParent()->getNextMarker(this);
   if (!NextMarker)
@@ -272,11 +271,11 @@ bool Instruction::hasDbgValues() const { return !getDbgValueRange().empty(); }
 
 void Instruction::dropDbgValues() {
   if (DbgMarker)
-    DbgMarker->dropDPValues();
+    DbgMarker->dropDbgValues();
 }
 
-void Instruction::dropOneDbgValue(DPValue *DPV) {
-  DbgMarker->dropOneDPValue(DPV);
+void Instruction::dropOneDbgValue(DbgRecord *DPV) {
+  DbgMarker->dropOneDbgValue(DPV);
 }
 
 bool Instruction::comesBefore(const Instruction *Other) const {
