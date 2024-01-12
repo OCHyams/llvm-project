@@ -309,14 +309,12 @@ public:
 
 // Filter the DPEntity range to the DPValues only.
 inline auto filterValues(iterator_range<simple_ilist<DPEntity>::iterator> R) {
-  // uhhh these are not working well, theh map_range iterates over garbage?
   return map_range(
       make_filter_range(R, [](DPEntity &E) { return isa<DPValue>(E); }),
       [](DPEntity &E) { return std::ref(cast<DPValue>(E)); });
 }
 inline auto
 filterValues2(iterator_range<SmallVectorImpl<DPEntity *>::iterator> R) {
-  // uhhh these are not working well, theh map_range iterates over garbage?
   return map_range(
       make_filter_range(R, [](DPEntity *E) { return isa<DPValue>(E); }),
       [](DPEntity *E) { return cast<DPValue>(E); });
@@ -375,13 +373,7 @@ public:
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
   // Return a range of DPValues.
-  auto getDbgValueRange() {
-    SmallVector<DPValue *> DPVs;
-    for (auto &E : getDbgEntityRange())
-      if (auto *DPV = dyn_cast<DPValue>(&E))
-        DPVs.push_back(DPV);
-    return DPVs;
-  }
+  auto getDbgValueRange() { return filterValues(getDbgEntityRange()); }
 
   /// Produce a range over all the DPValues in this Marker.
   iterator_range<simple_ilist<DPEntity>::iterator> getDbgEntityRange();

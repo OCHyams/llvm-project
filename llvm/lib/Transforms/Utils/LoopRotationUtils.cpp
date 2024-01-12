@@ -554,13 +554,8 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
         DbgIntrinsics.insert(makeHash(DII));
         // Until RemoveDIs supports dbg.declares in DPValue format, we'll need
         // to collect DPValues attached to any other debug intrinsics.
-        for (auto &DPE : DII->getDbgValueRange()) {
-          auto *DPVp = dyn_cast<DPValue>(&DPE);
-          if (!DPVp)
-            continue;
-          DPValue &DPV = *DPVp;
+        for (const DPValue &DPV : filterValues(DII->getDbgValueRange()))
           DbgIntrinsics.insert(makeHash(&DPV));
-        }
       } else {
         break;
       }
@@ -568,13 +563,9 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
 
     // Build DPValue hashes for DPValues attached to the terminator, which isn't
     // considered in the loop above.
-    for (const auto &DPE : OrigPreheader->getTerminator()->getDbgValueRange()) {
-      auto *DPVp = dyn_cast<DPValue>(&DPE);
-      if (!DPVp)
-        continue;
-      const DPValue &DPV = *DPVp;
+    for (const DPValue &DPV :
+         filterValues(OrigPreheader->getTerminator()->getDbgValueRange()))
       DbgIntrinsics.insert(makeHash(&DPV));
-    }
 
     // Remember the local noalias scope declarations in the header. After the
     // rotation, they must be duplicated and the scope must be cloned. This
@@ -626,15 +617,9 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
           RemapDPValueRange(M, DbgValueRange, ValueMap,
                             RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
           // Erase anything we've seen before.
-          for (auto &DPE : make_early_inc_range(DbgValueRange)) {
-            auto *DPVp = dyn_cast<DPValue>(&DPE);
-            if (!DPVp)
-              continue;
-            DPValue &DPV = *DPVp;
-            DbgIntrinsics.insert(makeHash(&DPV));
+          for (DPValue &DPV : make_early_inc_range(filterValues(DbgValueRange)))
             if (DbgIntrinsics.count(makeHash(&DPV)))
               DPV.eraseFromParent();
-          }
         }
 
         NextDbgInst = I->getDbgValueRange().begin();
@@ -656,14 +641,9 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
                           RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
         NextDbgInst = std::nullopt;
         // Erase anything we've seen before.
-        for (auto &DPE : make_early_inc_range(Range)) {
-          auto *DPVp = dyn_cast<DPValue>(&DPE);
-          if (!DPVp)
-            continue;
-          DPValue &DPV = *DPVp;
+        for (DPValue &DPV : make_early_inc_range(filterValues(Range)))
           if (DbgIntrinsics.count(makeHash(&DPV)))
             DPV.eraseFromParent();
-        }
       }
 
       // Eagerly remap the operands of the instruction.

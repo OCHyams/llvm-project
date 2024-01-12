@@ -3771,11 +3771,8 @@ static bool performBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
 
   if (PredBlock->IsNewDbgInfoFormat) {
     PredBlock->getTerminator()->cloneDebugInfoFrom(BB->getTerminator());
-    for (auto &DPE : PredBlock->getTerminator()->getDbgValueRange()) {
-      auto *DPVp = dyn_cast<DPValue>(&DPE);
-      if (!DPVp)
-        continue;
-      DPValue &DPV = *DPVp;
+    for (DPValue &DPV :
+         filterValues(PredBlock->getTerminator()->getDbgValueRange())) {
       RemapDPValue(M, &DPV, VMap,
                    RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     }

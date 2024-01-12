@@ -632,12 +632,8 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
 
         // RemoveDIs: do the same as below for DPValues.
         if (Block->IsNewDbgInfoFormat) {
-          for (auto &DPE : llvm::make_early_inc_range(I.getDbgValueRange())) {
-            auto *DPVp = dyn_cast<DPValue>(&DPE);
-            if (!DPVp)
-              continue;
-            DPValue &DPV = *DPVp;
-
+          for (DPValue &DPV :
+               llvm::make_early_inc_range(filterValues(I.getDbgValueRange()))) {
             DebugVariable Key(DPV.getVariable(), DPV.getExpression(),
                               DPV.getDebugLoc().get());
             if (!DeadDebugSet.insert(Key).second)

@@ -75,11 +75,9 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       return;
     // Get DPValues that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
-      for (auto *DPE : L->getAllDPValueUsers()) {
-        if (auto *DPV = dyn_cast<DPValue>(DPE)) {
-          if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
-            DPValues->push_back(DPV);
-        }
+      for (DPValue *DPV : filterValues2(L->getAllDPValueUsers())) {
+        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
+          DPValues->push_back(DPV);
       }
     }
   };
@@ -91,13 +89,10 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       if (!DPValues)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
-      for (auto *DPE : DI->getAllDPValueUsers()) {
-        if (auto *DPV = dyn_cast<DPValue>(DPE)) {
-          if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
-            if (EncounteredDPValues.insert(DPV).second)
-              DPValues->push_back(DPV);
-        }
-      }
+      for (DPValue *DPV : filterValues2(DI->getAllDPValueUsers()))
+        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
+          if (EncounteredDPValues.insert(DPV).second)
+            DPValues->push_back(DPV);
     }
   }
 }

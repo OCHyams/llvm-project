@@ -1461,14 +1461,12 @@ static void processDbgDeclares(FunctionLoweringInfo &FuncInfo) {
     if (DI && processDbgDeclare(FuncInfo, DI->getAddress(), DI->getExpression(),
                                 DI->getVariable(), DI->getDebugLoc()))
       FuncInfo.PreprocessedDbgDeclares.insert(DI);
-    for (const auto &DPE : I.getDbgValueRange()) {
-      if (auto *DPV = dyn_cast<DPValue>(&DPE)) {
-        if (DPV->Type == DPValue::LocationType::Declare &&
-            processDbgDeclare(FuncInfo, DPV->getVariableLocationOp(0),
-                              DPV->getExpression(), DPV->getVariable(),
-                              DPV->getDebugLoc()))
-          FuncInfo.PreprocessedDPVDeclares.insert(DPV);
-      }
+    for (const DPValue &DPV : filterValues(I.getDbgValueRange())) {
+      if (DPV.Type == DPValue::LocationType::Declare &&
+          processDbgDeclare(FuncInfo, DPV.getVariableLocationOp(0),
+                            DPV.getExpression(), DPV.getVariable(),
+                            DPV.getDebugLoc()))
+        FuncInfo.PreprocessedDPVDeclares.insert(&DPV);
     }
   }
 }
