@@ -79,7 +79,7 @@ void BasicBlock::convertToNewDbgValues() {
         continue;
 
       // Convert this dbg.value to a DPValue.
-      DPValue *Value = new DPValue(DVI);
+      DbgVariableInst *Value = new DbgVariableInst(DVI);
       DPVals.push_back(Value);
       DVI->eraseFromParent();
       continue;
@@ -110,7 +110,7 @@ void BasicBlock::convertFromNewDbgValues() {
 
     DbgMarker &Marker = *Inst.DbgRecordMarker;
     for (DbgRecord &DPR : Marker.getDbgValueRange()) {
-      if (auto *DPV = dyn_cast<DPValue>(&DPR))
+      if (auto *DPV = dyn_cast<DbgVariableInst>(&DPR))
         InstList.insert(Inst.getIterator(),
                         DPV->createDebugIntrinsic(getModule(), nullptr));
       else
@@ -1116,7 +1116,7 @@ DbgMarker *BasicBlock::getMarker(InstListType::iterator It) {
 }
 
 void BasicBlock::reinsertInstInDPValues(
-    Instruction *I, std::optional<DPValue::self_iterator> Pos) {
+    Instruction *I, std::optional<DbgVariableInst::self_iterator> Pos) {
   // "I" was originally removed from a position where it was
   // immediately in front of Pos. Any DPValues on that position then "fell down"
   // onto Pos. "I" has been re-inserted at the front of that wedge of DPValues,

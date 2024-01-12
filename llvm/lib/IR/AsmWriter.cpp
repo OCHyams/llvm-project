@@ -292,7 +292,7 @@ static const Module *getModuleFromDPI(const DbgMarker *Marker) {
   return M ? M->getParent() : nullptr;
 }
 
-static const Module *getModuleFromDPI(const DPValue *DPV) {
+static const Module *getModuleFromDPI(const DbgVariableInst *DPV) {
   return getModuleFromDPI(DPV->getMarker());
 }
 
@@ -4836,7 +4836,7 @@ void DbgMarker::print(raw_ostream &ROS, bool IsForDebug) const {
   print(ROS, MST, IsForDebug);
 }
 
-void DPValue::print(raw_ostream &ROS, bool IsForDebug) const {
+void DbgVariableInst::print(raw_ostream &ROS, bool IsForDebug) const {
 
   ModuleSlotTracker MST(getModuleFromDPI(this), true);
   print(ROS, MST, IsForDebug);
@@ -4859,7 +4859,7 @@ void DbgMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
   W.printDbgMarker(*this);
 }
 
-void DPValue::print(raw_ostream &ROS, ModuleSlotTracker &MST,
+void DbgVariableInst::print(raw_ostream &ROS, ModuleSlotTracker &MST,
                     bool IsForDebug) const {
   // There's no formal representation of a DPValue -- print purely as a
   // debugging aid.

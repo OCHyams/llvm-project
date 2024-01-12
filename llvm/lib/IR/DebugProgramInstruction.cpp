@@ -13,7 +13,7 @@
 
 namespace llvm {
 
-DPValue::DPValue(const DbgVariableIntrinsic *DVI)
+DbgVariableInst::DbgVariableInst(const DbgVariableIntrinsic *DVI)
     : DbgRecord(ValueKind, DVI->getDebugLoc()),
       DebugValueUser(DVI->getRawLocation()), Variable(DVI->getVariable()),
       Expression(DVI->getExpression()) {
@@ -30,12 +30,12 @@ DPValue::DPValue(const DbgVariableIntrinsic *DVI)
   }
 }
 
-DPValue::DPValue(const DPValue &DPV)
+DbgVariableInst::DbgVariableInst(const DbgVariableInst &DPV)
     : DbgRecord(ValueKind, DPV.getDebugLoc()),
       DebugValueUser(DPV.getRawLocation()), Type(DPV.getType()),
       Variable(DPV.getVariable()), Expression(DPV.getExpression()) {}
 
-DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
+DbgVariableInst::DbgVariableInst(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
                  const DILocation *DI, LocationType Type)
     : DbgRecord(ValueKind, DI), DebugValueUser(Location), Type(Type),
       Variable(DV), Expression(Expr) {}
@@ -43,7 +43,7 @@ DPValue::DPValue(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
 void DbgRecord::deleteRecord() {
   switch (RecordKind) {
   case ValueKind:
-    delete cast<DPValue>(this);
+    delete cast<DbgVariableInst>(this);
     break;
   default:
     llvm_unreachable("unsupported record kind");
@@ -70,7 +70,7 @@ void DbgRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   };
 }
 
-iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
+iterator_range<DbgVariableInst::location_op_iterator> DbgVariableInst::location_ops() const {
   auto *MD = getRawLocation();
   // If a Value has been deleted, the "location" for this DPValue will be
   // replaced by nullptr. Return an empty range.
@@ -93,13 +93,13 @@ iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
           location_op_iterator(static_cast<ValueAsMetadata *>(nullptr))};
 }
 
-unsigned DPValue::getNumVariableLocationOps() const {
+unsigned DbgVariableInst::getNumVariableLocationOps() const {
   if (hasArgList())
     return cast<DIArgList>(getRawLocation())->getArgs().size();
   return 1;
 }
 
-Value *DPValue::getVariableLocationOp(unsigned OpIdx) const {
+Value *DbgVariableInst::getVariableLocationOp(unsigned OpIdx) const {
   auto *MD = getRawLocation();
   if (!MD)
     return nullptr;
@@ -122,7 +122,7 @@ static ValueAsMetadata *getAsMetadata(Value *V) {
                                  : ValueAsMetadata::get(V);
 }
 
-void DPValue::replaceVariableLocationOp(Value *OldValue, Value *NewValue,
+void DbgVariableInst::replaceVariableLocationOp(Value *OldValue, Value *NewValue,
                                         bool AllowEmpty) {
   assert(NewValue && "Values must be non-null");
   auto Locations = location_ops();
@@ -150,7 +150,7 @@ void DPValue::replaceVariableLocationOp(Value *OldValue, Value *NewValue,
   setRawLocation(DIArgList::get(getVariableLocationOp(0)->getContext(), MDs));
 }
 
-void DPValue::replaceVariableLocationOp(unsigned OpIdx, Value *NewValue) {
+void DbgVariableInst::replaceVariableLocationOp(unsigned OpIdx, Value *NewValue) {
   assert(OpIdx < getNumVariableLocationOps() && "Invalid Operand Index");
 
   if (!hasArgList()) {
@@ -169,7 +169,7 @@ void DPValue::replaceVariableLocationOp(unsigned OpIdx, Value *NewValue) {
   setRawLocation(DIArgList::get(getVariableLocationOp(0)->getContext(), MDs));
 }
 
-void DPValue::addVariableLocationOps(ArrayRef<Value *> NewValues,
+void DbgVariableInst::addVariableLocationOps(ArrayRef<Value *> NewValues,
                                      DIExpression *NewExpr) {
   assert(NewExpr->hasAllLocationOps(getNumVariableLocationOps() +
                                     NewValues.size()) &&
@@ -185,7 +185,7 @@ void DPValue::addVariableLocationOps(ArrayRef<Value *> NewValues,
   setRawLocation(DIArgList::get(getVariableLocationOp(0)->getContext(), MDs));
 }
 
-void DPValue::setKillLocation() {
+void DbgVariableInst::setKillLocation() {
   // TODO: When/if we remove duplicate values from DIArgLists, we don't need
   // this set anymore.
   SmallPtrSet<Value *, 4> RemovedValues;
@@ -197,13 +197,13 @@ void DPValue::setKillLocation() {
   }
 }
 
-bool DPValue::isKillLocation() const {
+bool DbgVariableInst::isKillLocation() const {
   return (getNumVariableLocationOps() == 0 &&
           !getExpression()->isComplex()) ||
          any_of(location_ops(), [](Value *V) { return isa<UndefValue>(V); });
 }
 
-std::optional<uint64_t> DPValue::getFragmentSizeInBits() const {
+std::optional<uint64_t> DbgVariableInst::getFragmentSizeInBits() const {
   if (auto Fragment = getExpression()->getFragmentInfo())
     return Fragment->SizeInBits;
   return getVariable()->getSizeInBits();
@@ -212,16 +212,16 @@ std::optional<uint64_t> DPValue::getFragmentSizeInBits() const {
 DbgRecord *DbgRecord::clone() const {
   switch (RecordKind) {
   case ValueKind:
-    return cast<DPValue>(this)->clone();
+    return cast<DbgVariableInst>(this)->clone();
   default:
     llvm_unreachable("unsupported record kind");
   };
 }
 
-DPValue *DPValue::clone() const { return new DPValue(*this); }
+DbgVariableInst *DbgVariableInst::clone() const { return new DbgVariableInst(*this); }
 
 DbgVariableIntrinsic *
-DPValue::createDebugIntrinsic(Module *M, Instruction *InsertBefore) const {
+DbgVariableInst::createDebugIntrinsic(Module *M, Instruction *InsertBefore) const {
   [[maybe_unused]] DICompileUnit *Unit =
       getDebugLoc().get()->getScope()->getSubprogram()->getUnit();
   assert(M && Unit &&
@@ -235,14 +235,14 @@ DPValue::createDebugIntrinsic(Module *M, Instruction *InsertBefore) const {
 
   // Work out what sort of intrinsic we're going to produce.
   switch (getType()) {
-  case DPValue::LocationType::Declare:
+  case DbgVariableInst::LocationType::Declare:
     IntrinsicFn = Intrinsic::getDeclaration(M, Intrinsic::dbg_declare);
     break;
-  case DPValue::LocationType::Value:
+  case DbgVariableInst::LocationType::Value:
     IntrinsicFn = Intrinsic::getDeclaration(M, Intrinsic::dbg_value);
     break;
-  case DPValue::LocationType::End:
-  case DPValue::LocationType::Any:
+  case DbgVariableInst::LocationType::End:
+  case DbgVariableInst::LocationType::Any:
     llvm_unreachable("Invalid LocationType");
     break;
   }
@@ -259,7 +259,7 @@ DPValue::createDebugIntrinsic(Module *M, Instruction *InsertBefore) const {
   return DVI;
 }
 
-void DPValue::handleChangedLocation(Metadata *NewLocation) {
+void DbgVariableInst::handleChangedLocation(Metadata *NewLocation) {
   resetDebugValue(NewLocation);
 }
 

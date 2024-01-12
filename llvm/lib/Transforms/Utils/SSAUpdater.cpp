@@ -199,7 +199,7 @@ void SSAUpdater::RewriteUse(Use &U) {
 
 void SSAUpdater::UpdateDebugValues(Instruction *I) {
   SmallVector<DbgValueInst *, 4> DbgValues;
-  SmallVector<DPValue *, 4> DPValues;
+  SmallVector<DbgVariableInst *, 4> DPValues;
   llvm::findDbgValues(DbgValues, I, &DPValues);
   for (auto &DbgValue : DbgValues) {
     if (DbgValue->getParent() == I->getParent())
@@ -221,7 +221,7 @@ void SSAUpdater::UpdateDebugValues(Instruction *I,
 }
 
 void SSAUpdater::UpdateDebugValues(Instruction *I,
-                                   SmallVectorImpl<DPValue *> &DPValues) {
+                                   SmallVectorImpl<DbgVariableInst *> &DPValues) {
   for (auto &DPV : DPValues) {
     UpdateDebugValue(I, DPV);
   }
@@ -236,7 +236,7 @@ void SSAUpdater::UpdateDebugValue(Instruction *I, DbgValueInst *DbgValue) {
     DbgValue->setKillLocation();
 }
 
-void SSAUpdater::UpdateDebugValue(Instruction *I, DPValue *DPV) {
+void SSAUpdater::UpdateDebugValue(Instruction *I, DbgVariableInst *DPV) {
   BasicBlock *UserBB = DPV->getParent();
   if (HasValueForBlock(UserBB)) {
     Value *NewVal = GetValueAtEndOfBlock(UserBB);

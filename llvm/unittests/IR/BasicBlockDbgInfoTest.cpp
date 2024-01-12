@@ -520,7 +520,7 @@ protected:
   BasicBlock *BBEntry, *BBExit;
   BasicBlock::iterator Dest, First, Last;
   Instruction *BInst, *Branch, *CInst;
-  DPValue *DPVA, *DPVB, *DPVConst;
+  DbgVariableInst *DPVA, *DPVB, *DPVConst;
 
   void SetUp() override {
     UseNewDbgInfoFormat = true;
@@ -1238,7 +1238,7 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsert) {
 
   // The Supported (TM) code sequence for removing then reinserting insts
   // after another instruction:
-  std::optional<DPValue::self_iterator> Pos =
+  std::optional<DbgVariableInst::self_iterator> Pos =
       AddInst->getDbgReinsertionPosition();
   AddInst->removeFromParent();
 
@@ -1313,7 +1313,7 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsertForOneDPValue) {
   EXPECT_EQ(std::distance(R1.begin(), R1.end()), 1u);
 
   // The Supported (TM) code sequence for removing then reinserting insts:
-  std::optional<DPValue::self_iterator> Pos =
+  std::optional<DbgVariableInst::self_iterator> Pos =
       AddInst->getDbgReinsertionPosition();
   AddInst->removeFromParent();
 
@@ -1397,7 +1397,6 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty1) {
   SmallVector<DPValue *, 2> DPValues;
   for (DbgRecord &DPV : BInst->getDbgValueRange())
     DPValues.push_back(cast<DPValue>(&DPV));
-
   EXPECT_EQ(DPValues[0]->getVariableLocationOp(0), F.getArg(0));
   Value *SecondDPVValue = DPValues[1]->getVariableLocationOp(0);
   ASSERT_TRUE(isa<ConstantInt>(SecondDPVValue));

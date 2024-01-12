@@ -401,7 +401,7 @@ static bool replaceFoldableUses(Instruction *Cond, Value *ToVal,
     Changed |= replaceNonLocalUsesWith(Cond, ToVal);
   for (Instruction &I : reverse(*KnownAtEndOfBB)) {
     // Replace any debug-info record users of Cond with ToVal.
-    for (DPValue &DPV : DPValue::filter(I.getDbgValueRange()))
+    for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange()))
       DPV.replaceVariableLocationOp(Cond, ToVal, true);
 
     // Reached the Cond whose uses we are trying to replace, so there are no
@@ -1955,7 +1955,7 @@ void JumpThreadingPass::updateSSA(
   SSAUpdater SSAUpdate;
   SmallVector<Use *, 16> UsesToRename;
   SmallVector<DbgValueInst *, 4> DbgValues;
-  SmallVector<DPValue *, 4> DPValues;
+  SmallVector<DbgVariableInst *, 4> DPValues;
 
   for (Instruction &I : *BB) {
     // Scan all uses of this instruction to see if it is used outside of its
@@ -1976,7 +1976,7 @@ void JumpThreadingPass::updateSSA(
     llvm::erase_if(DbgValues, [&](const DbgValueInst *DbgVal) {
       return DbgVal->getParent() == BB;
     });
-    llvm::erase_if(DPValues, [&](const DPValue *DPVal) {
+    llvm::erase_if(DPValues, [&](const DbgVariableInst *DPVal) {
       return DPVal->getParent() == BB;
     });
 
@@ -2043,7 +2043,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
 
   // Duplicate implementation of the above dbg.value code, using DPValues
   // instead.
-  auto RetargetDPValueIfPossible = [&](DPValue *DPV) {
+  auto RetargetDPValueIfPossible = [&](DbgVariableInst *DPV) {
     SmallSet<std::pair<Value *, Value *>, 16> OperandsToRemap;
     for (auto *Op : DPV->location_ops()) {
       Instruction *OpInst = dyn_cast<Instruction>(Op);
@@ -2081,7 +2081,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
 
   auto CloneAndRemapDbgInfo = [&](Instruction *NewInst, Instruction *From) {
     auto DPVRange = NewInst->cloneDebugInfoFrom(From);
-    for (DPValue &DPV : DPValue::filter(DPVRange))
+    for (DbgVariableInst &DPV : DbgVariableInst::filter(DPVRange))
       RetargetDPValueIfPossible(&DPV);
   };
 
@@ -2116,7 +2116,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
     DbgMarker *Marker = RangeBB->getMarker(BE);
     DbgMarker *EndMarker = NewBB->createMarker(NewBB->end());
     auto DPVRange = EndMarker->cloneDebugInfoFrom(Marker, std::nullopt);
-    for (DPValue &DPV : DPValue::filter(DPVRange))
+    for (DbgVariableInst &DPV : DbgVariableInst::filter(DPVRange))
       RetargetDPValueIfPossible(&DPV);
   }
 

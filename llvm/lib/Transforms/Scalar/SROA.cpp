@@ -4857,13 +4857,13 @@ static void insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
   LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign << "\n");
   (void)NewAssign;
 }
-static void insertNewDbgInst(DIBuilder &DIB, DPValue *Orig, AllocaInst *NewAddr,
+static void insertNewDbgInst(DIBuilder &DIB, DbgVariableInst *Orig, AllocaInst *NewAddr,
                              DIExpression *NewFragmentExpr,
                              Instruction *BeforeInst) {
   (void)DIB;
-  DPValue *New = new DPValue(ValueAsMetadata::get(NewAddr), Orig->getVariable(),
+  DbgVariableInst *New = new DbgVariableInst(ValueAsMetadata::get(NewAddr), Orig->getVariable(),
                              NewFragmentExpr, Orig->getDebugLoc(),
-                             DPValue::LocationType::Declare);
+                             DbgVariableInst::LocationType::Declare);
   BeforeInst->getParent()->insertDPValueBefore(New, BeforeInst->getIterator());
 }
 
@@ -5022,7 +5022,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       // Remove any existing intrinsics on the new alloca describing
       // the variable fragment.
       SmallVector<DbgDeclareInst *, 1> FragDbgDeclares;
-      SmallVector<DPValue *, 1> FragDPVs;
+      SmallVector<DbgVariableInst *, 1> FragDPVs;
       findDbgDeclares(FragDbgDeclares, Fragment.Alloca, &FragDPVs);
       auto RemoveOne = [DbgVariable](auto *OldDII) {
         auto SameVariableFragment = [](const auto *LHS, const auto *RHS) {
@@ -5043,7 +5043,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
   SmallVector<DbgDeclareInst *, 1> DbgDeclares;
-  SmallVector<DPValue *, 1> DPValues;
+  SmallVector<DbgVariableInst *, 1> DPValues;
   findDbgDeclares(DbgDeclares, &AI, &DPValues);
   for_each(DbgDeclares, MigrateOne);
   for_each(DPValues, MigrateOne);
@@ -5170,11 +5170,11 @@ bool SROA::deleteDeadInstructions(
     if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
       DeletedAllocas.insert(AI);
       SmallVector<DbgDeclareInst *, 1> DbgDeclares;
-      SmallVector<DPValue *, 1> DPValues;
+      SmallVector<DbgVariableInst *, 1> DPValues;
       findDbgDeclares(DbgDeclares, AI, &DPValues);
       for (DbgDeclareInst *OldDII : DbgDeclares)
         OldDII->eraseFromParent();
-      for (DPValue *OldDII : DPValues)
+      for (DbgVariableInst *OldDII : DPValues)
         OldDII->eraseFromParent();
     }
 

@@ -159,7 +159,7 @@ static void RewriteUsesOfClonedInstructions(BasicBlock *OrigHeader,
     // Replace MetadataAsValue(ValueAsMetadata(OrigHeaderVal)) uses in debug
     // intrinsics.
     SmallVector<DbgValueInst *, 1> DbgValues;
-    SmallVector<DPValue *, 1> DPValues;
+    SmallVector<DbgVariableInst *, 1> DPValues;
     llvm::findDbgValues(DbgValues, OrigHeaderVal, &DPValues);
     for (auto &DbgValue : DbgValues) {
       // The original users in the OrigHeader are already using the original
@@ -184,7 +184,7 @@ static void RewriteUsesOfClonedInstructions(BasicBlock *OrigHeader,
 
     // RemoveDIs: duplicate implementation for non-instruction debug-info
     // storage in DPValues.
-    for (DPValue *DPV : DPValues) {
+    for (DbgVariableInst *DPV : DPValues) {
       // The original users in the OrigHeader are already using the original
       // definitions.
       BasicBlock *UserBB = DPV->getMarker()->getParent();
@@ -554,7 +554,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
         DbgIntrinsics.insert(makeHash(DII));
         // Until RemoveDIs supports dbg.declares in DPValue format, we'll need
         // to collect DPValues attached to any other debug intrinsics.
-        for (const DPValue &DPV : DPValue::filter(DII->getDbgValueRange()))
+        for (const DbgVariableInst &DPV : DbgVariableInst::filter(DII->getDbgValueRange()))
           DbgIntrinsics.insert(makeHash(&DPV));
       } else {
         break;
@@ -563,8 +563,8 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
 
     // Build DPValue hashes for DPValues attached to the terminator, which isn't
     // considered in the loop above.
-    for (const DPValue &DPV :
-         DPValue::filter(OrigPreheader->getTerminator()->getDbgValueRange()))
+    for (const DbgVariableInst &DPV :
+         DbgVariableInst::filter(OrigPreheader->getTerminator()->getDbgValueRange()))
       DbgIntrinsics.insert(makeHash(&DPV));
 
     // Remember the local noalias scope declarations in the header. After the
@@ -596,7 +596,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
     // on the next instruction, here labelled xyzzy, before we hoist %foo.
     // Later, we only only clone DPValues from that position (xyzzy) onwards,
     // which avoids cloning DPValue "blah" multiple times.
-    std::optional<DPValue::self_iterator> NextDbgInst = std::nullopt;
+    std::optional<DbgVariableInst::self_iterator> NextDbgInst = std::nullopt;
 
     while (I != E) {
       Instruction *Inst = &*I++;
@@ -617,8 +617,8 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
           RemapDPValueRange(M, DbgValueRange, ValueMap,
                             RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
           // Erase anything we've seen before.
-          for (DPValue &DPV :
-               make_early_inc_range(DPValue::filter(DbgValueRange)))
+          for (DbgVariableInst &DPV :
+               make_early_inc_range(DbgVariableInst::filter(DbgValueRange)))
             if (DbgIntrinsics.count(makeHash(&DPV)))
               DPV.eraseFromParent();
         }
@@ -642,7 +642,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
                           RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
         NextDbgInst = std::nullopt;
         // Erase anything we've seen before.
-        for (DPValue &DPV : make_early_inc_range(DPValue::filter(Range)))
+        for (DbgVariableInst &DPV : make_early_inc_range(DbgVariableInst::filter(Range)))
           if (DbgIntrinsics.count(makeHash(&DPV)))
             DPV.eraseFromParent();
       }

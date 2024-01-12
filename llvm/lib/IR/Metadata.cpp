@@ -148,9 +148,9 @@ void MetadataAsValue::untrack() {
     MetadataTracking::untrack(MD);
 }
 
-DPValue *DebugValueUser::getUser() { return static_cast<DPValue *>(this); }
-const DPValue *DebugValueUser::getUser() const {
-  return static_cast<const DPValue *>(this);
+DbgVariableInst *DebugValueUser::getUser() { return static_cast<DbgVariableInst *>(this); }
+const DbgVariableInst *DebugValueUser::getUser() const {
+  return static_cast<const DbgVariableInst *>(this);
 }
 void DebugValueUser::handleChangedValue(Metadata *NewMD) {
   getUser()->handleChangedLocation(NewMD);

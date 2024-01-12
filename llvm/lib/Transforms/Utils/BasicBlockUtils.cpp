@@ -383,13 +383,13 @@ bool llvm::MergeBlockSuccessorsIntoGivenBlocks(
 /// - Support dbg.declare. dbg.label, and possibly other meta instructions being
 ///   part of the sequence of consecutive instructions.
 static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
-  SmallVector<DPValue *, 8> ToBeRemoved;
+  SmallVector<DbgVariableInst *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
-    for (DPValue &DPV : reverse(DPValue::filter(I.getDbgValueRange()))) {
+    for (DbgVariableInst &DPV : reverse(DbgVariableInst::filter(I.getDbgValueRange()))) {
       // Skip declare-type records, as the debug intrinsic method only works
       // on dbg.value intrinsics.
-      if (DPV.getType() == DPValue::LocationType::Declare) {
+      if (DPV.getType() == DbgVariableInst::LocationType::Declare) {
         // The debug intrinsic method treats dbg.declares are "non-debug"
         // instructions (i.e., a break in a consecutive range of debug
         // intrinsics). Emulate that to create identical outputs. See
@@ -485,12 +485,12 @@ static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
 /// Possible improvements:
 /// - Keep track of non-overlapping fragments.
 static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
-  SmallVector<DPValue *, 8> ToBeRemoved;
+  SmallVector<DbgVariableInst *, 8> ToBeRemoved;
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>
       VariableMap;
   for (auto &I : *BB) {
-    for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
-      if (DPV.getType() == DPValue::LocationType::Declare)
+    for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange())) {
+      if (DPV.getType() == DbgVariableInst::LocationType::Declare)
         continue;
       DebugVariable Key(DPV.getVariable(), std::nullopt,
                         DPV.getDebugLoc()->getInlinedAt());

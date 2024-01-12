@@ -38,7 +38,7 @@ class LLVMContext;
 class Module;
 class PHINode;
 class ValueSymbolTable;
-class DPValue;
+class DbgVariableInst;
 class DbgMarker;
 
 /// LLVM Basic Block Representation

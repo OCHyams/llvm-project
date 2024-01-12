@@ -65,7 +65,7 @@ enum Tag : uint16_t;
 }
 
 class DbgVariableIntrinsic;
-class DPValue;
+class DbgVariableInst;
 
 extern cl::opt<bool> EnableFSDiscriminator;
 
@@ -3815,7 +3815,7 @@ class DebugVariable {
 
 public:
   DebugVariable(const DbgVariableIntrinsic *DII);
-  DebugVariable(const DPValue *DPV);
+  DebugVariable(const DbgVariableInst *DPV);
 
   DebugVariable(const DILocalVariable *Var,
                 std::optional<FragmentInfo> FragmentInfo,

@@ -459,7 +459,7 @@ private:
   bool optimizeExtractElementInst(Instruction *Inst);
   bool dupRetToEnableTailCallOpts(BasicBlock *BB, ModifyDT &ModifiedDT);
   bool fixupDbgValue(Instruction *I);
-  bool fixupDPValue(DPValue &I);
+  bool fixupDPValue(DbgVariableInst &I);
   bool fixupDPValuesOnInst(Instruction &I);
   bool placeDbgValues(Function &F);
   bool placePseudoProbes(Function &F);
@@ -2839,7 +2839,7 @@ class TypePromotionTransaction {
       Instruction *PrevInst;
       BasicBlock *BB;
     } Point;
-    std::optional<DPValue::self_iterator> BeforeDPValue = std::nullopt;
+    std::optional<DbgVariableInst::self_iterator> BeforeDPValue = std::nullopt;
 
     /// Remember whether or not the instruction had a previous instruction.
     bool HasPrevInstruction;
@@ -3080,7 +3080,7 @@ class TypePromotionTransaction {
     /// Keep track of the debug users.
     SmallVector<DbgValueInst *, 1> DbgValues;
     /// And non-instruction debug-users too.
-    SmallVector<DPValue *, 1> DPValues;
+    SmallVector<DbgVariableInst *, 1> DPValues;
 
     /// Keep track of the new value so that we can undo it by replacing
     /// instances of the new value with the original value.
@@ -3120,7 +3120,7 @@ class TypePromotionTransaction {
         DVI->replaceVariableLocationOp(New, Inst);
       // Similar story with DPValues, the non-instruction representation of
       // dbg.values.
-      for (DPValue *DPV : DPValues) // tested by transaction-test I'm adding
+      for (DbgVariableInst *DPV : DPValues) // tested by transaction-test I'm adding
         DPV->replaceVariableLocationOp(New, Inst);
     }
   };
@@ -8400,15 +8400,15 @@ bool CodeGenPrepare::fixupDbgValue(Instruction *I) {
 
 bool CodeGenPrepare::fixupDPValuesOnInst(Instruction &I) {
   bool AnyChange = false;
-  for (DPValue &DPV : DPValue::filter(I.getDbgValueRange()))
+  for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange()))
     AnyChange |= fixupDPValue(DPV);
   return AnyChange;
 }
 
 // FIXME: should updating debug-info really cause the "changed" flag to fire,
 // which can cause a function to be reprocessed?
-bool CodeGenPrepare::fixupDPValue(DPValue &DPV) {
-  if (DPV.Type != DPValue::LocationType::Value)
+bool CodeGenPrepare::fixupDPValue(DbgVariableInst &DPV) {
+  if (DPV.Type != DbgVariableInst::LocationType::Value)
     return false;
 
   // Does this DPValue refer to a sunk address calculation?
@@ -8439,7 +8439,7 @@ static void DbgInserterHelper(DbgValueInst *DVI, Instruction *VI) {
     DVI->insertAfter(VI);
 }
 
-static void DbgInserterHelper(DPValue *DPV, Instruction *VI) {
+static void DbgInserterHelper(DbgVariableInst *DPV, Instruction *VI) {
   DPV->removeFromParent();
   BasicBlock *VIBB = VI->getParent();
   if (isa<PHINode>(VI))
@@ -8512,9 +8512,9 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
 
       // If this isn't a dbg.value, process any attached DPValue records
       // attached to this instruction.
-      for (DPValue &DPV : llvm::make_early_inc_range(
-               DPValue::filter(Insn.getDbgValueRange()))) {
-        if (DPV.Type != DPValue::LocationType::Value)
+      for (DbgVariableInst &DPV : llvm::make_early_inc_range(
+               DbgVariableInst::filter(Insn.getDbgValueRange()))) {
+        if (DPV.Type != DbgVariableInst::LocationType::Value)
           continue;
         DbgProcessor(&DPV, &Insn);
       }

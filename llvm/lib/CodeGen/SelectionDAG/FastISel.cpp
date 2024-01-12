@@ -1192,18 +1192,18 @@ void FastISel::handleDbgInfo(const Instruction *II) {
     flushLocalValueMap();
     recomputeInsertPt();
 
-    DPValue &DPV = cast<DPValue>(DPR);
+    DbgVariableInst &DPV = cast<DbgVariableInst>(DPR);
 
     Value *V = nullptr;
     if (!DPV.hasArgList())
       V = DPV.getVariableLocationOp(0);
 
     bool Res = false;
-    if (DPV.getType() == DPValue::LocationType::Value) {
+    if (DPV.getType() == DbgVariableInst::LocationType::Value) {
       Res = lowerDbgValue(V, DPV.getExpression(), DPV.getVariable(),
                           DPV.getDebugLoc());
     } else {
-      assert(DPV.getType() == DPValue::LocationType::Declare);
+      assert(DPV.getType() == DbgVariableInst::LocationType::Declare);
       if (FuncInfo.PreprocessedDPVDeclares.contains(&DPV))
         continue;
       Res = lowerDbgDeclare(V, DPV.getExpression(), DPV.getVariable(),

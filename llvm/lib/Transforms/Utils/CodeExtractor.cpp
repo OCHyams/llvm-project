@@ -1508,12 +1508,12 @@ void CodeExtractor::calculateNewCallTerminatorWeights(
 static void eraseDebugIntrinsicsWithNonLocalRefs(Function &F) {
   for (Instruction &I : instructions(F)) {
     SmallVector<DbgVariableIntrinsic *, 4> DbgUsers;
-    SmallVector<DPValue *, 4> DPValues;
+    SmallVector<DbgVariableInst *, 4> DPValues;
     findDbgUsers(DbgUsers, &I, &DPValues);
     for (DbgVariableIntrinsic *DVI : DbgUsers)
       if (DVI->getFunction() != &F)
         DVI->eraseFromParent();
-    for (DPValue *DPV : DPValues)
+    for (DbgVariableInst *DPV : DPValues)
       if (DPV->getFunction() != &F)
         DPV->eraseFromParent();
   }
@@ -1569,7 +1569,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   //     point to a variable in the wrong scope.
   SmallDenseMap<DINode *, DINode *> RemappedMetadata;
   SmallVector<Instruction *, 4> DebugIntrinsicsToDelete;
-  SmallVector<DPValue *, 4> DPVsToDelete;
+  SmallVector<DbgVariableInst *, 4> DPVsToDelete;
   DenseMap<const MDNode *, MDNode *> Cache;
 
   auto GetUpdatedDIVariable = [&](DILocalVariable *OldVar) {
@@ -1586,7 +1586,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   };
 
   auto UpdateDPValuesOnInst = [&](Instruction &I) -> void {
-    for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
+    for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange())) {
       // Apply the two updates that dbg.values get: invalid operands, and
       // variable metadata fixup.
       // FIXME: support dbg.assign form of DPValues.

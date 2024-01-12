@@ -173,7 +173,7 @@ public:
 
 struct AllocaInfo {
   using DbgUserVec = SmallVector<DbgVariableIntrinsic *, 1>;
-  using DPUserVec = SmallVector<DPValue *, 1>;
+  using DPUserVec = SmallVector<DbgVariableInst *, 1>;
 
   SmallVector<BasicBlock *, 32> DefiningBlocks;
   SmallVector<BasicBlock *, 32> UsingBlocks;
