@@ -44,8 +44,8 @@ using namespace llvm;
 using namespace llvm::at;
 using namespace llvm::dwarf;
 
-template <typename IntrinsicT,
-          DbgVariableInst::LocationType Type = DbgVariableInst::LocationType::Any>
+template <typename IntrinsicT, DbgVariableInst::LocationType Type =
+                                   DbgVariableInst::LocationType::Any>
 static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
                               SmallVectorImpl<DbgVariableInst *> *DPValues) {
   // This function is hot. Check whether the value has any metadata to avoid a
@@ -77,7 +77,8 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
       for (DbgRecord *DPR : L->getAllDPValueUsers()) {
         if (auto *DPV = dyn_cast<DbgVariableInst>(DPR)) {
-          if (Type == DbgVariableInst::LocationType::Any || DPV->getType() == Type)
+          if (Type == DbgVariableInst::LocationType::Any ||
+              DPV->getType() == Type)
             DPValues->push_back(DPV);
         }
       }
@@ -101,19 +102,21 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
 }
 
 void llvm::findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers,
-                           Value *V, SmallVectorImpl<DbgVariableInst *> *DPValues) {
-  findDbgIntrinsics<DbgDeclareInst, DbgVariableInst::LocationType::Declare>(DbgUsers, V,
-                                                                    DPValues);
+                           Value *V,
+                           SmallVectorImpl<DbgVariableInst *> *DPValues) {
+  findDbgIntrinsics<DbgDeclareInst, DbgVariableInst::LocationType::Declare>(
+      DbgUsers, V, DPValues);
 }
 
-void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues,
-                         Value *V, SmallVectorImpl<DbgVariableInst *> *DPValues) {
-  findDbgIntrinsics<DbgValueInst, DbgVariableInst::LocationType::Value>(DbgValues, V,
-                                                                DPValues);
+void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
+                         SmallVectorImpl<DbgVariableInst *> *DPValues) {
+  findDbgIntrinsics<DbgValueInst, DbgVariableInst::LocationType::Value>(
+      DbgValues, V, DPValues);
 }
 
 void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
-                        Value *V, SmallVectorImpl<DbgVariableInst *> *DPValues) {
+                        Value *V,
+                        SmallVectorImpl<DbgVariableInst *> *DPValues) {
   findDbgIntrinsics<DbgVariableIntrinsic, DbgVariableInst::LocationType::Any>(
       DbgUsers, V, DPValues);
 }
@@ -212,7 +215,8 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
   processLocation(M, Loc->getInlinedAt());
 }
 
-void DebugInfoFinder::processDPValue(const Module &M, const DbgVariableInst &DPV) {
+void DebugInfoFinder::processDPValue(const Module &M,
+                                     const DbgVariableInst &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
 }

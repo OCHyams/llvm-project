@@ -35,8 +35,9 @@ DbgVariableInst::DbgVariableInst(const DbgVariableInst &DPV)
       DebugValueUser(DPV.getRawLocation()), Type(DPV.getType()),
       Variable(DPV.getVariable()), Expression(DPV.getExpression()) {}
 
-DbgVariableInst::DbgVariableInst(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
-                 const DILocation *DI, LocationType Type)
+DbgVariableInst::DbgVariableInst(Metadata *Location, DILocalVariable *DV,
+                                 DIExpression *Expr, const DILocation *DI,
+                                 LocationType Type)
     : DbgRecord(ValueKind, DI), DebugValueUser(Location), Type(Type),
       Variable(DV), Expression(Expr) {}
 
@@ -70,7 +71,8 @@ void DbgRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   };
 }
 
-iterator_range<DbgVariableInst::location_op_iterator> DbgVariableInst::location_ops() const {
+iterator_range<DbgVariableInst::location_op_iterator>
+DbgVariableInst::location_ops() const {
   auto *MD = getRawLocation();
   // If a Value has been deleted, the "location" for this DPValue will be
   // replaced by nullptr. Return an empty range.
@@ -122,8 +124,9 @@ static ValueAsMetadata *getAsMetadata(Value *V) {
                                  : ValueAsMetadata::get(V);
 }
 
-void DbgVariableInst::replaceVariableLocationOp(Value *OldValue, Value *NewValue,
-                                        bool AllowEmpty) {
+void DbgVariableInst::replaceVariableLocationOp(Value *OldValue,
+                                                Value *NewValue,
+                                                bool AllowEmpty) {
   assert(NewValue && "Values must be non-null");
   auto Locations = location_ops();
   auto OldIt = find(Locations, OldValue);
@@ -150,7 +153,8 @@ void DbgVariableInst::replaceVariableLocationOp(Value *OldValue, Value *NewValue
   setRawLocation(DIArgList::get(getVariableLocationOp(0)->getContext(), MDs));
 }
 
-void DbgVariableInst::replaceVariableLocationOp(unsigned OpIdx, Value *NewValue) {
+void DbgVariableInst::replaceVariableLocationOp(unsigned OpIdx,
+                                                Value *NewValue) {
   assert(OpIdx < getNumVariableLocationOps() && "Invalid Operand Index");
 
   if (!hasArgList()) {
@@ -170,7 +174,7 @@ void DbgVariableInst::replaceVariableLocationOp(unsigned OpIdx, Value *NewValue)
 }
 
 void DbgVariableInst::addVariableLocationOps(ArrayRef<Value *> NewValues,
-                                     DIExpression *NewExpr) {
+                                             DIExpression *NewExpr) {
   assert(NewExpr->hasAllLocationOps(getNumVariableLocationOps() +
                                     NewValues.size()) &&
          "NewExpr for debug variable intrinsic does not reference every "
@@ -218,10 +222,13 @@ DbgRecord *DbgRecord::clone() const {
   };
 }
 
-DbgVariableInst *DbgVariableInst::clone() const { return new DbgVariableInst(*this); }
+DbgVariableInst *DbgVariableInst::clone() const {
+  return new DbgVariableInst(*this);
+}
 
 DbgVariableIntrinsic *
-DbgVariableInst::createDebugIntrinsic(Module *M, Instruction *InsertBefore) const {
+DbgVariableInst::createDebugIntrinsic(Module *M,
+                                      Instruction *InsertBefore) const {
   [[maybe_unused]] DICompileUnit *Unit =
       getDebugLoc().get()->getScope()->getSubprogram()->getUnit();
   assert(M && Unit &&

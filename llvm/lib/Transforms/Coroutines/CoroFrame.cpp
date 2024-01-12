@@ -1277,9 +1277,10 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
   }
 
   if (UseNewDbgInfoFormat) {
-    DbgVariableInst *NewDPV = new DbgVariableInst(ValueAsMetadata::get(Shape.FramePtr),
-                                  FrameDIVar, DBuilder.createExpression(),
-                                  DILoc, DbgVariableInst::LocationType::Declare);
+    DbgVariableInst *NewDPV =
+        new DbgVariableInst(ValueAsMetadata::get(Shape.FramePtr), FrameDIVar,
+                            DBuilder.createExpression(), DILoc,
+                            DbgVariableInst::LocationType::Declare);
     BasicBlock::iterator It = Shape.getInsertPtAfterFramePtr();
     It->getParent()->insertDPValueBefore(NewDPV, It);
   } else {
@@ -1893,10 +1894,10 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           // fragments. It will be unreachable in the main function, and
           // processed by coro::salvageDebugInfo() by CoroCloner.
           if (UseNewDbgInfoFormat) {
-            DbgVariableInst *NewDPV =
-                new DbgVariableInst(ValueAsMetadata::get(CurrentReload),
-                            DDI->getVariable(), DDI->getExpression(),
-                            DDI->getDebugLoc(), DbgVariableInst::LocationType::Declare);
+            DbgVariableInst *NewDPV = new DbgVariableInst(
+                ValueAsMetadata::get(CurrentReload), DDI->getVariable(),
+                DDI->getExpression(), DDI->getDebugLoc(),
+                DbgVariableInst::LocationType::Declare);
             Builder.GetInsertPoint()->getParent()->insertDPValueBefore(
                 NewDPV, Builder.GetInsertPoint());
           } else {
@@ -1931,7 +1932,8 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       U->replaceUsesOfWith(Def, CurrentReload);
       // Instructions are added to Def's user list if the attached
       // debug records use Def. Update those now.
-      for (DbgVariableInst &DPV : DbgVariableInst::filter(U->getDbgValueRange()))
+      for (DbgVariableInst &DPV :
+           DbgVariableInst::filter(U->getDbgValueRange()))
         DPV.replaceVariableLocationOp(Def, CurrentReload, true);
     }
   }
@@ -2966,13 +2968,14 @@ void coro::salvageDebugInfo(
 }
 
 void coro::salvageDebugInfo(
-    SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap, DbgVariableInst &DPV,
-    bool OptimizeFrame, bool UseEntryValue) {
+    SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
+    DbgVariableInst &DPV, bool OptimizeFrame, bool UseEntryValue) {
 
   Function *F = DPV.getFunction();
   // Follow the pointer arithmetic all the way to the incoming
   // function argument and convert into a DIExpression.
-  bool SkipOutermostLoad = DPV.getType() == DbgVariableInst::LocationType::Declare;
+  bool SkipOutermostLoad =
+      DPV.getType() == DbgVariableInst::LocationType::Declare;
   Value *OriginalStorage = DPV.getVariableLocationOp(0);
 
   auto SalvagedInfo = ::salvageDebugInfoImpl(

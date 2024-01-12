@@ -3120,7 +3120,8 @@ class TypePromotionTransaction {
         DVI->replaceVariableLocationOp(New, Inst);
       // Similar story with DPValues, the non-instruction representation of
       // dbg.values.
-      for (DbgVariableInst *DPV : DPValues) // tested by transaction-test I'm adding
+      for (DbgVariableInst *DPV :
+           DPValues) // tested by transaction-test I'm adding
         DPV->replaceVariableLocationOp(New, Inst);
     }
   };

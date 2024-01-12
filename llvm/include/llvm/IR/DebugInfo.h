@@ -44,12 +44,12 @@ void findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers, Value *V,
                      SmallVectorImpl<DbgVariableInst *> *DPValues = nullptr);
 
 /// Finds the llvm.dbg.value intrinsics describing a value.
-void findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues,
-                   Value *V, SmallVectorImpl<DbgVariableInst *> *DPValues = nullptr);
+void findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
+                   SmallVectorImpl<DbgVariableInst *> *DPValues = nullptr);
 
 /// Finds the debug info intrinsics describing a value.
-void findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgInsts,
-                  Value *V, SmallVectorImpl<DbgVariableInst *> *DPValues = nullptr);
+void findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgInsts, Value *V,
+                  SmallVectorImpl<DbgVariableInst *> *DPValues = nullptr);
 
 /// Find subprogram that is enclosing this scope.
 DISubprogram *getDISubprogram(const MDNode *Scope);

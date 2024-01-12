@@ -4857,13 +4857,13 @@ static void insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
   LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign << "\n");
   (void)NewAssign;
 }
-static void insertNewDbgInst(DIBuilder &DIB, DbgVariableInst *Orig, AllocaInst *NewAddr,
-                             DIExpression *NewFragmentExpr,
+static void insertNewDbgInst(DIBuilder &DIB, DbgVariableInst *Orig,
+                             AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
                              Instruction *BeforeInst) {
   (void)DIB;
-  DbgVariableInst *New = new DbgVariableInst(ValueAsMetadata::get(NewAddr), Orig->getVariable(),
-                             NewFragmentExpr, Orig->getDebugLoc(),
-                             DbgVariableInst::LocationType::Declare);
+  DbgVariableInst *New = new DbgVariableInst(
+      ValueAsMetadata::get(NewAddr), Orig->getVariable(), NewFragmentExpr,
+      Orig->getDebugLoc(), DbgVariableInst::LocationType::Declare);
   BeforeInst->getParent()->insertDPValueBefore(New, BeforeInst->getIterator());
 }
 

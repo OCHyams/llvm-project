@@ -4860,7 +4860,7 @@ void DbgMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
 }
 
 void DbgVariableInst::print(raw_ostream &ROS, ModuleSlotTracker &MST,
-                    bool IsForDebug) const {
+                            bool IsForDebug) const {
   // There's no formal representation of a DPValue -- print purely as a
   // debugging aid.
   formatted_raw_ostream OS(ROS);

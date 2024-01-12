@@ -220,8 +220,8 @@ void SSAUpdater::UpdateDebugValues(Instruction *I,
   }
 }
 
-void SSAUpdater::UpdateDebugValues(Instruction *I,
-                                   SmallVectorImpl<DbgVariableInst *> &DPValues) {
+void SSAUpdater::UpdateDebugValues(
+    Instruction *I, SmallVectorImpl<DbgVariableInst *> &DPValues) {
   for (auto &DPV : DPValues) {
     UpdateDebugValue(I, DPV);
   }

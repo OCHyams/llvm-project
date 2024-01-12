@@ -1656,7 +1656,8 @@ static void insertDbgValueOrDPValue(DIBuilder &Builder, Value *DV,
     // RemoveDIs: if we're using the new debug-info format, allocate a
     // DPValue directly instead of a dbg.value intrinsic.
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-    DbgVariableInst *DV = new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
+    DbgVariableInst *DV =
+        new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
     Instr->getParent()->insertDPValueBefore(DV, Instr);
   }
 }
@@ -1674,7 +1675,8 @@ static void insertDbgValueOrDPValueAfter(DIBuilder &Builder, Value *DV,
     // RemoveDIs: if we're using the new debug-info format, allocate a
     // DPValue directly instead of a dbg.value intrinsic.
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-    DbgVariableInst *DV = new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
+    DbgVariableInst *DV =
+        new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
     Instr->getParent()->insertDPValueAfter(DV, &*Instr);
   }
 }
@@ -1807,7 +1809,8 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableInst *DPV, StoreInst *SI,
   // know nothing about the variable's content.
   DV = UndefValue::get(DV->getType());
   ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-  DbgVariableInst *NewDPV = new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
+  DbgVariableInst *NewDPV =
+      new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
   SI->getParent()->insertDPValueBefore(NewDPV, SI->getIterator());
 }
 
@@ -1925,7 +1928,8 @@ bool llvm::LowerDbgDeclare(Function &F) {
     for (Instruction &BI : FI) {
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&BI))
         Dbgs.push_back(DDI);
-      for (DbgVariableInst &DPV : DbgVariableInst::filter(BI.getDbgValueRange())) {
+      for (DbgVariableInst &DPV :
+           DbgVariableInst::filter(BI.getDbgValueRange())) {
         if (DPV.getType() == DbgVariableInst::LocationType::Declare)
           DPVs.push_back(&DPV);
       }
@@ -2023,7 +2027,8 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
   // so that if a DPValue is being rewritten to use more than one of the
   // inserted PHIs in the same destination BB, we can update the same DPValue
   // with all the new PHIs instead of creating one copy for each.
-  MapVector<std::pair<BasicBlock *, DbgVariableInst *>, DbgVariableInst *> NewDbgValueMap;
+  MapVector<std::pair<BasicBlock *, DbgVariableInst *>, DbgVariableInst *>
+      NewDbgValueMap;
   // Then iterate through the new PHIs and look to see if they use one of the
   // previously mapped PHIs. If so, create a new DPValue that will propagate
   // the info through the new PHI. If we use more than one new PHI in a single

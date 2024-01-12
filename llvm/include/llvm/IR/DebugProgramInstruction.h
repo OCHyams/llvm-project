@@ -1,4 +1,4 @@
-//===-- llvm/DebugProgramInstruction.h - Stream of debug info -------*- C++ -*-===//
+//===-- llvm/DebugProgramInstruction.h - Stream of debug info ---*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -178,6 +178,8 @@ public:
   /// Directly construct a new DbgVariableRecord representing a dbg.value
   /// intrinsic assigning \p Location to the DV / Expr / DI variable.
   DbgVariableInst(Metadata *Location, DILocalVariable *DV, DIExpression *Expr,
+                  const DILocation *DI,
+                  LocationType Type = LocationType::Value);
 
   /// Iterator for ValueAsMetadata that internally uses direct pointer iteration
   /// over either a ValueAsMetadata* or a ValueAsMetadata**, dereferencing to the
@@ -271,10 +273,10 @@ public:
   /// replaceVariableLocationOp and addVariableLocationOps should be used where
   /// possible to avoid creating invalid state.
   void setRawLocation(Metadata *NewLocation) {
-    assert(
-        (isa<ValueAsMetadata>(NewLocation) || isa<DIArgList>(NewLocation) ||
-         isa<MDNode>(NewLocation)) &&
-        "Location for a DbgVariableRecord must be either ValueAsMetadata or DIArgList");
+    assert((isa<ValueAsMetadata>(NewLocation) || isa<DIArgList>(NewLocation) ||
+            isa<MDNode>(NewLocation)) &&
+           "Location for a DbgVariableRecord must be either ValueAsMetadata or "
+           "DIArgList");
     resetDebugValue(NewLocation);
   }
 
@@ -300,7 +302,8 @@ public:
   static inline auto
   filter(iterator_range<simple_ilist<DbgRecord>::iterator> R) {
     return map_range(
-        make_filter_range(R, [](DbgRecord &E) { return isa<DbgVariableInst>(E); }),
+        make_filter_range(R,
+                          [](DbgRecord &E) { return isa<DbgVariableInst>(E); }),
         [](DbgRecord &E) { return std::ref(cast<DbgVariableInst>(E)); });
   }
 
