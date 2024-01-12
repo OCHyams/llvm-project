@@ -180,7 +180,7 @@ public:
   Constant *mapConstant(const Constant &C);
 
   void remapInstruction(Instruction &I);
-  void remapDPValue(Module *M, DbgVariableInst &V);
+  void remapDPValue(Module *M, DbgVariableRecord &V);
   void remapDPValueRange(Module *M, iterator_range<DbgRecordIterator> Range);
   void remapFunction(Function &F);
   void remapGlobalObjectMetadata(GlobalObject &GO);
@@ -268,7 +268,7 @@ inline void RemapInstruction(Instruction *I, ValueToValueMapTy &VM,
 }
 
 /// Remap the Values used in the DPValue \a V using the value map \a VM.
-inline void RemapDPValue(Module *M, DbgVariableInst *V, ValueToValueMapTy &VM,
+inline void RemapDPValue(Module *M, DbgVariableRecord *V, ValueToValueMapTy &VM,
                          RemapFlags Flags = RF_None,
                          ValueMapTypeRemapper *TypeMapper = nullptr,
                          ValueMaterializer *Materializer = nullptr) {

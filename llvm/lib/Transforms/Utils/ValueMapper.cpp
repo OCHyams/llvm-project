@@ -146,7 +146,7 @@ public:
   Value *mapValue(const Value *V);
   void remapInstruction(Instruction *I);
   void remapFunction(Function &F);
-  void remapDPValue(DbgVariableInst &DPV);
+  void remapDPValue(DbgVariableRecord &DPV);
 
   Constant *mapConstant(const Constant *C) {
     return cast_or_null<Constant>(mapValue(C));
@@ -537,7 +537,7 @@ Value *Mapper::mapValue(const Value *V) {
   return getVM()[V] = ConstantPointerNull::get(cast<PointerType>(NewTy));
 }
 
-void Mapper::remapDPValue(DbgVariableInst &V) {
+void Mapper::remapDPValue(DbgVariableRecord &V) {
   // Remap variables and DILocations.
   auto *MappedVar = mapMetadata(V.getVariable());
   auto *MappedDILoc = mapMetadata(V.getDebugLoc());
@@ -1214,13 +1214,13 @@ void ValueMapper::remapInstruction(Instruction &I) {
   FlushingMapper(pImpl)->remapInstruction(&I);
 }
 
-void ValueMapper::remapDPValue(Module *M, DbgVariableInst &V) {
+void ValueMapper::remapDPValue(Module *M, DbgVariableRecord &V) {
   FlushingMapper(pImpl)->remapDPValue(V);
 }
 
 void ValueMapper::remapDPValueRange(
     Module *M, iterator_range<DbgRecord::self_iterator> Range) {
-  for (DbgVariableInst &DPV : DbgVariableInst::filter(Range)) {
+  for (DbgVariableRecord &DPV : DbgVariableRecord::filter(Range)) {
     remapDPValue(M, DPV);
   }
 }

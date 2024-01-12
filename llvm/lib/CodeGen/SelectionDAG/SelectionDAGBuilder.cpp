@@ -1232,12 +1232,12 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
   // Is there is any debug-info attached to this instruction, in the form of
   // DPValue non-instruction debug-info records.
   for (DbgRecord &DPR : I.getDbgValueRange()) {
-    DbgVariableInst &DPV = cast<DbgVariableInst>(DPR);
+    DbgVariableRecord &DPV = cast<DbgVariableRecord>(DPR);
     DILocalVariable *Variable = DPV.getVariable();
     DIExpression *Expression = DPV.getExpression();
     dropDanglingDebugInfo(Variable, Expression);
 
-    if (DPV.getType() == DbgVariableInst::LocationType::Declare) {
+    if (DPV.getType() == DbgVariableRecord::LocationType::Declare) {
       if (FuncInfo.PreprocessedDPVDeclares.contains(&DPV))
         continue;
       LLVM_DEBUG(dbgs() << "SelectionDAG visiting dbg_declare: " << DPV

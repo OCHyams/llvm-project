@@ -726,12 +726,13 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 
 /// Returns all DbgVariableIntrinsic in F.
 static std::pair<SmallVector<DbgVariableIntrinsic *, 8>,
-                 SmallVector<DbgVariableInst *>>
+                 SmallVector<DbgVariableRecord *>>
 collectDbgVariableIntrinsics(Function &F) {
   SmallVector<DbgVariableIntrinsic *, 8> Intrinsics;
-  SmallVector<DbgVariableInst *> DPValues;
+  SmallVector<DbgVariableRecord *> DPValues;
   for (auto &I : instructions(F)) {
-    for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange()))
+    for (DbgVariableRecord &DPV :
+         DbgVariableRecord::filter(I.getDbgValueRange()))
       DPValues.push_back(&DPV);
     if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
       Intrinsics.push_back(DVI);
@@ -753,7 +754,7 @@ void CoroCloner::salvageDebugInfo() {
   for (DbgVariableIntrinsic *DVI : Worklist)
     coro::salvageDebugInfo(ArgToAllocaMap, *DVI, Shape.OptimizeFrame,
                            UseEntryValue);
-  for (DbgVariableInst *DPV : DPValues)
+  for (DbgVariableRecord *DPV : DPValues)
     coro::salvageDebugInfo(ArgToAllocaMap, *DPV, Shape.OptimizeFrame,
                            UseEntryValue);
 
@@ -2052,7 +2053,7 @@ splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
   for (auto *DDI : DbgInsts)
     coro::salvageDebugInfo(ArgToAllocaMap, *DDI, Shape.OptimizeFrame,
                            false /*UseEntryValue*/);
-  for (DbgVariableInst *DPV : DPValues)
+  for (DbgVariableRecord *DPV : DPValues)
     coro::salvageDebugInfo(ArgToAllocaMap, *DPV, Shape.OptimizeFrame,
                            false /*UseEntryValue*/);
   return Shape;

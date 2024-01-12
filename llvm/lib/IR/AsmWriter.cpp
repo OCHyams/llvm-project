@@ -292,7 +292,7 @@ static const Module *getModuleFromDPI(const DbgMarker *Marker) {
   return M ? M->getParent() : nullptr;
 }
 
-static const Module *getModuleFromDPI(const DbgVariableInst *DPV) {
+static const Module *getModuleFromDPI(const DbgVariableRecord *DPV) {
   return getModuleFromDPI(DPV->getMarker());
 }
 
@@ -1138,7 +1138,7 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
 }
 
 void SlotTracker::processDbgRecordMetadata(const DbgRecord &DR) {
-  if (const DPValue *DPV = dyn_cast<const DPValue>(&DR)) {
+  if (const DbgVariableRecord *DPV = dyn_cast<const DbgVariableRecord>(&DR)) {
     CreateMetadataSlot(DPV->getVariable());
     CreateMetadataSlot(DPV->getDebugLoc());
   } else {
@@ -2666,7 +2666,7 @@ public:
   void printInstructionLine(const Instruction &I);
   void printInstruction(const Instruction &I);
   void printDbgMarker(const DbgMarker &DPI);
-  void printDPValue(const DPValue &DPI);
+  void printDPValue(const DbgVariableRecord &DPI);  
   void printDbgRecord(const DbgRecord &DPI);
 
   void printUseListOrder(const Value *V, const std::vector<unsigned> &Shuffle);
@@ -4574,16 +4574,16 @@ void AssemblyWriter::printDbgMarker(const DbgMarker &Marker) {
 }
 
 void AssemblyWriter::printDbgRecord(const DbgRecord &DR) {
-  if (auto *DPV = dyn_cast<DPValue>(&DR))
+  if (auto *DPV = dyn_cast<DbgVariableRecord>(&DR))
     printDPValue(*DPV);
   else
     llvm_unreachable("unsupported dbg record");
 }
 
-void AssemblyWriter::printDPValue(const DPValue &Value) {
+void AssemblyWriter::printDPValue(const DbgVariableRecord &Value) {
   // There's no formal representation of a DPValue -- print purely as a
   // debugging aid.
-  Out << "  DPValue { ";
+  Out << "  DbgVariableRecord { ";
   auto WriterCtx = getContext();
   WriteAsOperandInternal(Out, Value.getRawLocation(), WriterCtx, true);
   Out << ", ";
@@ -4836,7 +4836,7 @@ void DbgMarker::print(raw_ostream &ROS, bool IsForDebug) const {
   print(ROS, MST, IsForDebug);
 }
 
-void DbgVariableInst::print(raw_ostream &ROS, bool IsForDebug) const {
+void DbgVariableRecord::print(raw_ostream &ROS, bool IsForDebug) const {
 
   ModuleSlotTracker MST(getModuleFromDPI(this), true);
   print(ROS, MST, IsForDebug);
@@ -4859,8 +4859,8 @@ void DbgMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
   W.printDbgMarker(*this);
 }
 
-void DbgVariableInst::print(raw_ostream &ROS, ModuleSlotTracker &MST,
-                            bool IsForDebug) const {
+void DbgVariableRecord::print(raw_ostream &ROS, ModuleSlotTracker &MST,
+                              bool IsForDebug) const {
   // There's no formal representation of a DPValue -- print purely as a
   // debugging aid.
   formatted_raw_ostream OS(ROS);

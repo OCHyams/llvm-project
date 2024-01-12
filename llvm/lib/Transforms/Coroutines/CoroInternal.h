@@ -35,7 +35,7 @@ void salvageDebugInfo(
     DbgVariableIntrinsic &DVI, bool OptimizeFrame, bool IsEntryPoint);
 void salvageDebugInfo(
     SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
-    DbgVariableInst &DPV, bool OptimizeFrame, bool UseEntryValue);
+    DbgVariableRecord &DPV, bool OptimizeFrame, bool UseEntryValue);
 
 // Keeps data and helper functions for lowering coroutine intrinsics.
 struct LowererBase {

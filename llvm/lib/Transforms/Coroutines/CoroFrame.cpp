@@ -964,7 +964,7 @@ static void cacheDIVar(FrameDataInfo &FrameData,
       continue;
 
     SmallVector<DbgDeclareInst *, 1> DDIs;
-    SmallVector<DbgVariableInst *, 1> DPVs;
+    SmallVector<DbgVariableRecord *, 1> DPVs;
     findDbgDeclares(DDIs, V, &DPVs);
     auto CacheIt = [&DIVarCache, V](auto &Container) {
       auto *I = llvm::find_if(Container, [](auto *DDI) {
@@ -1126,7 +1126,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
          "Coroutine with switch ABI should own Promise alloca");
 
   SmallVector<DbgDeclareInst *, 1> DIs;
-  SmallVector<DbgVariableInst *, 1> DPVs;
+  SmallVector<DbgVariableRecord *, 1> DPVs;
   findDbgDeclares(DIs, PromiseAlloca, &DPVs);
 
   DILocalVariable *PromiseDIVariable = nullptr;
@@ -1136,7 +1136,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
     PromiseDIVariable = PromiseDDI->getVariable();
     DILoc = PromiseDDI->getDebugLoc().get();
   } else if (!DPVs.empty()) {
-    DbgVariableInst *PromiseDPV = DPVs.front();
+    DbgVariableRecord *PromiseDPV = DPVs.front();
     PromiseDIVariable = PromiseDPV->getVariable();
     DILoc = PromiseDPV->getDebugLoc().get();
   } else {
@@ -1277,10 +1277,10 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
   }
 
   if (UseNewDbgInfoFormat) {
-    DbgVariableInst *NewDPV =
-        new DbgVariableInst(ValueAsMetadata::get(Shape.FramePtr), FrameDIVar,
-                            DBuilder.createExpression(), DILoc,
-                            DbgVariableInst::LocationType::Declare);
+    DbgVariableRecord *NewDPV =
+        new DbgVariableRecord(ValueAsMetadata::get(Shape.FramePtr), FrameDIVar,
+                              DBuilder.createExpression(), DILoc,
+                              DbgVariableRecord::LocationType::Declare);
     BasicBlock::iterator It = Shape.getInsertPtAfterFramePtr();
     It->getParent()->insertDPValueBefore(NewDPV, It);
   } else {
@@ -1867,7 +1867,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
               SpillAlignment, E.first->getName() + Twine(".reload"));
 
         SmallVector<DbgDeclareInst *, 1> DIs;
-        SmallVector<DbgVariableInst *, 1> DPVs;
+        SmallVector<DbgVariableRecord *, 1> DPVs;
         findDbgDeclares(DIs, Def, &DPVs);
         // Try best to find dbg.declare. If the spill is a temp, there may not
         // be a direct dbg.declare. Walk up the load chain to find one from an
@@ -1894,10 +1894,10 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           // fragments. It will be unreachable in the main function, and
           // processed by coro::salvageDebugInfo() by CoroCloner.
           if (UseNewDbgInfoFormat) {
-            DbgVariableInst *NewDPV = new DbgVariableInst(
+            DbgVariableRecord *NewDPV = new DbgVariableRecord(
                 ValueAsMetadata::get(CurrentReload), DDI->getVariable(),
                 DDI->getExpression(), DDI->getDebugLoc(),
-                DbgVariableInst::LocationType::Declare);
+                DbgVariableRecord::LocationType::Declare);
             Builder.GetInsertPoint()->getParent()->insertDPValueBefore(
                 NewDPV, Builder.GetInsertPoint());
           } else {
@@ -1932,8 +1932,8 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       U->replaceUsesOfWith(Def, CurrentReload);
       // Instructions are added to Def's user list if the attached
       // debug records use Def. Update those now.
-      for (DbgVariableInst &DPV :
-           DbgVariableInst::filter(U->getDbgValueRange()))
+      for (DbgVariableRecord &DPV :
+           DbgVariableRecord::filter(U->getDbgValueRange()))
         DPV.replaceVariableLocationOp(Def, CurrentReload, true);
     }
   }
@@ -1985,7 +1985,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
     G->setName(Alloca->getName() + Twine(".reload.addr"));
 
     SmallVector<DbgVariableIntrinsic *, 4> DIs;
-    SmallVector<DbgVariableInst *> DPValues;
+    SmallVector<DbgVariableRecord *> DPValues;
     findDbgUsers(DIs, Alloca, &DPValues);
     for (auto *DVI : DIs)
       DVI->replaceUsesOfWith(Alloca, G);
@@ -2969,13 +2969,13 @@ void coro::salvageDebugInfo(
 
 void coro::salvageDebugInfo(
     SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
-    DbgVariableInst &DPV, bool OptimizeFrame, bool UseEntryValue) {
+    DbgVariableRecord &DPV, bool OptimizeFrame, bool UseEntryValue) {
 
   Function *F = DPV.getFunction();
   // Follow the pointer arithmetic all the way to the incoming
   // function argument and convert into a DIExpression.
   bool SkipOutermostLoad =
-      DPV.getType() == DbgVariableInst::LocationType::Declare;
+      DPV.getType() == DbgVariableRecord::LocationType::Declare;
   Value *OriginalStorage = DPV.getVariableLocationOp(0);
 
   auto SalvagedInfo = ::salvageDebugInfoImpl(
@@ -2992,7 +2992,7 @@ void coro::salvageDebugInfo(
   // We only hoist dbg.declare today since it doesn't make sense to hoist
   // dbg.value since it does not have the same function wide guarantees that
   // dbg.declare does.
-  if (DPV.getType() == DbgVariableInst::LocationType::Declare) {
+  if (DPV.getType() == DbgVariableRecord::LocationType::Declare) {
     std::optional<BasicBlock::iterator> InsertPt;
     if (auto *I = dyn_cast<Instruction>(Storage)) {
       InsertPt = I->getInsertionPointAfterDef();
@@ -3197,13 +3197,13 @@ void coro::buildCoroutineFrame(
   for (auto &Iter : FrameData.Spills) {
     auto *V = Iter.first;
     SmallVector<DbgValueInst *, 16> DVIs;
-    SmallVector<DbgVariableInst *, 16> DPVs;
+    SmallVector<DbgVariableRecord *, 16> DPVs;
     findDbgValues(DVIs, V, &DPVs);
     for (DbgValueInst *DVI : DVIs)
       if (Checker.isDefinitionAcrossSuspend(*V, DVI))
         FrameData.Spills[V].push_back(DVI);
     // Add the instructions which carry debug info that is in the frame.
-    for (DbgVariableInst *DPV : DPVs)
+    for (DbgVariableRecord *DPV : DPVs)
       if (Checker.isDefinitionAcrossSuspend(*V, DPV->Marker->MarkedInstr))
         FrameData.Spills[V].push_back(DPV->Marker->MarkedInstr);
   }

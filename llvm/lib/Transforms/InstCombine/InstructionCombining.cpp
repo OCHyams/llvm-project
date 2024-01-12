@@ -2758,7 +2758,7 @@ Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
   // If we are removing an alloca with a dbg.declare, insert dbg.value calls
   // before each store.
   SmallVector<DbgVariableIntrinsic *, 8> DVIs;
-  SmallVector<DbgVariableInst *, 8> DPVs;
+  SmallVector<DbgVariableRecord *, 8> DPVs;
   std::unique_ptr<DIBuilder> DIB;
   if (isa<AllocaInst>(MI)) {
     findDbgUsers(DVIs, &MI, &DPVs);
@@ -4176,7 +4176,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   // For all debug values in the destination block, the sunk instruction
   // will still be available, so they do not need to be dropped.
   SmallVector<DbgVariableIntrinsic *, 2> DbgUsersToSalvage;
-  SmallVector<DbgVariableInst *, 2> DPValuesToSalvage;
+  SmallVector<DbgVariableRecord *, 2> DPValuesToSalvage;
   for (auto &DbgUser : DbgUsers)
     if (DbgUser->getParent() != DestBlock)
       DbgUsersToSalvage.push_back(DbgUser);
@@ -4222,7 +4222,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   if (!DIIClones.empty()) {
     // RemoveDIs: pass in empty vector of DPValues until we get to instrumenting
     // this pass.
-    SmallVector<DbgVariableInst *, 1> DummyDPValues;
+    SmallVector<DbgVariableRecord *, 1> DummyDPValues;
     salvageDebugInfoForDbgValues(*I, DbgUsersToSalvage, DummyDPValues);
     // The clones are in reverse order of original appearance, reverse again to
     // maintain the original order.

@@ -44,10 +44,10 @@ using namespace llvm;
 using namespace llvm::at;
 using namespace llvm::dwarf;
 
-template <typename IntrinsicT, DbgVariableInst::LocationType Type =
-                                   DbgVariableInst::LocationType::Any>
+template <typename IntrinsicT, DbgVariableRecord::LocationType Type =
+                                   DbgVariableRecord::LocationType::Any>
 static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
-                              SmallVectorImpl<DbgVariableInst *> *DPValues) {
+                              SmallVectorImpl<DbgVariableRecord *> *DPValues) {
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
@@ -60,7 +60,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
   // V will also appear twice in a dbg.assign if its used in the both the value
   // and address components.
   SmallPtrSet<IntrinsicT *, 4> EncounteredIntrinsics;
-  SmallPtrSet<DbgVariableInst *, 4> EncounteredDPValues;
+  SmallPtrSet<DbgVariableRecord *, 4> EncounteredDPValues;
 
   /// Append IntrinsicT users of MetadataAsValue(MD).
   auto AppendUsers = [&Ctx, &EncounteredIntrinsics, &Result,
@@ -76,8 +76,8 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
     // Get DPValues that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
       for (DbgRecord *DPR : L->getAllDPValueUsers()) {
-        if (auto *DPV = dyn_cast<DbgVariableInst>(DPR)) {
-          if (Type == DbgVariableInst::LocationType::Any ||
+        if (auto *DPV = dyn_cast<DbgVariableRecord>(DPR)) {
+          if (Type == DbgVariableRecord::LocationType::Any ||
               DPV->getType() == Type)
             DPValues->push_back(DPV);
         }
@@ -92,7 +92,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       if (!DPValues)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
-      for (DPValue *DPV : DI->getAllDPValueUsers()) {
+      for (DbgVariableRecord *DPV : DI->getAllDPValueUsers()) {
         if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
           if (EncounteredDPValues.insert(DPV).second)
             DPValues->push_back(DPV);
@@ -103,21 +103,21 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
 
 void llvm::findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers,
                            Value *V,
-                           SmallVectorImpl<DbgVariableInst *> *DPValues) {
-  findDbgIntrinsics<DbgDeclareInst, DbgVariableInst::LocationType::Declare>(
+                           SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+  findDbgIntrinsics<DbgDeclareInst, DbgVariableRecord::LocationType::Declare>(
       DbgUsers, V, DPValues);
 }
 
 void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
-                         SmallVectorImpl<DbgVariableInst *> *DPValues) {
-  findDbgIntrinsics<DbgValueInst, DbgVariableInst::LocationType::Value>(
+                         SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+  findDbgIntrinsics<DbgValueInst, DbgVariableRecord::LocationType::Value>(
       DbgValues, V, DPValues);
 }
 
 void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
                         Value *V,
-                        SmallVectorImpl<DbgVariableInst *> *DPValues) {
-  findDbgIntrinsics<DbgVariableIntrinsic, DbgVariableInst::LocationType::Any>(
+                        SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+  findDbgIntrinsics<DbgVariableIntrinsic, DbgVariableRecord::LocationType::Any>(
       DbgUsers, V, DPValues);
 }
 
@@ -216,13 +216,13 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
 }
 
 void DebugInfoFinder::processDPValue(const Module &M,
-                                     const DbgVariableInst &DPV) {
+                                     const DbgVariableRecord &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
 }
 
 void DebugInfoFinder::processDbgRecord(const Module &M, const DbgRecord &DPR) {
-  processDPValue(M, cast<DbgVariableInst>(DPR));
+  processDPValue(M, cast<DbgVariableRecord>(DPR));
 }
 
 void DebugInfoFinder::processType(DIType *DT) {

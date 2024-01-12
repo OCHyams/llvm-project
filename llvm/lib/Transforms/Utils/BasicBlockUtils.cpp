@@ -383,14 +383,14 @@ bool llvm::MergeBlockSuccessorsIntoGivenBlocks(
 /// - Support dbg.declare. dbg.label, and possibly other meta instructions being
 ///   part of the sequence of consecutive instructions.
 static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
-  SmallVector<DbgVariableInst *, 8> ToBeRemoved;
+  SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
-    for (DbgVariableInst &DPV :
-         reverse(DbgVariableInst::filter(I.getDbgValueRange()))) {
+    for (DbgVariableRecord &DPV :
+         reverse(DbgVariableRecord::filter(I.getDbgValueRange()))) {
       // Skip declare-type records, as the debug intrinsic method only works
       // on dbg.value intrinsics.
-      if (DPV.getType() == DbgVariableInst::LocationType::Declare) {
+      if (DPV.getType() == DbgVariableRecord::LocationType::Declare) {
         // The debug intrinsic method treats dbg.declares are "non-debug"
         // instructions (i.e., a break in a consecutive range of debug
         // intrinsics). Emulate that to create identical outputs. See
@@ -486,12 +486,13 @@ static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
 /// Possible improvements:
 /// - Keep track of non-overlapping fragments.
 static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
-  SmallVector<DbgVariableInst *, 8> ToBeRemoved;
+  SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>
       VariableMap;
   for (auto &I : *BB) {
-    for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange())) {
-      if (DPV.getType() == DbgVariableInst::LocationType::Declare)
+    for (DbgVariableRecord &DPV :
+         DbgVariableRecord::filter(I.getDbgValueRange())) {
+      if (DPV.getType() == DbgVariableRecord::LocationType::Declare)
         continue;
       DebugVariable Key(DPV.getVariable(), std::nullopt,
                         DPV.getDebugLoc()->getInlinedAt());

@@ -609,7 +609,7 @@ void llvm::RecursivelyDeleteTriviallyDeadInstructions(
 
 bool llvm::replaceDbgUsesWithUndef(Instruction *I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
-  SmallVector<DbgVariableInst *, 1> DPUsers;
+  SmallVector<DbgVariableRecord *, 1> DPUsers;
   findDbgUsers(DbgUsers, I, &DPUsers);
   for (auto *DII : DbgUsers)
     DII->setKillLocation();
@@ -1570,7 +1570,7 @@ static bool PhiHasDebugValue(DILocalVariable *DIVar,
   // is removed by LowerDbgDeclare(), we need to make sure that we are
   // not inserting the same dbg.value intrinsic over and over.
   SmallVector<DbgValueInst *, 1> DbgValues;
-  SmallVector<DbgVariableInst *, 1> DPValues;
+  SmallVector<DbgVariableRecord *, 1> DPValues;
   findDbgValues(DbgValues, APN, &DPValues);
   for (auto *DVI : DbgValues) {
     assert(is_contained(DVI->getValues(), APN));
@@ -1619,7 +1619,7 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
 }
 // RemoveDIs: duplicate implementation of the above, using DPValues, the
 // replacement for dbg.values.
-static bool valueCoversEntireFragment(Type *ValTy, DbgVariableInst *DPV) {
+static bool valueCoversEntireFragment(Type *ValTy, DbgVariableRecord *DPV) {
   const DataLayout &DL = DPV->getModule()->getDataLayout();
   TypeSize ValueSize = DL.getTypeAllocSizeInBits(ValTy);
   if (std::optional<uint64_t> FragmentSize = DPV->getFragmentSizeInBits())
@@ -1656,8 +1656,8 @@ static void insertDbgValueOrDPValue(DIBuilder &Builder, Value *DV,
     // RemoveDIs: if we're using the new debug-info format, allocate a
     // DPValue directly instead of a dbg.value intrinsic.
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-    DbgVariableInst *DV =
-        new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
+    DbgVariableRecord *DV =
+        new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
     Instr->getParent()->insertDPValueBefore(DV, Instr);
   }
 }
@@ -1675,8 +1675,8 @@ static void insertDbgValueOrDPValueAfter(DIBuilder &Builder, Value *DV,
     // RemoveDIs: if we're using the new debug-info format, allocate a
     // DPValue directly instead of a dbg.value intrinsic.
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-    DbgVariableInst *DV =
-        new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
+    DbgVariableRecord *DV =
+        new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
     Instr->getParent()->insertDPValueAfter(DV, &*Instr);
   }
 }
@@ -1730,7 +1730,7 @@ namespace llvm {
 // RemoveDIs: duplicate the getDebugValueLoc method using DPValues instead of
 // dbg.value intrinsics. In llvm namespace so that it overloads the
 // DbgVariableIntrinsic version.
-static DebugLoc getDebugValueLoc(DbgVariableInst *DPV) {
+static DebugLoc getDebugValueLoc(DbgVariableRecord *DPV) {
   // Original dbg.declare must have a location.
   const DebugLoc &DeclareLoc = DPV->getDebugLoc();
   MDNode *Scope = DeclareLoc.getScope();
@@ -1767,8 +1767,8 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
                                LI->getIterator());
 }
 
-void llvm::ConvertDebugDeclareToDebugValue(DbgVariableInst *DPV, StoreInst *SI,
-                                           DIBuilder &Builder) {
+void llvm::ConvertDebugDeclareToDebugValue(DbgVariableRecord *DPV,
+                                           StoreInst *SI, DIBuilder &Builder) {
   assert(DPV->isAddressOfVariable());
   auto *DIVar = DPV->getVariable();
   assert(DIVar && "Missing variable");
@@ -1809,8 +1809,8 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableInst *DPV, StoreInst *SI,
   // know nothing about the variable's content.
   DV = UndefValue::get(DV->getType());
   ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-  DbgVariableInst *NewDPV =
-      new DbgVariableInst(DVAM, DIVar, DIExpr, NewLoc.get());
+  DbgVariableRecord *NewDPV =
+      new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
   SI->getParent()->insertDPValueBefore(NewDPV, SI->getIterator());
 }
 
@@ -1847,7 +1847,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
   }
 }
 
-void llvm::ConvertDebugDeclareToDebugValue(DbgVariableInst *DPV, LoadInst *LI,
+void llvm::ConvertDebugDeclareToDebugValue(DbgVariableRecord *DPV, LoadInst *LI,
                                            DIBuilder &Builder) {
   auto *DIVar = DPV->getVariable();
   auto *DIExpr = DPV->getExpression();
@@ -1872,7 +1872,8 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableInst *DPV, LoadInst *LI,
 
   // Create a DPValue directly and insert.
   ValueAsMetadata *LIVAM = ValueAsMetadata::get(LI);
-  DbgVariableInst *DV = new DbgVariableInst(LIVAM, DIVar, DIExpr, NewLoc.get());
+  DbgVariableRecord *DV =
+      new DbgVariableRecord(LIVAM, DIVar, DIExpr, NewLoc.get());
   LI->getParent()->insertDPValueAfter(DV, LI);
 }
 
@@ -1886,7 +1887,7 @@ static bool isArray(AllocaInst *AI) {
 static bool isStructure(AllocaInst *AI) {
   return AI->getAllocatedType() && AI->getAllocatedType()->isStructTy();
 }
-void llvm::ConvertDebugDeclareToDebugValue(DbgVariableInst *DPV, PHINode *APN,
+void llvm::ConvertDebugDeclareToDebugValue(DbgVariableRecord *DPV, PHINode *APN,
                                            DIBuilder &Builder) {
   auto *DIVar = DPV->getVariable();
   auto *DIExpr = DPV->getExpression();
@@ -1923,14 +1924,14 @@ bool llvm::LowerDbgDeclare(Function &F) {
   bool Changed = false;
   DIBuilder DIB(*F.getParent(), /*AllowUnresolved*/ false);
   SmallVector<DbgDeclareInst *, 4> Dbgs;
-  SmallVector<DbgVariableInst *> DPVs;
+  SmallVector<DbgVariableRecord *> DPVs;
   for (auto &FI : F) {
     for (Instruction &BI : FI) {
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&BI))
         Dbgs.push_back(DDI);
-      for (DbgVariableInst &DPV :
-           DbgVariableInst::filter(BI.getDbgValueRange())) {
-        if (DPV.getType() == DbgVariableInst::LocationType::Declare)
+      for (DbgVariableRecord &DPV :
+           DbgVariableRecord::filter(BI.getDbgValueRange())) {
+        if (DPV.getType() == DbgVariableRecord::LocationType::Declare)
           DPVs.push_back(&DPV);
       }
     }
@@ -2012,9 +2013,10 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
     return;
 
   // Map existing PHI nodes to their DPValues.
-  DenseMap<Value *, DbgVariableInst *> DbgValueMap;
+  DenseMap<Value *, DbgVariableRecord *> DbgValueMap;
   for (auto &I : *BB) {
-    for (DbgVariableInst &DPV : DbgVariableInst::filter(I.getDbgValueRange())) {
+    for (DbgVariableRecord &DPV :
+         DbgVariableRecord::filter(I.getDbgValueRange())) {
       for (Value *V : DPV.location_ops())
         if (auto *Loc = dyn_cast_or_null<PHINode>(V))
           DbgValueMap.insert({Loc, &DPV});
@@ -2027,7 +2029,7 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
   // so that if a DPValue is being rewritten to use more than one of the
   // inserted PHIs in the same destination BB, we can update the same DPValue
   // with all the new PHIs instead of creating one copy for each.
-  MapVector<std::pair<BasicBlock *, DbgVariableInst *>, DbgVariableInst *>
+  MapVector<std::pair<BasicBlock *, DbgVariableRecord *>, DbgVariableRecord *>
       NewDbgValueMap;
   // Then iterate through the new PHIs and look to see if they use one of the
   // previously mapped PHIs. If so, create a new DPValue that will propagate
@@ -2042,13 +2044,13 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
     for (auto VI : PHI->operand_values()) {
       auto V = DbgValueMap.find(VI);
       if (V != DbgValueMap.end()) {
-        DbgVariableInst *DbgII = cast<DbgVariableInst>(V->second);
+        DbgVariableRecord *DbgII = cast<DbgVariableRecord>(V->second);
         auto NewDI = NewDbgValueMap.find({Parent, DbgII});
         if (NewDI == NewDbgValueMap.end()) {
-          DbgVariableInst *NewDbgII = DbgII->clone();
+          DbgVariableRecord *NewDbgII = DbgII->clone();
           NewDI = NewDbgValueMap.insert({{Parent, DbgII}, NewDbgII}).first;
         }
-        DbgVariableInst *NewDbgII = NewDI->second;
+        DbgVariableRecord *NewDbgII = NewDI->second;
         // If PHI contains VI as an operand more than once, we may
         // replaced it in NewDbgII; confirm that it is present.
         if (is_contained(NewDbgII->location_ops(), VI))
@@ -2059,11 +2061,11 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
   // Insert the new DPValues into their destination blocks.
   for (auto DI : NewDbgValueMap) {
     BasicBlock *Parent = DI.first.first;
-    DbgVariableInst *NewDbgII = DI.second;
+    DbgVariableRecord *NewDbgII = DI.second;
     auto InsertionPt = Parent->getFirstInsertionPt();
     assert(InsertionPt != Parent->end() && "Ill-formed basic block");
 
-    InsertionPt->DbgRecordMarker->insertDPValue(NewDbgII, true);
+    InsertionPt->DbgRecordMarker->insertDbgRecord(NewDbgII, true);
   }
 }
 
@@ -2136,7 +2138,7 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
                              DIBuilder &Builder, uint8_t DIExprFlags,
                              int Offset) {
   SmallVector<DbgDeclareInst *, 1> DbgDeclares;
-  SmallVector<DbgVariableInst *, 1> DPValues;
+  SmallVector<DbgVariableRecord *, 1> DPValues;
   findDbgDeclares(DbgDeclares, Address, &DPValues);
 
   auto ReplaceOne = [&](auto *DII) {
@@ -2156,7 +2158,8 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
 static void updateOneDbgValueForAlloca(const DebugLoc &Loc,
                                        DILocalVariable *DIVar,
                                        DIExpression *DIExpr, Value *NewAddress,
-                                       DbgValueInst *DVI, DbgVariableInst *DPV,
+                                       DbgValueInst *DVI,
+                                       DbgVariableRecord *DPV,
                                        DIBuilder &Builder, int Offset) {
   assert(DIVar && "Missing variable");
 
@@ -2184,7 +2187,7 @@ static void updateOneDbgValueForAlloca(const DebugLoc &Loc,
 void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
                                     DIBuilder &Builder, int Offset) {
   SmallVector<DbgValueInst *, 1> DbgUsers;
-  SmallVector<DbgVariableInst *, 1> DPUsers;
+  SmallVector<DbgVariableRecord *, 1> DPUsers;
   findDbgValues(DbgUsers, AI, &DPUsers);
 
   // Attempt to replace dbg.values that use this alloca.
@@ -2194,7 +2197,7 @@ void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
                                nullptr, Builder, Offset);
 
   // Replace any DPValues that use this alloca.
-  for (DbgVariableInst *DPV : DPUsers)
+  for (DbgVariableRecord *DPV : DPUsers)
     updateOneDbgValueForAlloca(DPV->getDebugLoc(), DPV->getVariable(),
                                DPV->getExpression(), NewAllocaAddress, nullptr,
                                DPV, Builder, Offset);
@@ -2204,7 +2207,7 @@ void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
 /// If not possible mark undef.
 void llvm::salvageDebugInfo(Instruction &I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
-  SmallVector<DbgVariableInst *, 1> DPUsers;
+  SmallVector<DbgVariableRecord *, 1> DPUsers;
   findDbgUsers(DbgUsers, &I, &DPUsers);
   salvageDebugInfoForDbgValues(I, DbgUsers, DPUsers);
 }
@@ -2245,7 +2248,7 @@ static void salvageDbgAssignAddress(DbgAssignIntrinsic *DAI) {
 
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers,
-    ArrayRef<DbgVariableInst *> DPUsers) {
+    ArrayRef<DbgVariableRecord *> DPUsers) {
   // These are arbitrary chosen limits on the maximum number of values and the
   // maximum size of a debug expression we can salvage up to, used for
   // performance reasons.
@@ -2316,7 +2319,7 @@ void llvm::salvageDebugInfoForDbgValues(
     // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
     // are implicitly pointing out the value as a DWARF memory location
     // description.
-    bool StackValue = DPV->getType() == DbgVariableInst::LocationType::Value;
+    bool StackValue = DPV->getType() == DbgVariableRecord::LocationType::Value;
     auto DPVLocation = DPV->location_ops();
     assert(
         is_contained(DPVLocation, &I) &&
@@ -2350,7 +2353,7 @@ void llvm::salvageDebugInfoForDbgValues(
         SalvagedExpr->getNumElements() <= MaxExpressionSize;
     if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DPV->setExpression(SalvagedExpr);
-    } else if (DPV->getType() == DbgVariableInst::LocationType::Value &&
+    } else if (DPV->getType() == DbgVariableRecord::LocationType::Value &&
                IsValidSalvageExpr &&
                DPV->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
@@ -2590,10 +2593,10 @@ using DbgValReplacement = std::optional<DIExpression *>;
 static bool rewriteDebugUsers(
     Instruction &From, Value &To, Instruction &DomPoint, DominatorTree &DT,
     function_ref<DbgValReplacement(DbgVariableIntrinsic &DII)> RewriteExpr,
-    function_ref<DbgValReplacement(DbgVariableInst &DPV)> RewriteDPVExpr) {
+    function_ref<DbgValReplacement(DbgVariableRecord &DPV)> RewriteDPVExpr) {
   // Find debug users of From.
   SmallVector<DbgVariableIntrinsic *, 1> Users;
-  SmallVector<DbgVariableInst *, 1> DPUsers;
+  SmallVector<DbgVariableRecord *, 1> DPUsers;
   findDbgUsers(Users, &From, &DPUsers);
   if (Users.empty() && DPUsers.empty())
     return false;
@@ -2602,7 +2605,7 @@ static bool rewriteDebugUsers(
   bool Changed = false;
 
   SmallPtrSet<DbgVariableIntrinsic *, 1> UndefOrSalvage;
-  SmallPtrSet<DbgVariableInst *, 1> UndefOrSalvageDPV;
+  SmallPtrSet<DbgVariableRecord *, 1> UndefOrSalvageDPV;
   if (isa<Instruction>(&To)) {
     bool DomPointAfterFrom = From.getNextNonDebugInstruction() == &DomPoint;
 
@@ -2717,7 +2720,7 @@ bool llvm::replaceAllDbgUsesWith(Instruction &From, Value &To,
   auto Identity = [&](DbgVariableIntrinsic &DII) -> DbgValReplacement {
     return DII.getExpression();
   };
-  auto IdentityDPV = [&](DbgVariableInst &DPV) -> DbgValReplacement {
+  auto IdentityDPV = [&](DbgVariableRecord &DPV) -> DbgValReplacement {
     return DPV.getExpression();
   };
 
@@ -2755,7 +2758,7 @@ bool llvm::replaceAllDbgUsesWith(Instruction &From, Value &To,
     };
     // RemoveDIs: duplicate implementation working on DPValues rather than on
     // dbg.value intrinsics.
-    auto SignOrZeroExtDPV = [&](DbgVariableInst &DPV) -> DbgValReplacement {
+    auto SignOrZeroExtDPV = [&](DbgVariableRecord &DPV) -> DbgValReplacement {
       DILocalVariable *Var = DPV.getVariable();
 
       // Without knowing signedness, sign/zero extension isn't possible.
@@ -3533,7 +3536,7 @@ void llvm::copyRangeMetadata(const DataLayout &DL, const LoadInst &OldLI,
 
 void llvm::dropDebugUsers(Instruction &I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
-  SmallVector<DbgVariableInst *, 1> DPUsers;
+  SmallVector<DbgVariableRecord *, 1> DPUsers;
   findDbgUsers(DbgUsers, &I, &DPUsers);
   for (auto *DII : DbgUsers)
     DII->eraseFromParent();

@@ -574,7 +574,7 @@ void Value::replaceUsesWithIf(Value *New,
 /// with New.
 static void replaceDbgUsesOutsideBlock(Value *V, Value *New, BasicBlock *BB) {
   SmallVector<DbgVariableIntrinsic *> DbgUsers;
-  SmallVector<DbgVariableInst *> DPUsers;
+  SmallVector<DbgVariableRecord *> DPUsers;
   findDbgUsers(DbgUsers, V, &DPUsers);
   for (auto *DVI : DbgUsers) {
     if (DVI->getParent() != BB)

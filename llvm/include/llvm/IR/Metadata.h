@@ -43,7 +43,7 @@ namespace llvm {
 class Module;
 class ModuleSlotTracker;
 class raw_ostream;
-class DbgVariableInst;
+class DbgVariableRecord;
 class DbgRecord;
 template <typename T> class StringMapEntry;
 template <typename ValueTy> class StringMapEntryStorage;
@@ -215,8 +215,8 @@ protected:
   Metadata *DebugValue;
 
 public:
-  DbgVariableInst *getUser();
-  const DbgVariableInst *getUser() const;
+  DbgVariableRecord *getUser();
+  const DbgVariableRecord *getUser() const;
   void handleChangedValue(Metadata *NewDebugValue);
   DebugValueUser() = default;
   explicit DebugValueUser(Metadata *DebugValue) : DebugValue(DebugValue) {

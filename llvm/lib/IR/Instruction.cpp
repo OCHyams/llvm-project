@@ -148,7 +148,7 @@ void Instruction::insertBefore(BasicBlock &BB,
     DbgMarker *SrcMarker = BB.getMarker(InsertPos);
     if (!SrcMarker)
       SrcMarker = BB.createMarker(InsertPos);
-    DbgRecordMarker->absorbDebugValues(*SrcMarker, false);
+    DbgRecordMarker->absorbDbgRecords(*SrcMarker, false);
   }
 
   // If we're inserting a terminator, check if we need to flush out
@@ -219,7 +219,7 @@ void Instruction::moveBeforeImpl(BasicBlock &BB, InstListType::iterator I,
     // If we're inserting at point I, and not in front of the DPValues attached
     // there, then we should absorb the DPValues attached to I.
     if (NextMarker && !InsertAtHead)
-      DbgRecordMarker->absorbDebugValues(*NextMarker, false);
+      DbgRecordMarker->absorbDbgRecords(*NextMarker, false);
   }
 
   if (isTerminator())
@@ -230,7 +230,7 @@ iterator_range<DbgRecord::self_iterator> Instruction::cloneDebugInfoFrom(
     const Instruction *From, std::optional<DbgRecord::self_iterator> FromHere,
     bool InsertAtHead) {
   if (!From->DbgRecordMarker)
-    return DbgMarker::getEmptyDPValueRange();
+    return DbgMarker::getEmptyDbgRecordRange();
 
   assert(getParent()->IsNewDbgInfoFormat);
   assert(getParent()->IsNewDbgInfoFormat ==
@@ -249,7 +249,7 @@ iterator_range<DbgRecord::self_iterator> Instruction::getDbgValueRange() const {
   (void)Parent;
 
   if (!DbgRecordMarker)
-    return DbgMarker::getEmptyDPValueRange();
+    return DbgMarker::getEmptyDbgRecordRange();
 
   return DbgRecordMarker->getDbgValueRange();
 }
@@ -262,21 +262,21 @@ Instruction::getDbgReinsertionPosition() {
     return std::nullopt;
 
   // Are there any DPValues in the next marker?
-  if (NextMarker->StoredDPValues.empty())
+  if (NextMarker->StoredDbgRecords.empty())
     return std::nullopt;
 
-  return NextMarker->StoredDPValues.begin();
+  return NextMarker->StoredDbgRecords.begin();
 }
 
 bool Instruction::hasDbgValues() const { return !getDbgValueRange().empty(); }
 
 void Instruction::dropDbgValues() {
   if (DbgRecordMarker)
-    DbgRecordMarker->dropDbgValues();
+    DbgRecordMarker->dropDbgRecords();
 }
 
 void Instruction::dropOneDbgValue(DbgRecord *DPV) {
-  DbgRecordMarker->dropOneDbgValue(DPV);
+  DbgRecordMarker->dropOneDbgRecord(DPV);
 }
 
 bool Instruction::comesBefore(const Instruction *Other) const {
