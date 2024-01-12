@@ -307,17 +307,11 @@ public:
   /// @}
 };
 
-// Filter the DPEntity range to the DPValues only.
+/// Filter the DPEntity range to the DPValues only and downcast.
 inline auto filterValues(iterator_range<simple_ilist<DPEntity>::iterator> R) {
   return map_range(
       make_filter_range(R, [](DPEntity &E) { return isa<DPValue>(E); }),
       [](DPEntity &E) { return std::ref(cast<DPValue>(E)); });
-}
-inline auto
-filterValues2(iterator_range<SmallVectorImpl<DPEntity *>::iterator> R) {
-  return map_range(
-      make_filter_range(R, [](DPEntity *E) { return isa<DPValue>(E); }),
-      [](DPEntity *E) { return cast<DPValue>(E); });
 }
 
 /// Per-instruction record of debug-info. If an Instruction is the position of

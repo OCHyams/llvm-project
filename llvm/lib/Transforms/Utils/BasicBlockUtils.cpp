@@ -386,10 +386,10 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallVector<DPValue *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
-    for (DPEntity &DPE : reverse(I.getDbgValueRange())) {
-      DPValue &DPV = cast<DPValue>(DPE);
-      // Skip declare-type records, as the debug intrinsic method only works
-      // on dbg.value intrinsics.
+    for (DPValue &DPV : reverse(filterValues(I.getDbgValueRange()))) {
+      // DPValue &DPV = cast<DPValue>(DPE);
+      //  Skip declare-type records, as the debug intrinsic method only works
+      //  on dbg.value intrinsics.
       if (DPV.getType() == DPValue::LocationType::Declare) {
         // The debug intrinsic method treats dbg.declares are "non-debug"
         // instructions (i.e., a break in a consecutive range of debug
