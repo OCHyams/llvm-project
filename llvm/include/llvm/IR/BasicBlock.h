@@ -39,7 +39,7 @@ class Module;
 class PHINode;
 class ValueSymbolTable;
 class DPValue;
-class DPMarker;
+class DbgMarker;
 
 /// LLVM Basic Block Representation
 ///
@@ -72,18 +72,18 @@ private:
   Function *Parent;
 
 public:
-  /// Attach a DPMarker to the given instruction. Enables the storage of any
+  /// Attach a DbgMarker to the given instruction. Enables the storage of any
   /// debug-info at this position in the program.
-  DPMarker *createMarker(Instruction *I);
-  DPMarker *createMarker(InstListType::iterator It);
+  DbgMarker *createMarker(Instruction *I);
+  DbgMarker *createMarker(InstListType::iterator It);
 
   /// Convert variable location debugging information stored in dbg.value
-  /// intrinsics into DPMarker / DPValue records. Deletes all dbg.values in
+  /// intrinsics into DbgMarker / DPValue records. Deletes all dbg.values in
   /// the process and sets IsNewDbgInfoFormat = true. Only takes effect if
   /// the UseNewDbgInfoFormat LLVM command line option is given.
   void convertToNewDbgValues();
 
-  /// Convert variable location debugging information stored in DPMarkers and
+  /// Convert variable location debugging information stored in DbgMarkers and
   /// DPValues into the dbg.value intrinsic representation. Sets
   /// IsNewDbgInfoFormat = false.
   void convertFromNewDbgValues();
@@ -93,7 +93,7 @@ public:
   /// if necessary.
   void setIsNewDbgInfoFormat(bool NewFlag);
 
-  /// Validate any DPMarkers / DPValues attached to instructions in this block,
+  /// Validate any DbgMarkers / DPValues attached to instructions in this block,
   /// and block-level stored data too (TrailingDPValues).
   /// \p Assert Should this method fire an assertion if a problem is found?
   /// \p Msg Should this method print a message to errs() if a problem is found?
@@ -106,12 +106,12 @@ public:
   /// instruction of this block. These are equivalent to dbg.value intrinsics
   /// that exist at the end of a basic block with no terminator (a transient
   /// state that occurs regularly).
-  void setTrailingDPValues(DPMarker *M);
+  void setTrailingDPValues(DbgMarker *M);
 
   /// Fetch the collection of DPValues that "trail" after the last instruction
   /// of this block, see \ref setTrailingDPValues. If there are none, returns
   /// nullptr.
-  DPMarker *getTrailingDPValues();
+  DbgMarker *getTrailingDPValues();
 
   /// Delete any trailing DPValues at the end of this block, see
   /// \ref setTrailingDPValues.
@@ -119,15 +119,15 @@ public:
 
   void dumpDbgValues() const;
 
-  /// Return the DPMarker for the position given by \p It, so that DPValues can
-  /// be inserted there. This will either be nullptr if not present, a DPMarker,
-  /// or TrailingDPValues if It is end().
-  DPMarker *getMarker(InstListType::iterator It);
+  /// Return the DbgMarker for the position given by \p It, so that DPValues can
+  /// be inserted there. This will either be nullptr if not present, a
+  /// DbgMarker, or TrailingDPValues if It is end().
+  DbgMarker *getMarker(InstListType::iterator It);
 
-  /// Return the DPMarker for the position that comes after \p I. \see
-  /// BasicBlock::getMarker, this can be nullptr, a DPMarker, or
+  /// Return the DbgMarker for the position that comes after \p I. \see
+  /// BasicBlock::getMarker, this can be nullptr, a DbgMarker, or
   /// TrailingDPValues if there is no next instruction.
-  DPMarker *getNextMarker(Instruction *I);
+  DbgMarker *getNextMarker(Instruction *I);
 
   /// Insert a DPValue into a block at the position given by \p I.
   void insertDPValueAfter(DbgRecord *DPV, Instruction *I);

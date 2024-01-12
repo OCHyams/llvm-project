@@ -29,12 +29,12 @@
 namespace llvm {
 
 class BasicBlock;
-class DPMarker;
+class DbgMarker;
 class FastMathFlags;
 class MDNode;
 class Module;
 struct AAMDNodes;
-class DPMarker;
+class DbgMarker;
 class DbgRecord;
 
 template <> struct ilist_alloc_traits<Instruction> {
@@ -58,7 +58,7 @@ public:
   /// Optional marker recording the position for debugging information that
   /// takes effect immediately before this instruction. Null unless there is
   /// debugging information present.
-  DPMarker *DbgMarker = nullptr;
+  DbgMarker *DbgRecordMarker = nullptr;
 
   /// Clone any debug-info attached to \p From onto this instruction. Used to
   /// copy debugging information from one block to another, when copying entire

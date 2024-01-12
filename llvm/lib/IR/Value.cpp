@@ -581,7 +581,7 @@ static void replaceDbgUsesOutsideBlock(Value *V, Value *New, BasicBlock *BB) {
       DVI->replaceVariableLocationOp(V, New);
   }
   for (auto *DPV : DPUsers) {
-    DPMarker *Marker = DPV->getMarker();
+    DbgMarker *Marker = DPV->getMarker();
     if (Marker->getParent() != BB)
       DPV->replaceVariableLocationOp(V, New);
   }

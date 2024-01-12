@@ -1,4 +1,4 @@
-//======-- DebugProgramInstruction.cpp - Implement DPValues/DPMarkers --======//
+//======- DebugProgramInstruction.cpp - Implement DbgRecord/DbgMarkers -======//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -293,11 +293,11 @@ const LLVMContext &DbgRecord::getContext() const {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// An empty, global, DPMarker for the purpose of describing empty ranges of
+// An empty, global, DbgMarker for the purpose of describing empty ranges of
 // DPValues.
-DPMarker DPMarker::EmptyDPMarker;
+DbgMarker DbgMarker::EmptyDbgMarker;
 
-void DPMarker::dropDbgValues() {
+void DbgMarker::dropDbgValues() {
   while (!StoredDPValues.empty()) {
     auto It = StoredDPValues.begin();
     DbgRecord *DPE = &*It;
@@ -306,33 +306,33 @@ void DPMarker::dropDbgValues() {
   }
 }
 
-void DPMarker::dropOneDbgValue(DbgRecord *DPE) {
+void DbgMarker::dropOneDbgValue(DbgRecord *DPE) {
   assert(DPE->getMarker() == this);
   StoredDPValues.erase(DPE->getIterator());
   DPE->deleteRecord();
 }
 
-const BasicBlock *DPMarker::getParent() const {
+const BasicBlock *DbgMarker::getParent() const {
   return MarkedInstr->getParent();
 }
 
-BasicBlock *DPMarker::getParent() { return MarkedInstr->getParent(); }
+BasicBlock *DbgMarker::getParent() { return MarkedInstr->getParent(); }
 
-void DPMarker::removeMarker() {
-  // Are there any DPValues in this DPMarker? If not, nothing to preserve.
+void DbgMarker::removeMarker() {
+  // Are there any DPValues in this DbgMarker? If not, nothing to preserve.
   Instruction *Owner = MarkedInstr;
   if (StoredDPValues.empty()) {
     eraseFromParent();
-    Owner->DbgMarker = nullptr;
+    Owner->DbgRecordMarker = nullptr;
     return;
   }
 
   // The attached DPValues need to be preserved; attach them to the next
   // instruction. If there isn't a next instruction, put them on the
   // "trailing" list.
-  DPMarker *NextMarker = Owner->getParent()->getNextMarker(Owner);
+  DbgMarker *NextMarker = Owner->getParent()->getNextMarker(Owner);
   if (NextMarker == nullptr) {
-    NextMarker = new DPMarker();
+    NextMarker = new DbgMarker();
     Owner->getParent()->setTrailingDPValues(NextMarker);
   }
   NextMarker->absorbDebugValues(*this, true);
@@ -340,19 +340,19 @@ void DPMarker::removeMarker() {
   eraseFromParent();
 }
 
-void DPMarker::removeFromParent() {
-  MarkedInstr->DbgMarker = nullptr;
+void DbgMarker::removeFromParent() {
+  MarkedInstr->DbgRecordMarker = nullptr;
   MarkedInstr = nullptr;
 }
 
-void DPMarker::eraseFromParent() {
+void DbgMarker::eraseFromParent() {
   if (MarkedInstr)
     removeFromParent();
   dropDbgValues();
   delete this;
 }
 
-iterator_range<DbgRecord::self_iterator> DPMarker::getDbgValueRange() {
+iterator_range<DbgRecord::self_iterator> DbgMarker::getDbgValueRange() {
   return make_range(StoredDPValues.begin(), StoredDPValues.end());
 }
 
@@ -365,13 +365,13 @@ void DbgRecord::eraseFromParent() {
   deleteRecord();
 }
 
-void DPMarker::insertDPValue(DbgRecord *New, bool InsertAtHead) {
+void DbgMarker::insertDPValue(DbgRecord *New, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
   StoredDPValues.insert(It, *New);
   New->setMarker(this);
 }
 
-void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
+void DbgMarker::absorbDebugValues(DbgMarker &Src, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
   for (DbgRecord &DPV : Src.StoredDPValues)
     DPV.setMarker(this);
@@ -379,8 +379,9 @@ void DPMarker::absorbDebugValues(DPMarker &Src, bool InsertAtHead) {
   StoredDPValues.splice(It, Src.StoredDPValues);
 }
 
-void DPMarker::absorbDebugValues(iterator_range<DbgRecord::self_iterator> Range,
-                                 DPMarker &Src, bool InsertAtHead) {
+void DbgMarker::absorbDebugValues(
+    iterator_range<DbgRecord::self_iterator> Range, DbgMarker &Src,
+    bool InsertAtHead) {
   for (DbgRecord &DPE : Range)
     DPE.setMarker(this);
 
@@ -391,8 +392,8 @@ void DPMarker::absorbDebugValues(iterator_range<DbgRecord::self_iterator> Range,
                         Range.end());
 }
 
-iterator_range<simple_ilist<DbgRecord>::iterator> DPMarker::cloneDebugInfoFrom(
-    DPMarker *From, std::optional<simple_ilist<DbgRecord>::iterator> from_here,
+iterator_range<simple_ilist<DbgRecord>::iterator> DbgMarker::cloneDebugInfoFrom(
+    DbgMarker *From, std::optional<simple_ilist<DbgRecord>::iterator> from_here,
     bool InsertAtHead) {
   DbgRecord *First = nullptr;
   // Work out what range of DPValues to clone: normally all the contents of the

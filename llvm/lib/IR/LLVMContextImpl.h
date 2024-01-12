@@ -57,7 +57,7 @@ class AttributeListImpl;
 class AttributeSetNode;
 class BasicBlock;
 struct DiagnosticHandler;
-class DPMarker;
+class DbgMarker;
 class ElementCount;
 class Function;
 class GlobalObject;
@@ -1677,15 +1677,15 @@ public:
   /// such a way. These are stored in LLVMContext because typically LLVM only
   /// edits a small number of blocks at a time, so there's no need to bloat
   /// BasicBlock with such a data structure.
-  SmallDenseMap<BasicBlock *, DPMarker *> TrailingDPValues;
+  SmallDenseMap<BasicBlock *, DbgMarker *> TrailingDPValues;
 
   // Set, get and delete operations for TrailingDPValues.
-  void setTrailingDPValues(BasicBlock *B, DPMarker *M) {
+  void setTrailingDPValues(BasicBlock *B, DbgMarker *M) {
     assert(!TrailingDPValues.count(B));
     TrailingDPValues[B] = M;
   }
 
-  DPMarker *getTrailingDPValues(BasicBlock *B) {
+  DbgMarker *getTrailingDPValues(BasicBlock *B) {
     return TrailingDPValues.lookup(B);
   }
 
