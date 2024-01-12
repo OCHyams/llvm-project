@@ -262,10 +262,10 @@ Instruction::getDbgReinsertionPosition() {
     return std::nullopt;
 
   // Are there any DPValues in the next marker?
-  if (NextMarker->StoredDPValues.empty())
+  if (NextMarker->StoredDPEntities.empty())
     return std::nullopt;
 
-  return NextMarker->StoredDPValues.begin();
+  return NextMarker->StoredDPEntities.begin();
 }
 
 bool Instruction::hasDbgValues() const { return !getDbgValueRange().empty(); }

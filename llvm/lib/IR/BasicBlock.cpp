@@ -1164,7 +1164,7 @@ void BasicBlock::reinsertInstInDPValues(
     DPMarker *NextMarker = getNextMarker(I);
     if (!NextMarker)
       return;
-    if (NextMarker->StoredDPValues.empty())
+    if (NextMarker->StoredDPEntities.empty())
       return;
     // There are DPMarkers there now -- they fell down from "I".
     DPMarker *ThisMarker = createMarker(I);
@@ -1174,13 +1174,13 @@ void BasicBlock::reinsertInstInDPValues(
 
   // Is there even a range of DPValues to move?
   DPMarker *DPM = (*Pos)->getMarker();
-  auto Range = make_range(DPM->StoredDPValues.begin(), (*Pos));
+  auto Range = make_range(DPM->StoredDPEntities.begin(), (*Pos));
   if (Range.begin() == Range.end())
     return;
 
   // Otherwise: splice.
   DPMarker *ThisMarker = createMarker(I);
-  assert(ThisMarker->StoredDPValues.empty());
+  assert(ThisMarker->StoredDPEntities.empty());
   ThisMarker->absorbDebugValues(Range, *DPM, true);
 }
 

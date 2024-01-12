@@ -4557,7 +4557,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   // There's no formal representation of a DPMarker -- print purely as a
   // debugging aid.
-  for (const DPEntity &DPI2 : Marker.StoredDPValues) {
+  for (const DPEntity &DPI2 : Marker.StoredDPEntities) {
     if (auto *DPV = dyn_cast<DPValue>(&DPI2))
       printDPValue(*DPV);
     else
