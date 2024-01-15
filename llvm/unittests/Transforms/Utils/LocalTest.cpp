@@ -1326,7 +1326,7 @@ TEST(Local, ReplaceDbgVariableRecord) {
   // Convert DVI into a DbgVariableRecord.
   RetInst->DbgRecordMarker = new DPMarker();
   RetInst->DbgRecordMarker->MarkedInstr = RetInst;
-  DbgVariableInst *DPV = new DbgVariableInst(DVI);
+  DbgVariableRecord *DPV = new DbgVariableRecord(DVI);
   RetInst->DbgRecordMarker->insertDbgRecord(DPV, false);
   // ... and erase the dbg.value.
   DVI->eraseFromParent();

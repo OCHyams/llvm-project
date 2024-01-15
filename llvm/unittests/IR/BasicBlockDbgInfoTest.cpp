@@ -524,7 +524,7 @@ protected:
   BasicBlock *BBEntry, *BBExit;
   BasicBlock::iterator Dest, First, Last;
   Instruction *BInst, *Branch, *CInst;
-  DbgVariableInst *DPVA, *DPVB, *DPVConst;
+  DbgVariableRecord *DPVA, *DPVB, *DPVConst;
 
   void SetUp() override {
     UseNewDbgInfoFormat = true;
@@ -551,7 +551,7 @@ protected:
 
   void TearDown() override { UseNewDbgInfoFormat = false; }
 
-  bool InstContainsDbgVariableRecord(Instruction *I, DbgVariableInst *DPV) {
+  bool InstContainsDbgVariableRecord(Instruction *I, DbgVariableRecord *DPV) {
     for (DbgRecord &D : I->getDbgRecordRange()) {
       if (&D == DPV) {
         // Confirm too that the links between the records are correct.
@@ -1246,7 +1246,7 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsert) {
 
   // The Supported (TM) code sequence for removing then reinserting insts
   // after another instruction:
-  std::optional<DbgVariableInst::self_iterator> Pos =
+  std::optional<DbgVariableRecord::self_iterator> Pos =
       AddInst->getDbgReinsertionPosition();
   AddInst->removeFromParent();
 
@@ -1322,7 +1322,7 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsertForOneDbgVariableRecord) {
   EXPECT_EQ(std::distance(R1.begin(), R1.end()), 1u);
 
   // The Supported (TM) code sequence for removing then reinserting insts:
-  std::optional<DbgVariableInst::self_iterator> Pos =
+  std::optional<DbgVariableRecord::self_iterator> Pos =
       AddInst->getDbgReinsertionPosition();
   AddInst->removeFromParent();
 
