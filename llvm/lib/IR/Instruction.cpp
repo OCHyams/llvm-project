@@ -154,7 +154,7 @@ void Instruction::insertBefore(BasicBlock &BB,
   // If we're inserting a terminator, check if we need to flush out
   // TrailingDPValues.
   if (isTerminator())
-    getParent()->flushTerminatorDbgValues();
+    getParent()->flushTerminatorDbgRecords();
 }
 
 /// Unlink this instruction from its current basic block and insert it into the
@@ -223,7 +223,7 @@ void Instruction::moveBeforeImpl(BasicBlock &BB, InstListType::iterator I,
   }
 
   if (isTerminator())
-    getParent()->flushTerminatorDbgValues();
+    getParent()->flushTerminatorDbgRecords();
 }
 
 iterator_range<DbgRecord::self_iterator> Instruction::cloneDebugInfoFrom(

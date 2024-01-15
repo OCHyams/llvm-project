@@ -676,7 +676,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     // repeatedly inserted before the first instruction. To replicate this
     // behaviour, do it backwards.
     for (DbgVariableRecord *DPV : llvm::reverse(DeadDPValues))
-      ExitBlock->insertDPValueBefore(DPV, InsertDbgValueBefore);
+      ExitBlock->insertDbgRecordBefore(DPV, InsertDbgValueBefore);
   }
 
   // Remove the block from the reference counting scheme, so that we can

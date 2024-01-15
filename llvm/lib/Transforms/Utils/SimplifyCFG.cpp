@@ -5227,7 +5227,7 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
   // Ensure that any debug-info records that used to occur after the Unreachable
   // are moved to in front of it -- otherwise they'll "dangle" at the end of
   // the block.
-  BB->flushTerminatorDbgValues();
+  BB->flushTerminatorDbgRecords();
 
   // Debug-info records on the unreachable inst itself should be deleted, as
   // below we delete everything past the final executable instruction.

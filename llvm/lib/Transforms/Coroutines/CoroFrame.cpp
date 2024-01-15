@@ -1282,7 +1282,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
                               DBuilder.createExpression(), DILoc,
                               DbgVariableRecord::LocationType::Declare);
     BasicBlock::iterator It = Shape.getInsertPtAfterFramePtr();
-    It->getParent()->insertDPValueBefore(NewDPV, It);
+    It->getParent()->insertDbgRecordBefore(NewDPV, It);
   } else {
     DBuilder.insertDeclare(Shape.FramePtr, FrameDIVar,
                            DBuilder.createExpression(), DILoc,
@@ -1898,7 +1898,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
                 ValueAsMetadata::get(CurrentReload), DDI->getVariable(),
                 DDI->getExpression(), DDI->getDebugLoc(),
                 DbgVariableRecord::LocationType::Declare);
-            Builder.GetInsertPoint()->getParent()->insertDPValueBefore(
+            Builder.GetInsertPoint()->getParent()->insertDbgRecordBefore(
                 NewDPV, Builder.GetInsertPoint());
           } else {
             DIBuilder(*CurrentBlock->getParent()->getParent(), AllowUnresolved)
@@ -3005,7 +3005,7 @@ void coro::salvageDebugInfo(
       InsertPt = F->getEntryBlock().begin();
     if (InsertPt) {
       DPV.removeFromParent();
-      (*InsertPt)->getParent()->insertDPValueBefore(&DPV, *InsertPt);
+      (*InsertPt)->getParent()->insertDbgRecordBefore(&DPV, *InsertPt);
     }
   }
 }

@@ -764,7 +764,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
     // OrigPreHeader's old terminator (the original branch into the loop), and
     // remove the corresponding incoming values from the PHI nodes in OrigHeader.
     LoopEntryBranch->eraseFromParent();
-    OrigPreheader->flushTerminatorDbgValues();
+    OrigPreheader->flushTerminatorDbgRecords();
 
     // Update MemorySSA before the rewrite call below changes the 1:1
     // instruction:cloned_instruction_or_value mapping.

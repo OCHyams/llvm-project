@@ -52,15 +52,15 @@ DbgMarker *BasicBlock::createMarker(InstListType::iterator It) {
          "Tried to create a marker in a non new debug-info block!");
   if (It != end())
     return createMarker(&*It);
-  DbgMarker *DPM = getTrailingDPValues();
+  DbgMarker *DPM = getTrailingDbgRecords();
   if (DPM)
     return DPM;
   DPM = new DbgMarker();
-  setTrailingDPValues(DPM);
+  setTrailingDbgRecords(DPM);
   return DPM;
 }
 
-void BasicBlock::convertToNewDbgValues() {
+void BasicBlock::convertToNewDbgFormat() {
   // Is the command line option set?
   if (!UseNewDbgInfoFormat)
     return;
@@ -97,7 +97,7 @@ void BasicBlock::convertToNewDbgValues() {
   }
 }
 
-void BasicBlock::convertFromNewDbgValues() {
+void BasicBlock::convertFromNewDbgFormat() {
   invalidateOrders();
   IsNewDbgInfoFormat = false;
 
@@ -123,10 +123,10 @@ void BasicBlock::convertFromNewDbgValues() {
   // Assume no trailing DPValues: we could technically create them at the end
   // of the block, after a terminator, but this would be non-cannonical and
   // indicates that something else is broken somewhere.
-  assert(!getTrailingDPValues());
+  assert(!getTrailingDbgRecords());
 }
 
-bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
+bool BasicBlock::validateDbgRecords(bool Assert, bool Msg, raw_ostream *OS) {
   bool RetVal = false;
   if (!OS)
     OS = &errs();
@@ -183,12 +183,12 @@ bool BasicBlock::validateDbgValues(bool Assert, bool Msg, raw_ostream *OS) {
 
   // Except transiently when removing + re-inserting the block terminator, there
   // should be no trailing DPValues.
-  TestFailure(!getTrailingDPValues(), "Trailing DPValues in block");
+  TestFailure(!getTrailingDbgRecords(), "Trailing DPValues in block");
   return RetVal;
 }
 
 #ifndef NDEBUG
-void BasicBlock::dumpDbgValues() const {
+void BasicBlock::dumpDbgRecords() const {
   for (auto &Inst : *this) {
     if (!Inst.DbgRecordMarker)
       continue;
@@ -201,9 +201,9 @@ void BasicBlock::dumpDbgValues() const {
 
 void BasicBlock::setIsNewDbgInfoFormat(bool NewFlag) {
   if (NewFlag && !IsNewDbgInfoFormat)
-    convertToNewDbgValues();
+    convertToNewDbgFormat();
   else if (!NewFlag && IsNewDbgInfoFormat)
-    convertFromNewDbgValues();
+    convertFromNewDbgFormat();
 }
 
 ValueSymbolTable *BasicBlock::getValueSymbolTable() {
@@ -752,7 +752,7 @@ void BasicBlock::renumberInstructions() {
   NumInstrRenumberings++;
 }
 
-void BasicBlock::flushTerminatorDbgValues() {
+void BasicBlock::flushTerminatorDbgRecords() {
   // If we erase the terminator in a block, any DPValues will sink and "fall
   // off the end", existing after any terminator that gets inserted. With
   // dbg.value intrinsics we would just insert the terminator at end() and
@@ -772,14 +772,14 @@ void BasicBlock::flushTerminatorDbgValues() {
     return;
 
   // Are there any dangling DPValues?
-  DbgMarker *TrailingDPValues = getTrailingDPValues();
+  DbgMarker *TrailingDPValues = getTrailingDbgRecords();
   if (!TrailingDPValues)
     return;
 
   // Transfer DPValues from the trailing position onto the terminator.
   Term->DbgRecordMarker->absorbDbgRecords(*TrailingDPValues, false);
   TrailingDPValues->eraseFromParent();
-  deleteTrailingDPValues();
+  deleteTrailingDbgRecords();
 }
 
 void BasicBlock::spliceDebugInfoEmptyBlock(BasicBlock::iterator Dest,
@@ -816,14 +816,14 @@ void BasicBlock::spliceDebugInfoEmptyBlock(BasicBlock::iterator Dest,
   if (Src->empty()) {
     assert(Dest != end() &&
            "Transferring trailing DPValues to another trailing position");
-    DbgMarker *SrcTrailingDPValues = Src->getTrailingDPValues();
+    DbgMarker *SrcTrailingDPValues = Src->getTrailingDbgRecords();
     if (!SrcTrailingDPValues)
       return;
 
     DbgMarker *M = Dest->DbgRecordMarker;
     M->absorbDbgRecords(*SrcTrailingDPValues, InsertAtHead);
     SrcTrailingDPValues->eraseFromParent();
-    Src->deleteTrailingDPValues();
+    Src->deleteTrailingDbgRecords();
     return;
   }
 
@@ -875,7 +875,7 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
   // move the DPValues onto "First". They'll then be moved naturally in the
   // splice process.
   DbgMarker *MoreDanglingDPValues = nullptr;
-  DbgMarker *OurTrailingDPValues = getTrailingDPValues();
+  DbgMarker *OurTrailingDPValues = getTrailingDbgRecords();
   if (Dest == end() && !Dest.getHeadBit() && OurTrailingDPValues) {
     // Are the "+" DPValues not supposed to move? If so, detach them
     // temporarily.
@@ -902,7 +902,7 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
       CurMarker->absorbDbgRecords(*OurTrailingDPValues, false);
       OurTrailingDPValues->eraseFromParent();
     }
-    deleteTrailingDPValues();
+    deleteTrailingDbgRecords();
     First.setHeadBit(true);
   }
 
@@ -1009,7 +1009,7 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
     OntoDest->absorbDbgRecords(*FromLast, true);
     if (LastIsEnd) {
       FromLast->eraseFromParent();
-      Src->deleteTrailingDPValues();
+      Src->deleteTrailingDbgRecords();
     }
   }
 
@@ -1043,11 +1043,11 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
     // any trailing debug-info at the end of the block would "normally" have
     // been pushed in front of "First". Move it there now.
     DbgMarker *FirstMarker = getMarker(First);
-    DbgMarker *TrailingDPValues = getTrailingDPValues();
+    DbgMarker *TrailingDPValues = getTrailingDbgRecords();
     if (TrailingDPValues) {
       FirstMarker->absorbDbgRecords(*TrailingDPValues, true);
       TrailingDPValues->eraseFromParent();
-      deleteTrailingDPValues();
+      deleteTrailingDbgRecords();
     }
   }
 }
@@ -1077,10 +1077,10 @@ void BasicBlock::splice(iterator Dest, BasicBlock *Src, iterator First,
   // And move the instructions.
   getInstList().splice(Dest, Src->getInstList(), First, Last);
 
-  flushTerminatorDbgValues();
+  flushTerminatorDbgRecords();
 }
 
-void BasicBlock::insertDPValueAfter(DbgRecord *DPV, Instruction *I) {
+void BasicBlock::insertDbgRecordAfter(DbgRecord *DPV, Instruction *I) {
   assert(IsNewDbgInfoFormat);
   assert(I->getParent() == this);
 
@@ -1091,8 +1091,8 @@ void BasicBlock::insertDPValueAfter(DbgRecord *DPV, Instruction *I) {
   NextMarker->insertDbgRecord(DPV, true);
 }
 
-void BasicBlock::insertDPValueBefore(DbgRecord *DPV,
-                                     InstListType::iterator Where) {
+void BasicBlock::insertDbgRecordBefore(DbgRecord *DPV,
+                                       InstListType::iterator Where) {
   // We should never directly insert at the end of the block, new DPValues
   // shouldn't be generated at times when there's no terminator.
   assert(Where != end());
@@ -1109,13 +1109,13 @@ DbgMarker *BasicBlock::getNextMarker(Instruction *I) {
 
 DbgMarker *BasicBlock::getMarker(InstListType::iterator It) {
   if (It == end()) {
-    DbgMarker *DPM = getTrailingDPValues();
+    DbgMarker *DPM = getTrailingDbgRecords();
     return DPM;
   }
   return It->DbgRecordMarker;
 }
 
-void BasicBlock::reinsertInstInDPValues(
+void BasicBlock::reinsertInstInDbgRecords(
     Instruction *I, std::optional<DbgVariableRecord::self_iterator> Pos) {
   // "I" was originally removed from a position where it was
   // immediately in front of Pos. Any DPValues on that position then "fell down"
@@ -1182,15 +1182,14 @@ void BasicBlock::validateInstrOrdering() const {
 }
 #endif
 
-void BasicBlock::setTrailingDPValues(DbgMarker *foo) {
+void BasicBlock::setTrailingDbgRecords(DbgMarker *foo) {
   getContext().pImpl->setTrailingDPValues(this, foo);
 }
 
-DbgMarker *BasicBlock::getTrailingDPValues() {
+DbgMarker *BasicBlock::getTrailingDbgRecords() {
   return getContext().pImpl->getTrailingDPValues(this);
 }
 
-void BasicBlock::deleteTrailingDPValues() {
+void BasicBlock::deleteTrailingDbgRecords() {
   getContext().pImpl->deleteTrailingDPValues(this);
 }
-

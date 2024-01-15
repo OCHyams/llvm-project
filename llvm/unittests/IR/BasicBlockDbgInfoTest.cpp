@@ -176,12 +176,12 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   EXPECT_TRUE(Marker2->StoredDbgRecords.empty());
 
   // This should appear in Marker1.
-  BB.insertDPValueBefore(DPV1, BB.begin());
+  BB.insertDbgRecordBefore(DPV1, BB.begin());
   EXPECT_EQ(Marker1->StoredDbgRecords.size(), 1u);
   EXPECT_EQ(DPV1, &*Marker1->StoredDbgRecords.begin());
 
   // This should attach to Marker2.
-  BB.insertDPValueAfter(DPV2, &*BB.begin());
+  BB.insertDbgRecordAfter(DPV2, &*BB.begin());
   EXPECT_EQ(Marker2->StoredDbgRecords.size(), 1u);
   EXPECT_EQ(DPV2, &*Marker2->StoredDbgRecords.begin());
 
@@ -201,10 +201,10 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
 
   // If we remove the end instruction, the DPValues should fall down into
   // the trailing marker.
-  EXPECT_EQ(BB.getTrailingDPValues(), nullptr);
+  EXPECT_EQ(BB.getTrailingDbgRecords(), nullptr);
   Instr2->removeFromParent();
   EXPECT_TRUE(BB.empty());
-  EndMarker = BB.getTrailingDPValues();
+  EndMarker = BB.getTrailingDbgRecords();
   ASSERT_NE(EndMarker, nullptr);
   EXPECT_EQ(EndMarker->StoredDbgRecords.size(), 2u);
   // Again, these should arrive in the correct order.
@@ -228,11 +228,11 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   // However we won't de-allocate the trailing marker until a terminator is
   // inserted.
   EXPECT_EQ(EndMarker->StoredDbgRecords.size(), 0u);
-  EXPECT_EQ(BB.getTrailingDPValues(), EndMarker);
+  EXPECT_EQ(BB.getTrailingDbgRecords(), EndMarker);
 
   // Remove Instr1: now the DPValues will fall down again,
   Instr1->removeFromParent();
-  EndMarker = BB.getTrailingDPValues();
+  EndMarker = BB.getTrailingDbgRecords();
   EXPECT_EQ(EndMarker->StoredDbgRecords.size(), 2u);
 
   // Inserting a terminator, however it's intended, should dislodge the
@@ -241,7 +241,7 @@ TEST(BasicBlockDbgInfoTest, MarkerOperations) {
   // end forever.
   Instr2->insertBefore(BB, BB.begin());
   EXPECT_EQ(Instr2->DbgMarker->StoredDPValues.size(), 2u);
-  EXPECT_EQ(BB.getTrailingDPValues(), nullptr);
+  EXPECT_EQ(BB.getTrailingDbgRecords(), nullptr);
 
   // Teardown,
   Instr1->insertBefore(BB, BB.begin());
@@ -1167,7 +1167,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceTrailing) {
 
   // Begin by forcing entry block to have dangling DPValue.
   Entry.getTerminator()->eraseFromParent();
-  ASSERT_NE(Entry.getTrailingDPValues(), nullptr);
+  ASSERT_NE(Entry.getTrailingDbgRecords(), nullptr);
   EXPECT_TRUE(Entry.empty());
 
   // Now transfer the entire contents of the exit block into the entry.
@@ -1250,7 +1250,7 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsert) {
 
   // Re-insert and re-insert.
   AddInst->insertAfter(SubInst);
-  Entry.reinsertInstInDPValues(AddInst, Pos);
+  Entry.reinsertInstInDbgRecords(AddInst, Pos);
   // We should be back into a position of having one DPValue on add and ret.
   EXPECT_FALSE(SubInst->hasDbgRecords());
   EXPECT_TRUE(AddInst->hasDbgRecords());
@@ -1326,7 +1326,7 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsertForOneDPValue) {
 
   // Re-insert and re-insert.
   AddInst->insertAfter(SubInst);
-  Entry.reinsertInstInDPValues(AddInst, Pos);
+  Entry.reinsertInstInDbgRecords(AddInst, Pos);
   // We should be back into a position of having one DPValue on the AddInst.
   EXPECT_FALSE(SubInst->hasDbgRecords());
   EXPECT_TRUE(AddInst->hasDbgRecords());
@@ -1382,7 +1382,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty1) {
 
   // Begin by forcing entry block to have dangling DPValue.
   Entry.getTerminator()->eraseFromParent();
-  ASSERT_NE(Entry.getTrailingDPValues(), nullptr);
+  ASSERT_NE(Entry.getTrailingDbgRecords(), nullptr);
   EXPECT_TRUE(Entry.empty());
 
   // Now transfer the entire contents of the exit block into the entry. This
@@ -1403,7 +1403,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty1) {
   EXPECT_EQ(cast<ConstantInt>(SecondDPVValue)->getZExtValue(), 0ull);
 
   // No trailing DPValues in the entry block now.
-  EXPECT_EQ(Entry.getTrailingDPValues(), nullptr);
+  EXPECT_EQ(Entry.getTrailingDbgRecords(), nullptr);
 
   UseNewDbgInfoFormat = false;
 }
@@ -1451,7 +1451,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty2) {
 
   // Begin by forcing entry block to have dangling DPValue.
   Entry.getTerminator()->eraseFromParent();
-  ASSERT_NE(Entry.getTrailingDPValues(), nullptr);
+  ASSERT_NE(Entry.getTrailingDbgRecords(), nullptr);
   EXPECT_TRUE(Entry.empty());
 
   // Now transfer into the entry block -- fetching the first instruction with
@@ -1469,14 +1469,14 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty2) {
 
   EXPECT_EQ(DPValues[0]->getVariableLocationOp(0), F.getArg(0));
   // No trailing DPValues in the entry block now.
-  EXPECT_EQ(Entry.getTrailingDPValues(), nullptr);
+  EXPECT_EQ(Entry.getTrailingDbgRecords(), nullptr);
 
   // We should have nothing left in the exit block...
   EXPECT_TRUE(Exit.empty());
   // ... except for some dangling DPValues.
-  EXPECT_NE(Exit.getTrailingDPValues(), nullptr);
-  EXPECT_FALSE(Exit.getTrailingDPValues()->empty());
-  Exit.deleteTrailingDPValues();
+  EXPECT_NE(Exit.getTrailingDbgRecords(), nullptr);
+  EXPECT_FALSE(Exit.getTrailingDbgRecords()->empty());
+  Exit.deleteTrailingDbgRecords();
 
   UseNewDbgInfoFormat = false;
 }
@@ -1521,13 +1521,13 @@ TEST(BasicBlockDbgInfoTest, DbgMoveToEnd) {
   // Move the return to the end of the entry block.
   Instruction *Br = Entry.getTerminator();
   Instruction *Ret = Exit.getTerminator();
-  EXPECT_EQ(Entry.getTrailingDPValues(), nullptr);
+  EXPECT_EQ(Entry.getTrailingDbgRecords(), nullptr);
   Ret->moveBefore(Entry, Entry.end());
   Br->eraseFromParent();
 
   // There should continue to not be any debug-info anywhere.
-  EXPECT_EQ(Entry.getTrailingDPValues(), nullptr);
-  EXPECT_EQ(Exit.getTrailingDPValues(), nullptr);
+  EXPECT_EQ(Entry.getTrailingDbgRecords(), nullptr);
+  EXPECT_EQ(Exit.getTrailingDbgRecords(), nullptr);
   EXPECT_FALSE(Ret->hasDbgRecords());
 
   UseNewDbgInfoFormat = false;

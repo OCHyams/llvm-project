@@ -340,7 +340,7 @@ void DbgMarker::removeMarker() {
   DbgMarker *NextMarker = Owner->getParent()->getNextMarker(Owner);
   if (NextMarker == nullptr) {
     NextMarker = new DbgMarker();
-    Owner->getParent()->setTrailingDPValues(NextMarker);
+    Owner->getParent()->setTrailingDbgRecords(NextMarker);
   }
   NextMarker->absorbDbgRecords(*this, true);
 

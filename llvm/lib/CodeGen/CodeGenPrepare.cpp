@@ -2877,7 +2877,7 @@ class TypePromotionTransaction {
           Inst->insertBefore(*Point.BB, Position);
       }
 
-      Inst->getParent()->reinsertInstInDPValues(Inst, BeforeDPValue);
+      Inst->getParent()->reinsertInstInDbgRecords(Inst, BeforeDPValue);
     }
   };
 
@@ -8446,9 +8446,9 @@ static void DbgInserterHelper(DbgVariableRecord *DPV, Instruction *VI) {
   DPV->removeFromParent();
   BasicBlock *VIBB = VI->getParent();
   if (isa<PHINode>(VI))
-    VIBB->insertDPValueBefore(DPV, VIBB->getFirstInsertionPt());
+    VIBB->insertDbgRecordBefore(DPV, VIBB->getFirstInsertionPt());
   else
-    VIBB->insertDPValueAfter(DPV, VI);
+    VIBB->insertDbgRecordAfter(DPV, VI);
 }
 
 // A llvm.dbg.value may be using a value before its definition, due to

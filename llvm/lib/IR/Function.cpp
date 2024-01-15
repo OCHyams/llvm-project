@@ -84,14 +84,14 @@ static cl::opt<unsigned> NonGlobalValueMaxNameSize(
 void Function::convertToNewDbgValues() {
   IsNewDbgInfoFormat = true;
   for (auto &BB : *this) {
-    BB.convertToNewDbgValues();
+    BB.convertToNewDbgFormat();
   }
 }
 
 void Function::convertFromNewDbgValues() {
   IsNewDbgInfoFormat = false;
   for (auto &BB : *this) {
-    BB.convertFromNewDbgValues();
+    BB.convertFromNewDbgFormat();
   }
 }
 

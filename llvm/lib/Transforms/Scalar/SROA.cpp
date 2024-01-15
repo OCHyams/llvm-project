@@ -4864,7 +4864,8 @@ static void insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
   DbgVariableRecord *New = new DbgVariableRecord(
       ValueAsMetadata::get(NewAddr), Orig->getVariable(), NewFragmentExpr,
       Orig->getDebugLoc(), DbgVariableRecord::LocationType::Declare);
-  BeforeInst->getParent()->insertDPValueBefore(New, BeforeInst->getIterator());
+  BeforeInst->getParent()->insertDbgRecordBefore(New,
+                                                 BeforeInst->getIterator());
 }
 
 /// Walks the slices of an alloca and form partitions based on them,

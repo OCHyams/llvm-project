@@ -1658,7 +1658,7 @@ static void insertDbgValueOrDPValue(DIBuilder &Builder, Value *DV,
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
     DbgVariableRecord *DV =
         new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
-    Instr->getParent()->insertDPValueBefore(DV, Instr);
+    Instr->getParent()->insertDbgRecordBefore(DV, Instr);
   }
 }
 
@@ -1677,7 +1677,7 @@ static void insertDbgValueOrDPValueAfter(DIBuilder &Builder, Value *DV,
     ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
     DbgVariableRecord *DV =
         new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
-    Instr->getParent()->insertDPValueAfter(DV, &*Instr);
+    Instr->getParent()->insertDbgRecordAfter(DV, &*Instr);
   }
 }
 
@@ -1811,7 +1811,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableRecord *DPV,
   ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
   DbgVariableRecord *NewDPV =
       new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
-  SI->getParent()->insertDPValueBefore(NewDPV, SI->getIterator());
+  SI->getParent()->insertDbgRecordBefore(NewDPV, SI->getIterator());
 }
 
 /// Inserts a llvm.dbg.value intrinsic after a phi that has an associated
@@ -1874,7 +1874,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableRecord *DPV, LoadInst *LI,
   ValueAsMetadata *LIVAM = ValueAsMetadata::get(LI);
   DbgVariableRecord *DV =
       new DbgVariableRecord(LIVAM, DIVar, DIExpr, NewLoc.get());
-  LI->getParent()->insertDPValueAfter(DV, LI);
+  LI->getParent()->insertDbgRecordAfter(DV, LI);
 }
 
 /// Determine whether this alloca is either a VLA or an array.
@@ -2636,7 +2636,7 @@ static bool rewriteDebugUsers(
         LLVM_DEBUG(dbgs() << "MOVE:  " << *DPV << '\n');
         DPV->removeFromParent();
         // Ensure there's a marker.
-        DomPoint.getParent()->insertDPValueAfter(DPV, &DomPoint);
+        DomPoint.getParent()->insertDbgRecordAfter(DPV, &DomPoint);
         Changed = true;
       } else if (!DT.dominates(&DomPoint, MarkedInstr)) {
         UndefOrSalvageDPV.insert(DPV);
@@ -2846,7 +2846,7 @@ unsigned llvm::changeToUnreachable(Instruction *I, bool PreserveLCSSA,
       Updates.push_back({DominatorTree::Delete, BB, UniqueSuccessor});
     DTU->applyUpdates(Updates);
   }
-  BB->flushTerminatorDbgValues();
+  BB->flushTerminatorDbgRecords();
   return NumInstrsRemoved;
 }
 
