@@ -39,7 +39,7 @@ public:
         ShouldPreserveUseListOrder(ShouldPreserveUseListOrder) {}
 
   bool runOnModule(Module &M) override {
-    // RemoveDIs: there's no textual representation of the DPValue debug-info,
+    // RemoveDIs: there's no textual representation of the DbgRecord debug-info,
     // convert to dbg.values before writing out.
     bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
     if (IsNewDbgInfoFormat)
@@ -87,7 +87,7 @@ public:
 
   // This pass just prints a banner followed by the function as it's processed.
   bool runOnFunction(Function &F) override {
-    // RemoveDIs: there's no textual representation of the DPValue debug-info,
+    // RemoveDIs: there's no textual representation of the DbgRecord debug-info,
     // convert to dbg.values before writing out.
     bool IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
     if (IsNewDbgInfoFormat)

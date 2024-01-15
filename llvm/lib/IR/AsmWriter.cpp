@@ -4095,7 +4095,7 @@ void AssemblyWriter::printInfoComment(const Value &V) {
     AnnotationWriter->printInfoComment(V, Out);
   } else if (const Instruction *I = dyn_cast<Instruction>(&V)) {
     if (I->DbgRecordMarker) {
-      // In the new, experimental DPValue representation of debug-info, print
+      // In the new, experimental DbgRecord representation of debug-info, print
       // out which instructions have DbgMarkers and where they are.
       Out << "; dbgmarker @ " << I->DbgRecordMarker;
     }

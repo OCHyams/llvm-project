@@ -1230,7 +1230,7 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
   }
 
   // Is there is any debug-info attached to this instruction, in the form of
-  // DPValue non-instruction debug-info records.
+  // DbgRecord non-instruction debug-info records.
   for (DbgRecord &DPR : I.getDbgRecordRange()) {
     DbgVariableRecord &DPV = cast<DbgVariableRecord>(DPR);
     DILocalVariable *Variable = DPV.getVariable();
