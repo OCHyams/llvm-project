@@ -199,14 +199,14 @@ void SSAUpdater::RewriteUse(Use &U) {
 
 void SSAUpdater::UpdateDebugValues(Instruction *I) {
   SmallVector<DbgValueInst *, 4> DbgValues;
-  SmallVector<DbgVariableRecord *, 4> DPValues;
-  llvm::findDbgValues(DbgValues, I, &DPValues);
+  SmallVector<DbgVariableRecord *, 4> DbgVarRecs;
+  llvm::findDbgValues(DbgValues, I, &DbgVarRecs);
   for (auto &DbgValue : DbgValues) {
     if (DbgValue->getParent() == I->getParent())
       continue;
     UpdateDebugValue(I, DbgValue);
   }
-  for (auto &DPV : DPValues) {
+  for (auto &DPV : DbgVarRecs) {
     if (DPV->getParent() == I->getParent())
       continue;
     UpdateDebugValue(I, DPV);

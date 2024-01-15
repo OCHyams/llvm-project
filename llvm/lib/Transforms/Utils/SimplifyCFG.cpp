@@ -3129,7 +3129,7 @@ bool SimplifyCFGOpt::SpeculativelyExecuteBB(BranchInst *BI,
   }
 
   // Hoist the instructions.
-  // In "RemoveDIs" non-instr debug-info mode, drop DPValues attached to these
+  // In "RemoveDIs" non-instr debug-info mode, drop DbgRecords attached to these
   // instructions, in the same way that dbg.value intrinsics are dropped at the
   // end of this block.
   for (auto &It : make_range(ThenBB->begin(), ThenBB->end()))
@@ -3307,7 +3307,7 @@ FoldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
     TranslateMap[Cond] = CB;
 
     // RemoveDIs: track instructions that we optimise away while folding, so
-    // that we can copy DPValues from them later.
+    // that we can copy DbgRecords from them later.
     BasicBlock::iterator SrcDbgCursor = BB->begin();
     for (BasicBlock::iterator BBI = BB->begin(); &*BBI != BI; ++BBI) {
       if (PHINode *PN = dyn_cast<PHINode>(BBI)) {
@@ -5250,7 +5250,7 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
     // and we can therefore guarantee this block will be erased.
 
     // If we're deleting this, we're deleting any subsequent dbg.values, so
-    // delete DPValue records of variable information.
+    // delete debug records too.
     BBI->dropDbgRecords();
 
     // Delete this instruction (any uses are guaranteed to be dead)

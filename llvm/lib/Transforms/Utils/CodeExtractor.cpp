@@ -1508,12 +1508,12 @@ void CodeExtractor::calculateNewCallTerminatorWeights(
 static void eraseDebugIntrinsicsWithNonLocalRefs(Function &F) {
   for (Instruction &I : instructions(F)) {
     SmallVector<DbgVariableIntrinsic *, 4> DbgUsers;
-    SmallVector<DbgVariableRecord *, 4> DPValues;
-    findDbgUsers(DbgUsers, &I, &DPValues);
+    SmallVector<DbgVariableRecord *, 4> DbgVarRecs;
+    findDbgUsers(DbgUsers, &I, &DbgVarRecs);
     for (DbgVariableIntrinsic *DVI : DbgUsers)
       if (DVI->getFunction() != &F)
         DVI->eraseFromParent();
-    for (DbgVariableRecord *DPV : DPValues)
+    for (DbgVariableRecord *DPV : DbgVarRecs)
       if (DPV->getFunction() != &F)
         DPV->eraseFromParent();
   }
@@ -1585,25 +1585,25 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
     return cast<DILocalVariable>(NewVar);
   };
 
-  auto UpdateDPValuesOnInst = [&](Instruction &I) -> void {
-    for (DbgVariableRecord &DPV :
-         DbgVariableRecord::filter(I.getDbgRecordRange())) {
+  auto UpdateDbgRecordsOnInst = [&](Instruction &I) -> void {
+    for (DbgRecord &DR : I.getDbgRecordRange()) {
+      DbgVariableRecord &DVR = cast<DbgVariableRecord>(DR);
       // Apply the two updates that dbg.values get: invalid operands, and
       // variable metadata fixup.
       // FIXME: support dbg.assign form of DPValues.
-      if (any_of(DPV.location_ops(), IsInvalidLocation)) {
-        DPVsToDelete.push_back(&DPV);
+      if (any_of(DVR.location_ops(), IsInvalidLocation)) {
+        DPVsToDelete.push_back(&DVR);
         continue;
       }
-      if (!DPV.getDebugLoc().getInlinedAt())
-        DPV.setVariable(GetUpdatedDIVariable(DPV.getVariable()));
-      DPV.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DPV.getDebugLoc(),
+      if (!DVR.getDebugLoc().getInlinedAt())
+        DVR.setVariable(GetUpdatedDIVariable(DVR.getVariable()));
+      DVR.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DVR.getDebugLoc(),
                                                            *NewSP, Ctx, Cache));
     }
   };
 
   for (Instruction &I : instructions(NewFunc)) {
-    UpdateDPValuesOnInst(I);
+    UpdateDbgRecordsOnInst(I);
 
     auto *DII = dyn_cast<DbgInfoIntrinsic>(&I);
     if (!DII)

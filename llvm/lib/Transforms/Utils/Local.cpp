@@ -1570,14 +1570,14 @@ static bool PhiHasDebugValue(DILocalVariable *DIVar,
   // is removed by LowerDbgDeclare(), we need to make sure that we are
   // not inserting the same dbg.value intrinsic over and over.
   SmallVector<DbgValueInst *, 1> DbgValues;
-  SmallVector<DbgVariableRecord *, 1> DPValues;
-  findDbgValues(DbgValues, APN, &DPValues);
+  SmallVector<DbgVariableRecord *, 1> DbgVarRecs;
+  findDbgValues(DbgValues, APN, &DbgVarRecs);
   for (auto *DVI : DbgValues) {
     assert(is_contained(DVI->getValues(), APN));
     if ((DVI->getVariable() == DIVar) && (DVI->getExpression() == DIExpr))
       return true;
   }
-  for (auto *DPV : DPValues) {
+  for (auto *DPV : DbgVarRecs) {
     assert(is_contained(DPV->location_ops(), APN));
     if ((DPV->getVariable() == DIVar) && (DPV->getExpression() == DIExpr))
       return true;
@@ -2187,8 +2187,8 @@ static void updateOneDbgValueForAlloca(const DebugLoc &Loc,
 void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
                                     DIBuilder &Builder, int Offset) {
   SmallVector<DbgValueInst *, 1> DbgUsers;
-  SmallVector<DbgVariableRecord *, 1> DPUsers;
-  findDbgValues(DbgUsers, AI, &DPUsers);
+  SmallVector<DbgVariableRecord *, 1> DbgVarRecs;
+  findDbgValues(DbgUsers, AI, &DbgVarRecs);
 
   // Attempt to replace dbg.values that use this alloca.
   for (auto *DVI : DbgUsers)
@@ -2197,7 +2197,7 @@ void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
                                nullptr, Builder, Offset);
 
   // Replace any DPValues that use this alloca.
-  for (DbgVariableRecord *DPV : DPUsers)
+  for (DbgVariableRecord *DPV : DbgVarRecs)
     updateOneDbgValueForAlloca(DPV->getDebugLoc(), DPV->getVariable(),
                                DPV->getExpression(), NewAllocaAddress, nullptr,
                                DPV, Builder, Offset);
@@ -2248,7 +2248,7 @@ static void salvageDbgAssignAddress(DbgAssignIntrinsic *DAI) {
 
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers,
-    ArrayRef<DbgVariableRecord *> DPUsers) {
+    ArrayRef<DbgVariableRecord *> DbgVarRecs) {
   // These are arbitrary chosen limits on the maximum number of values and the
   // maximum size of a debug expression we can salvage up to, used for
   // performance reasons.
@@ -2315,7 +2315,7 @@ void llvm::salvageDebugInfoForDbgValues(
     Salvaged = true;
   }
   // Duplicate of above block for DPValues.
-  for (auto *DPV : DPUsers) {
+  for (auto *DPV : DbgVarRecs) {
     // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
     // are implicitly pointing out the value as a DWARF memory location
     // description.
@@ -2376,7 +2376,7 @@ void llvm::salvageDebugInfoForDbgValues(
   for (auto *DII : DbgUsers)
     DII->setKillLocation();
 
-  for (auto *DPV : DPUsers)
+  for (auto *DPV : DbgVarRecs)
     DPV->setKillLocation();
 }
 
