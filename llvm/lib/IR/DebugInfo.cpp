@@ -218,7 +218,7 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
 }
 
 void DebugInfoFinder::processDbgVariableRecord(const Module &M,
-                                     const DbgVariableRecord &DPV) {
+                                               const DbgVariableRecord &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
 }

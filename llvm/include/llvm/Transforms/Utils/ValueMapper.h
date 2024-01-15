@@ -181,7 +181,8 @@ public:
 
   void remapInstruction(Instruction &I);
   void remapDbgVariableRecord(Module *M, DbgVariableRecord &V);
-  void remapDbgVariableRecords(Module *M, iterator_range<DbgRecordIterator> Range);
+  void remapDbgVariableRecords(Module *M,
+                               iterator_range<DbgRecordIterator> Range);
   void remapFunction(Function &F);
   void remapGlobalObjectMetadata(GlobalObject &GO);
 
@@ -269,21 +270,25 @@ inline void RemapInstruction(Instruction *I, ValueToValueMapTy &VM,
 
 /// Remap the Values used in the DbgVariableRecord \a V using the value map \a
 /// VM.
-inline void RemapDbgVariableRecord(Module *M, DbgVariableRecord *V, ValueToValueMapTy &VM,
-                         RemapFlags Flags = RF_None,
-                         ValueMapTypeRemapper *TypeMapper = nullptr,
-                         ValueMaterializer *Materializer = nullptr) {
-  ValueMapper(VM, Flags, TypeMapper, Materializer).remapDbgVariableRecord(M, *V);
+inline void RemapDbgVariableRecord(Module *M, DbgVariableRecord *V,
+                                   ValueToValueMapTy &VM,
+                                   RemapFlags Flags = RF_None,
+                                   ValueMapTypeRemapper *TypeMapper = nullptr,
+                                   ValueMaterializer *Materializer = nullptr) {
+  ValueMapper(VM, Flags, TypeMapper, Materializer)
+      .remapDbgVariableRecord(M, *V);
 }
 
 /// Remap the Values used in the DbgVariableRecord \a V using the value map \a
 /// VM.
 inline void RemapDbgVariableRecords(Module *M,
-                              iterator_range<DbgRecordIterator> Range,
-                              ValueToValueMapTy &VM, RemapFlags Flags = RF_None,
-                              ValueMapTypeRemapper *TypeMapper = nullptr,
-                              ValueMaterializer *Materializer = nullptr) {
-  ValueMapper(VM, Flags, TypeMapper, Materializer).remapDbgVariableRecords(M, Range);
+                                    iterator_range<DbgRecordIterator> Range,
+                                    ValueToValueMapTy &VM,
+                                    RemapFlags Flags = RF_None,
+                                    ValueMapTypeRemapper *TypeMapper = nullptr,
+                                    ValueMaterializer *Materializer = nullptr) {
+  ValueMapper(VM, Flags, TypeMapper, Materializer)
+      .remapDbgVariableRecords(M, Range);
 }
 
 /// Remap the operands, metadata, arguments, and instructions of a function.

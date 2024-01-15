@@ -1261,7 +1261,7 @@ static BasicBlock *buildClonedLoopBlocks(
   for (auto *ClonedBB : NewBlocks)
     for (Instruction &I : *ClonedBB) {
       RemapDbgVariableRecords(M, I.getDbgRecordRange(), VMap,
-                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+                              RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
       RemapInstruction(&I, VMap,
                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
       if (auto *II = dyn_cast<AssumeInst>(&I))

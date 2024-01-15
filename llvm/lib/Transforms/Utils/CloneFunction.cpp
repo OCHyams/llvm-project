@@ -276,8 +276,8 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
     // attached debug-info records.
     for (Instruction &II : *BB) {
       RemapInstruction(&II, VMap, RemapFlag, TypeMapper, Materializer);
-      RemapDbgVariableRecords(II.getModule(), II.getDbgRecordRange(), VMap, RemapFlag,
-                        TypeMapper, Materializer);
+      RemapDbgVariableRecords(II.getModule(), II.getDbgRecordRange(), VMap,
+                              RemapFlag, TypeMapper, Materializer);
     }
 
   // Only update !llvm.dbg.cu for DifferentModule (not CloneModule). In the
@@ -890,8 +890,9 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
   for (BasicBlock &BB : make_range(Begin, NewFunc->end())) {
     for (Instruction &I : BB) {
       RemapDbgVariableRecords(I.getModule(), I.getDbgRecordRange(), VMap,
-                        ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
-                        TypeMapper, Materializer);
+                              ModuleLevelChanges ? RF_None
+                                                 : RF_NoModuleLevelChanges,
+                              TypeMapper, Materializer);
     }
   }
 
@@ -991,7 +992,7 @@ void llvm::remapInstructionsInBlocks(ArrayRef<BasicBlock *> Blocks,
   for (auto *BB : Blocks) {
     for (auto &Inst : *BB) {
       RemapDbgVariableRecords(Inst.getModule(), Inst.getDbgRecordRange(), VMap,
-                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+                              RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
       RemapInstruction(&Inst, VMap,
                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     }

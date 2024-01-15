@@ -382,7 +382,8 @@ bool llvm::MergeBlockSuccessorsIntoGivenBlocks(
 /// - Check fully overlapping fragments and not only identical fragments.
 /// - Support dbg.declare. dbg.label, and possibly other meta instructions being
 ///   part of the sequence of consecutive instructions.
-static bool DbgRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
+static bool
+DbgRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {

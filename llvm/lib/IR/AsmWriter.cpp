@@ -4843,7 +4843,7 @@ void DbgVariableRecord::print(raw_ostream &ROS, bool IsForDebug) const {
 }
 
 void DbgMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
-                     bool IsForDebug) const {
+                      bool IsForDebug) const {
   // There's no formal representation of a DbgMarker -- print purely as a
   // debugging aid.
   formatted_raw_ostream OS(ROS);
@@ -5124,11 +5124,17 @@ void Value::dump() const { print(dbgs(), /*IsForDebug=*/true); dbgs() << '\n'; }
 
 // Value::dump - allow easy printing of Values from the debugger.
 LLVM_DUMP_METHOD
-void DbgMarker::dump() const { print(dbgs(), /*IsForDebug=*/true); dbgs() << '\n'; }
+void DbgMarker::dump() const {
+  print(dbgs(), /*IsForDebug=*/true);
+  dbgs() << '\n';
+}
 
 // Value::dump - allow easy printing of Values from the debugger.
 LLVM_DUMP_METHOD
-void DbgRecord::dump() const { print(dbgs(), /*IsForDebug=*/true); dbgs() << '\n'; }
+void DbgRecord::dump() const {
+  print(dbgs(), /*IsForDebug=*/true);
+  dbgs() << '\n';
+}
 
 // Type::dump - allow easy printing of Types from the debugger.
 LLVM_DUMP_METHOD
