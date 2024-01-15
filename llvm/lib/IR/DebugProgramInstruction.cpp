@@ -50,6 +50,27 @@ void DbgRecord::deleteRecord() {
   }
 }
 
+void DbgRecord::print(raw_ostream &O, bool IsForDebug) const {
+  switch (RecordKind) {
+  case ValueKind:
+    cast<DPValue>(this)->print(O, IsForDebug);
+    break;
+  default:
+    llvm_unreachable("unsupported record kind");
+  };
+}
+
+void DbgRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
+                      bool IsForDebug) const {
+  switch (RecordKind) {
+  case ValueKind:
+    cast<DPValue>(this)->print(O, MST, IsForDebug);
+    break;
+  default:
+    llvm_unreachable("unsupported record kind");
+  };
+}
+
 iterator_range<DPValue::location_op_iterator> DPValue::location_ops() const {
   auto *MD = getRawLocation();
   // If a Value has been deleted, the "location" for this DPValue will be

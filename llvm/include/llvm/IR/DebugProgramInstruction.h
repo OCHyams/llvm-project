@@ -74,8 +74,9 @@ class raw_ostream;
 /// We need a discriminator for dyn/isa casts. In order to avoid paying for a
 /// vtable for "virtual" functions too, subclasses must add a new discriminator
 /// value (RecordKind) and cases to a few functions in the base class:
-///   deleteRecord();
+///   deleteRecord()
 ///   clone()
+///   both print methods
 class DbgRecord : public ilist_node<DbgRecord> {
 public:
   /// Marker that this DbgRecord is linked into.
@@ -90,9 +91,14 @@ protected:
 public:
   DbgRecord(Kind RecordKind, DebugLoc DL)
       : DbgLoc(DL), RecordKind(RecordKind) {}
-  void deleteRecord();
 
+  /// Methods requiring subclass implementations.
+  ///@{
+  void deleteRecord();
   DbgRecord *clone() const;
+  void print(raw_ostream &O, bool IsForDebug = false) const;
+  void print(raw_ostream &O, ModuleSlotTracker &MST, bool IsForDebug) const;
+  ///@}
 
   Kind getRecordKind() const { return RecordKind; }
 
@@ -121,6 +127,8 @@ public:
 
   DebugLoc getDebugLoc() const { return DbgLoc; }
   void setDebugLoc(DebugLoc Loc) { DbgLoc = std::move(Loc); }
+
+  void dump() const;
 
   using self_iterator = simple_ilist<DbgRecord>::iterator;
   using const_self_iterator = simple_ilist<DbgRecord>::const_iterator;
@@ -163,8 +171,6 @@ public:
   DIExpression *Expression;
 
 public:
-  void dump() const;
-
   /// Create a new DPValue representing the intrinsic \p DVI, for example the
   /// assignment represented by a dbg.value.
   DPValue(const DbgVariableIntrinsic *DVI);
