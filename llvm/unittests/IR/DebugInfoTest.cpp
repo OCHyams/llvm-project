@@ -1002,8 +1002,7 @@ TEST(MetadataTest, ConvertDbgToDbgVariableRecord) {
 
   // "Aborb" a DbgMarker: this means pretend that the instruction it's attached
   // to is disappearing so it needs to be transferred into "this" marker.
-  RetInst->DbgRecordMarker->absorbDebugValues(*FirstInst->DbgRecordMarker,
-                                              true);
+  RetInst->DbgRecordMarker->absorbDbgRecords(*FirstInst->DbgRecordMarker, true);
   EXPECT_EQ(RetInst->DbgRecordMarker->StoredDbgRecords.size(), 2u);
   // Should be the DPV1 and DPV2 objects.
   ItCount = 0;
