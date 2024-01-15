@@ -861,7 +861,7 @@ private:
   void processInstructionMetadata(const Instruction &I);
 
   /// Add all of the metadata from an instruction.
-  void processDPValueMetadata(const DPValue &DPV);
+  void processDbgRecordMetadata(const DbgRecord &DPV);
 };
 
 } // end namespace llvm
@@ -1130,16 +1130,20 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
   processGlobalObjectMetadata(F);
   for (auto &BB : F) {
     for (auto &I : BB) {
-      for (const DPValue &DPV : DPValue::filter(I.getDbgValueRange()))
-        processDPValueMetadata(DPV);
+      for (const DbgRecord &DPV : I.getDbgValueRange())
+        processDbgRecordMetadata(DPV);
       processInstructionMetadata(I);
     }
   }
 }
 
-void SlotTracker::processDPValueMetadata(const DPValue &DPV) {
-  CreateMetadataSlot(DPV.getVariable());
-  CreateMetadataSlot(DPV.getDebugLoc());
+void SlotTracker::processDbgRecordMetadata(const DbgRecord &DR) {
+  if (const DPValue *DPV = dyn_cast<const DPValue>(&DR)) {
+    CreateMetadataSlot(DPV->getVariable());
+    CreateMetadataSlot(DPV->getDebugLoc());
+  } else {
+    llvm_unreachable("unsupported DbgRecord kind");
+  }
 }
 
 void SlotTracker::processInstructionMetadata(const Instruction &I) {
@@ -2663,6 +2667,7 @@ public:
   void printInstruction(const Instruction &I);
   void printDPMarker(const DPMarker &DPI);
   void printDPValue(const DPValue &DPI);
+  void printDbgRecord(const DbgRecord &DPI);
 
   void printUseListOrder(const Value *V, const std::vector<unsigned> &Shuffle);
   void printUseLists(const Function *F);
@@ -4558,10 +4563,7 @@ void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   // There's no formal representation of a DPMarker -- print purely as a
   // debugging aid.
   for (const DbgRecord &DPR : Marker.StoredDPValues) {
-    if (auto *DPV = dyn_cast<DPValue>(&DPR))
-      printDPValue(*DPV);
-    else
-      llvm_unreachable("unsupported dbg record");
+    printDbgRecord(DPR);
     Out << "\n";
   }
 
@@ -4569,6 +4571,13 @@ void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   printInstruction(*Marker.MarkedInstr);
   Out << " }";
   return;
+}
+
+void AssemblyWriter::printDbgRecord(const DbgRecord &DR) {
+  if (auto *DPV = dyn_cast<DPValue>(&DR))
+    printDPValue(*DPV);
+  else
+    llvm_unreachable("unsupported dbg record");
 }
 
 void AssemblyWriter::printDPValue(const DPValue &Value) {
