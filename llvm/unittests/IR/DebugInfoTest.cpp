@@ -964,13 +964,14 @@ TEST(MetadataTest, ConvertDbgToDbgVariableRecord) {
   }
 
   // Clone them onto the second marker -- should allocate new DPVs.
-  RetInst->DbgRecordMarker->cloneDebugInfoFrom(FirstInst->DbgRecordMarker, std::nullopt, false);
+  RetInst->DbgRecordMarker->cloneDebugInfoFrom(FirstInst->DbgRecordMarker,
+                                               std::nullopt, false);
   EXPECT_EQ(RetInst->DbgRecordMarker->StoredDbgRecords.size(), 2u);
   ItCount = 0;
   // Check these things store the same information; but that they're not the same
   // objects.
-  for (DbgVariableRecord &Item :
-       DbgVariableRecord::filter(RetInst->DbgRecordMarker->getDbgRecordRange())) {
+  for (DbgVariableRecord &Item : DbgVariableRecord::filter(
+           RetInst->DbgRecordMarker->getDbgRecordRange())) {
     EXPECT_TRUE((Item.getRawLocation() == DPV2->getRawLocation() && ItCount == 0) ||
                 (Item.getRawLocation() == DPV1->getRawLocation() && ItCount == 1));
 
@@ -984,8 +985,10 @@ TEST(MetadataTest, ConvertDbgToDbgVariableRecord) {
   EXPECT_EQ(RetInst->DbgRecordMarker->StoredDbgRecords.size(), 0u);
 
   // Try cloning one single DbgVariableRecord.
-  auto DIIt = std::next(FirstInst->DbgRecordMarker->getDbgRecordRange().begin());
-  RetInst->DbgRecordMarker->cloneDebugInfoFrom(FirstInst->DbgRecordMarker, DIIt, false);
+  auto DIIt =
+      std::next(FirstInst->DbgRecordMarker->getDbgRecordRange().begin());
+  RetInst->DbgRecordMarker->cloneDebugInfoFrom(FirstInst->DbgRecordMarker, DIIt,
+                                               false);
   EXPECT_EQ(RetInst->DbgRecordMarker->StoredDbgRecords.size(), 1u);
   // The second DbgVariableRecord should have been cloned; it should have the
   // same values as DPV1.
@@ -999,7 +1002,8 @@ TEST(MetadataTest, ConvertDbgToDbgVariableRecord) {
 
   // "Aborb" a DbgMarker: this means pretend that the instruction it's attached
   // to is disappearing so it needs to be transferred into "this" marker.
-  RetInst->DbgRecordMarker->absorbDebugValues(*FirstInst->DbgRecordMarker, true);
+  RetInst->DbgRecordMarker->absorbDebugValues(*FirstInst->DbgRecordMarker,
+                                              true);
   EXPECT_EQ(RetInst->DbgRecordMarker->StoredDbgRecords.size(), 2u);
   // Should be the DPV1 and DPV2 objects.
   ItCount = 0;
