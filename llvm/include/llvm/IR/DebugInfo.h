@@ -40,16 +40,17 @@ class Module;
 
 /// Finds dbg.declare intrinsics declaring local variables as living in the
 /// memory that 'V' points to.
-void findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers, Value *V,
-                     SmallVectorImpl<DbgVariableRecord *> *DPValues = nullptr);
+void findDbgDeclares(
+    SmallVectorImpl<DbgDeclareInst *> &DbgUsers, Value *V,
+    SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs = nullptr);
 
 /// Finds the llvm.dbg.value intrinsics describing a value.
 void findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
-                   SmallVectorImpl<DbgVariableRecord *> *DPValues = nullptr);
+                   SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs = nullptr);
 
 /// Finds the debug info intrinsics describing a value.
 void findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgInsts, Value *V,
-                  SmallVectorImpl<DbgVariableRecord *> *DPValues = nullptr);
+                  SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs = nullptr);
 
 /// Find subprogram that is enclosing this scope.
 DISubprogram *getDISubprogram(const MDNode *Scope);
