@@ -107,8 +107,8 @@ public:
   void processVariable(const Module &M, const DILocalVariable *DVI);
   /// Process debug info location.
   void processLocation(const Module &M, const DILocation *Loc);
-  // Process a DPValue, much like a DbgVariableIntrinsic.
-  void processDPValue(const Module &M, const DbgVariableRecord &DPV);
+  // Process a DbgVariableRecord, much like a DbgVariableIntrinsic.
+  void processDbgVariableRecord(const Module &M, const DbgVariableRecord &DPV);
   /// Dispatch to DbgRecord subclasses handlers.
   void processDbgRecord(const Module &M, const DbgRecord &DPE);
 

@@ -215,14 +215,14 @@ void DebugInfoFinder::processLocation(const Module &M, const DILocation *Loc) {
   processLocation(M, Loc->getInlinedAt());
 }
 
-void DebugInfoFinder::processDPValue(const Module &M,
+void DebugInfoFinder::processDbgVariableRecord(const Module &M,
                                      const DbgVariableRecord &DPV) {
   processVariable(M, DPV.getVariable());
   processLocation(M, DPV.getDebugLoc().get());
 }
 
 void DebugInfoFinder::processDbgRecord(const Module &M, const DbgRecord &DPR) {
-  processDPValue(M, cast<DbgVariableRecord>(DPR));
+  processDbgVariableRecord(M, cast<DbgVariableRecord>(DPR));
 }
 
 void DebugInfoFinder::processType(DIType *DT) {
