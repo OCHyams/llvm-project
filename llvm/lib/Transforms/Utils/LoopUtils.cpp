@@ -604,7 +604,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
   // Use a map to unique and a vector to guarantee deterministic ordering.
   llvm::SmallDenseSet<DebugVariable, 4> DeadDebugSet;
   llvm::SmallVector<DbgVariableIntrinsic *, 4> DeadDebugInst;
-  llvm::SmallVector<DbgVariableRecord *, 4> DeadDPValues;
+  llvm::SmallVector<DbgVariableRecord *, 4> DeadDbgVarRecs;
 
   if (ExitBlock) {
     // Given LCSSA form is satisfied, we should not have users of instructions
@@ -640,7 +640,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
               continue;
             // Unlinks the DPV from it's container, for later insertion.
             DPV.removeFromParent();
-            DeadDPValues.push_back(&DPV);
+            DeadDbgVarRecs.push_back(&DPV);
           }
         }
 
@@ -675,7 +675,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     // each DPValue right at the start of the block, wheras dbg.values would be
     // repeatedly inserted before the first instruction. To replicate this
     // behaviour, do it backwards.
-    for (DbgVariableRecord *DPV : llvm::reverse(DeadDPValues))
+    for (DbgVariableRecord *DPV : llvm::reverse(DeadDbgVarRecs))
       ExitBlock->insertDbgRecordBefore(DPV, InsertDbgValueBefore);
   }
 

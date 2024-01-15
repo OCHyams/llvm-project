@@ -159,8 +159,8 @@ static void RewriteUsesOfClonedInstructions(BasicBlock *OrigHeader,
     // Replace MetadataAsValue(ValueAsMetadata(OrigHeaderVal)) uses in debug
     // intrinsics.
     SmallVector<DbgValueInst *, 1> DbgValues;
-    SmallVector<DbgVariableRecord *, 1> DPValues;
-    llvm::findDbgValues(DbgValues, OrigHeaderVal, &DPValues);
+    SmallVector<DbgVariableRecord *, 1> DbgVarRecs;
+    llvm::findDbgValues(DbgValues, OrigHeaderVal, &DbgVarRecs);
     for (auto &DbgValue : DbgValues) {
       // The original users in the OrigHeader are already using the original
       // definitions.
@@ -184,7 +184,7 @@ static void RewriteUsesOfClonedInstructions(BasicBlock *OrigHeader,
 
     // RemoveDIs: duplicate implementation for non-instruction debug-info
     // storage in DPValues.
-    for (DbgVariableRecord *DPV : DPValues) {
+    for (DbgVariableRecord *DPV : DbgVarRecs) {
       // The original users in the OrigHeader are already using the original
       // definitions.
       BasicBlock *UserBB = DPV->getMarker()->getParent();

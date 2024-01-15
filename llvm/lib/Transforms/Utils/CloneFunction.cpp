@@ -641,7 +641,7 @@ void PruningFunctionCloner::CloneBlock(
     // Recursively clone any reachable successor blocks.
     append_range(ToClone, successors(BB->getTerminator()));
   } else {
-    // If we didn't create a new terminator, clone DPValues from the old
+    // If we didn't create a new terminator, clone DbgRecords from the old
     // terminator onto the new terminator.
     Instruction *NewInst = NewBB->getTerminator();
     assert(NewInst);

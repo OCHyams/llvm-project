@@ -46,8 +46,9 @@ using namespace llvm::dwarf;
 
 template <typename IntrinsicT, DbgVariableRecord::LocationType Type =
                                    DbgVariableRecord::LocationType::Any>
-static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
-                              SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+static void
+findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
+                  SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
@@ -60,18 +61,18 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
   // V will also appear twice in a dbg.assign if its used in the both the value
   // and address components.
   SmallPtrSet<IntrinsicT *, 4> EncounteredIntrinsics;
-  SmallPtrSet<DbgVariableRecord *, 4> EncounteredDPValues;
+  SmallPtrSet<DbgVariableRecord *, 4> EncounteredDbgVarRecs;
 
   /// Append IntrinsicT users of MetadataAsValue(MD).
   auto AppendUsers = [&Ctx, &EncounteredIntrinsics, &Result,
-                      DPValues](Metadata *MD) {
+                      DbgVarRecs](Metadata *MD) {
     if (auto *MDV = MetadataAsValue::getIfExists(Ctx, MD)) {
       for (User *U : MDV->users())
         if (IntrinsicT *DVI = dyn_cast<IntrinsicT>(U))
           if (EncounteredIntrinsics.insert(DVI).second)
             Result.push_back(DVI);
     }
-    if (!DPValues)
+    if (!DbgVarRecs)
       return;
     // Get DPValues that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
@@ -79,7 +80,7 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
         if (auto *DPV = dyn_cast<DbgVariableRecord>(DPR)) {
           if (Type == DbgVariableRecord::LocationType::Any ||
               DPV->getType() == Type)
-            DPValues->push_back(DPV);
+            DbgVarRecs->push_back(DPV);
         }
       }
     }
@@ -89,14 +90,14 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
     AppendUsers(L);
     for (Metadata *AL : L->getAllArgListUsers()) {
       AppendUsers(AL);
-      if (!DPValues)
+      if (!DbgVarRecs)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
       for (DbgVariableRecord *DPV : DI->getAllDPValueUsers()) {
         if (Type == DbgVariableRecord::LocationType::Any ||
             DPV->getType() == Type)
-          if (EncounteredDPValues.insert(DPV).second)
-            DPValues->push_back(DPV);
+          if (EncounteredDbgVarRecs.insert(DPV).second)
+            DbgVarRecs->push_back(DPV);
       }
     }
   }
@@ -104,22 +105,22 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
 
 void llvm::findDbgDeclares(SmallVectorImpl<DbgDeclareInst *> &DbgUsers,
                            Value *V,
-                           SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+                           SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
   findDbgIntrinsics<DbgDeclareInst, DbgVariableRecord::LocationType::Declare>(
-      DbgUsers, V, DPValues);
+      DbgUsers, V, DbgVarRecs);
 }
 
 void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V,
-                         SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+                         SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
   findDbgIntrinsics<DbgValueInst, DbgVariableRecord::LocationType::Value>(
-      DbgValues, V, DPValues);
+      DbgValues, V, DbgVarRecs);
 }
 
 void llvm::findDbgUsers(SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
                         Value *V,
-                        SmallVectorImpl<DbgVariableRecord *> *DPValues) {
+                        SmallVectorImpl<DbgVariableRecord *> *DbgVarRecs) {
   findDbgIntrinsics<DbgVariableIntrinsic, DbgVariableRecord::LocationType::Any>(
-      DbgUsers, V, DPValues);
+      DbgUsers, V, DbgVarRecs);
 }
 
 DISubprogram *llvm::getDISubprogram(const MDNode *Scope) {
