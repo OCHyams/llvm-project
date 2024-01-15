@@ -1324,10 +1324,10 @@ TEST(Local, ReplaceDbgVariableRecord) {
   Instruction *RetInst = &*It;
 
   // Convert DVI into a DbgVariableRecord.
-  RetInst->DbgMarker = new DPMarker();
-  RetInst->DbgMarker->MarkedInstr = RetInst;
+  RetInst->DbgRecordMarker = new DPMarker();
+  RetInst->DbgRecordMarker->MarkedInstr = RetInst;
   DbgVariableInst *DPV = new DbgVariableInst(DVI);
-  RetInst->DbgMarker->insertDbgVariableRecord(DPV, false);
+  RetInst->DbgRecordMarker->insertDbgRecord(DPV, false);
   // ... and erase the dbg.value.
   DVI->eraseFromParent();
 
@@ -1341,5 +1341,5 @@ TEST(Local, ReplaceDbgVariableRecord) {
   EXPECT_EQ(DPV->getVariableLocationOp(0), FooInst);
 
   // Teardown.
-  RetInst->DbgMarker->eraseFromParent();
+  RetInst->DbgRecordMarker->eraseFromParent();
 }
