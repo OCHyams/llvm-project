@@ -4220,8 +4220,8 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
 
   // Perform salvaging without the clones, then sink the clones.
   if (!DIIClones.empty()) {
-    // RemoveDIs: pass in empty vector of DPValues until we get to instrumenting
-    // this pass.
+    // RemoveDIs: pass in empty vector of DbgVariableRecords until we get to
+    // instrumenting this pass.
     SmallVector<DbgVariableRecord *, 1> DummyDbgVarRecs;
     salvageDebugInfoForDbgValues(*I, DbgUsersToSalvage, DummyDbgVarRecs);
     // The clones are in reverse order of original appearance, reverse again to

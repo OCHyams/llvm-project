@@ -74,9 +74,9 @@ findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
     }
     if (!DbgVarRecs)
       return;
-    // Get DPValues that use this as a single value.
+    // Get DbgVariableRecords that use this as a single value.
     if (LocalAsMetadata *L = dyn_cast<LocalAsMetadata>(MD)) {
-      for (DbgRecord *DPR : L->getAllDPValueUsers()) {
+      for (DbgRecord *DPR : L->getAllDbgVariableRecordUsers()) {
         if (auto *DPV = dyn_cast<DbgVariableRecord>(DPR)) {
           if (Type == DbgVariableRecord::LocationType::Any ||
               DPV->getType() == Type)
@@ -93,7 +93,7 @@ findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
       if (!DbgVarRecs)
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
-      for (DbgVariableRecord *DPV : DI->getAllDPValueUsers()) {
+      for (DbgVariableRecord *DPV : DI->getAllDbgVariableRecordUsers()) {
         if (Type == DbgVariableRecord::LocationType::Any ||
             DPV->getType() == Type)
           if (EncounteredDbgVarRecs.insert(DPV).second)

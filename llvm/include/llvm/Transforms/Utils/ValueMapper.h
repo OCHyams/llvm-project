@@ -267,7 +267,8 @@ inline void RemapInstruction(Instruction *I, ValueToValueMapTy &VM,
   ValueMapper(VM, Flags, TypeMapper, Materializer).remapInstruction(*I);
 }
 
-/// Remap the Values used in the DPValue \a V using the value map \a VM.
+/// Remap the Values used in the DbgVariableRecord \a V using the value map \a
+/// VM.
 inline void RemapDbgVariableRecord(Module *M, DbgVariableRecord *V, ValueToValueMapTy &VM,
                          RemapFlags Flags = RF_None,
                          ValueMapTypeRemapper *TypeMapper = nullptr,
@@ -275,7 +276,8 @@ inline void RemapDbgVariableRecord(Module *M, DbgVariableRecord *V, ValueToValue
   ValueMapper(VM, Flags, TypeMapper, Materializer).remapDbgVariableRecord(M, *V);
 }
 
-/// Remap the Values used in the DPValue \a V using the value map \a VM.
+/// Remap the Values used in the DbgVariableRecord \a V using the value map \a
+/// VM.
 inline void RemapDbgVariableRecords(Module *M,
                               iterator_range<DbgRecordIterator> Range,
                               ValueToValueMapTy &VM, RemapFlags Flags = RF_None,

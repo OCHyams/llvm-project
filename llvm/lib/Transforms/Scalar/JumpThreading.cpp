@@ -2042,9 +2042,9 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
     return true;
   };
 
-  // Duplicate implementation of the above dbg.value code, using DPValues
-  // instead.
-  auto RetargetDPValueIfPossible = [&](DbgVariableRecord *DPV) {
+  // Duplicate implementation of the above dbg.value code, using
+  // DbgVariableRecords instead.
+  auto RetargetDbgVariableRecordIfPossible = [&](DbgVariableRecord *DPV) {
     SmallSet<std::pair<Value *, Value *>, 16> OperandsToRemap;
     for (auto *Op : DPV->location_ops()) {
       Instruction *OpInst = dyn_cast<Instruction>(Op);
@@ -2083,7 +2083,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
   auto CloneAndRemapDbgInfo = [&](Instruction *NewInst, Instruction *From) {
     auto DPVRange = NewInst->cloneDebugInfoFrom(From);
     for (DbgVariableRecord &DPV : DbgVariableRecord::filter(DPVRange))
-      RetargetDPValueIfPossible(&DPV);
+      RetargetDbgVariableRecordIfPossible(&DPV);
   };
 
   // Clone the non-phi instructions of the source basic block into NewBB,
@@ -2110,15 +2110,15 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
       }
   }
 
-  // There may be DPValues on the terminator, clone directly from marker
-  // to marker as there isn't an instruction there.
+  // There may be DbgVariableRecords on the terminator, clone directly from
+  // marker to marker as there isn't an instruction there.
   if (BE != RangeBB->end() && BE->hasDbgRecords()) {
     // Dump them at the end.
     DbgMarker *Marker = RangeBB->getMarker(BE);
     DbgMarker *EndMarker = NewBB->createMarker(NewBB->end());
     auto DPVRange = EndMarker->cloneDebugInfoFrom(Marker, std::nullopt);
     for (DbgVariableRecord &DPV : DbgVariableRecord::filter(DPVRange))
-      RetargetDPValueIfPossible(&DPV);
+      RetargetDbgVariableRecordIfPossible(&DPV);
   }
 
   return ValueMapping;

@@ -241,7 +241,8 @@ SmallVector<Metadata *> ReplaceableMetadataImpl::getAllArgListUsers() {
   return MDUsers;
 }
 
-SmallVector<DbgVariableRecord *> ReplaceableMetadataImpl::getAllDPValueUsers() {
+SmallVector<DbgVariableRecord *>
+ReplaceableMetadataImpl::getAllDbgVariableRecordUsers() {
   SmallVector<std::pair<OwnerTy, uint64_t> *> DPVUsersWithID;
   for (auto Pair : UseMap) {
     OwnerTy Owner = Pair.second.first;
@@ -251,9 +252,9 @@ SmallVector<DbgVariableRecord *> ReplaceableMetadataImpl::getAllDPValueUsers() {
       continue;
     DPVUsersWithID.push_back(&UseMap[Pair.first]);
   }
-  // Order DPValue users in reverse-creation order. Normal dbg.value users
-  // of MetadataAsValues are ordered by their UseList, i.e. reverse order of
-  // when they were added: we need to replicate that here. The structure of
+  // Order DbgVariableRecord users in reverse-creation order. Normal dbg.value
+  // users of MetadataAsValues are ordered by their UseList, i.e. reverse order
+  // of when they were added: we need to replicate that here. The structure of
   // debug-info output depends on the ordering of intrinsics, thus we need
   // to keep them consistent for comparisons sake.
   llvm::sort(DPVUsersWithID, [](auto UserA, auto UserB) {

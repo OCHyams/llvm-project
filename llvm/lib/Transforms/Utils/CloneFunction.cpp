@@ -884,8 +884,8 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
                        TypeMapper, Materializer);
   }
 
-  // Do the same for DPValues, touching all the instructions in the cloned
-  // range of blocks.
+  // Do the same for DbgVariableRecords, touching all the instructions in the
+  // cloned range of blocks.
   Function::iterator Begin = cast<BasicBlock>(VMap[StartingBB])->getIterator();
   for (BasicBlock &BB : make_range(Begin, NewFunc->end())) {
     for (Instruction &I : BB) {

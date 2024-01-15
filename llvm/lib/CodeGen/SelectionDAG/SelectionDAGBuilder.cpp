@@ -1247,7 +1247,7 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
       continue;
     }
 
-    // A DPValue with no locations is a kill location.
+    // A DbgVariableRecord with no locations is a kill location.
     SmallVector<Value *, 4> Values(DPV.location_ops());
     if (Values.empty()) {
       handleKillDebugValue(Variable, Expression, DPV.getDebugLoc(),
@@ -1255,7 +1255,8 @@ void SelectionDAGBuilder::visitDbgInfo(const Instruction &I) {
       continue;
     }
 
-    // A DPValue with an undef or absent location is also a kill location.
+    // A DbgVariableRecord with an undef or absent location is also a kill
+    // location.
     if (llvm::any_of(Values,
                      [](Value *V) { return !V || isa<UndefValue>(V); })) {
       handleKillDebugValue(Variable, Expression, DPV.getDebugLoc(),

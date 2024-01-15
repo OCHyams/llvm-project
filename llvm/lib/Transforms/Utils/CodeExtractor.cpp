@@ -1590,7 +1590,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
       DbgVariableRecord &DVR = cast<DbgVariableRecord>(DR);
       // Apply the two updates that dbg.values get: invalid operands, and
       // variable metadata fixup.
-      // FIXME: support dbg.assign form of DPValues.
+      // FIXME: support dbg.assign form of DbgVariableRecords.
       if (any_of(DVR.location_ops(), IsInvalidLocation)) {
         DPVsToDelete.push_back(&DVR);
         continue;

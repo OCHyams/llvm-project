@@ -3081,7 +3081,7 @@ class TypePromotionTransaction {
     /// Keep track of the debug users.
     SmallVector<DbgValueInst *, 1> DbgValues;
     /// And non-instruction debug-users too.
-    SmallVector<DbgVariableRecord *, 1> DPValues;
+    SmallVector<DbgVariableRecord *, 1> DbgVariableRecords;
 
     /// Keep track of the new value so that we can undo it by replacing
     /// instances of the new value with the original value.
@@ -3102,7 +3102,7 @@ class TypePromotionTransaction {
       }
       // Record the debug uses separately. They are not in the instruction's
       // use list, but they are replaced by RAUW.
-      findDbgValues(DbgValues, Inst, &DPValues);
+      findDbgValues(DbgValues, Inst, &DbgVariableRecords);
 
       // Now, we can replace the uses.
       Inst->replaceAllUsesWith(New);
@@ -3119,10 +3119,10 @@ class TypePromotionTransaction {
       // correctness and utility of debug value instructions.
       for (auto *DVI : DbgValues)
         DVI->replaceVariableLocationOp(New, Inst);
-      // Similar story with DPValues, the non-instruction representation of
-      // dbg.values.
+      // Similar story with DbgVariableRecords, the non-instruction
+      // representation of dbg.values.
       for (DbgVariableRecord *DPV :
-           DPValues) // tested by transaction-test I'm adding
+           DbgVariableRecords) // tested by transaction-test I'm adding
         DPV->replaceVariableLocationOp(New, Inst);
     }
   };
@@ -6976,7 +6976,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
   CurInstIterator = std::next(LastSI->getIterator());
   // Examine debug-info attached to the consecutive select instructions. They
   // won't be individually optimised by optimizeInst, so we need to perform
-  // DPValue maintenence here instead.
+  // DbgVariableRecord maintenence here instead.
   for (SelectInst *SI : ArrayRef(ASI).drop_front())
     fixupDbgRecordsOnInst(*SI);
 
@@ -8414,7 +8414,7 @@ bool CodeGenPrepare::fixupDbgVariableRecord(DbgVariableRecord &DPV) {
   if (DPV.Type != DbgVariableRecord::LocationType::Value)
     return false;
 
-  // Does this DPValue refer to a sunk address calculation?
+  // Does this DbgVariableRecord refer to a sunk address calculation?
   bool AnyChange = false;
   SmallDenseSet<Value *> LocationOps(DPV.location_ops().begin(),
                                      DPV.location_ops().end());
@@ -8513,8 +8513,8 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
         continue;
       }
 
-      // If this isn't a dbg.value, process any attached DPValue records
-      // attached to this instruction.
+      // If this isn't a dbg.value, process any attached DbgVariableRecord
+      // records attached to this instruction.
       for (DbgVariableRecord &DPV : llvm::make_early_inc_range(
                DbgVariableRecord::filter(Insn.getDbgRecordRange()))) {
         if (DPV.Type != DbgVariableRecord::LocationType::Value)

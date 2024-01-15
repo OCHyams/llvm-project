@@ -10194,7 +10194,8 @@ static SDValue getSPDenormModeValue(uint32_t SPDenormMode, SelectionDAG &DAG,
                                     const SIMachineFunctionInfo *Info,
                                     const GCNSubtarget *ST) {
   assert(ST->hasDenormModeInst() && "Requires S_DENORM_MODE");
-  uint32_t DPDenormModeDefault = Info->getMode().fpDenormModeDPValue();
+  uint32_t DPDenormModeDefault =
+      Info->getMode().fpDenormModeDbgVariableRecord();
   uint32_t Mode = SPDenormMode | (DPDenormModeDefault << 2);
   return DAG.getTargetConstant(Mode, SDLoc(), MVT::i32);
 }

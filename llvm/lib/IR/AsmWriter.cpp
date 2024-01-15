@@ -2666,7 +2666,7 @@ public:
   void printInstructionLine(const Instruction &I);
   void printInstruction(const Instruction &I);
   void printDbgMarker(const DbgMarker &DPI);
-  void printDPValue(const DbgVariableRecord &DPI);  
+  void printDbgVariableRecord(const DbgVariableRecord &DPI);
   void printDbgRecord(const DbgRecord &DPI);
 
   void printUseListOrder(const Value *V, const std::vector<unsigned> &Shuffle);
@@ -4575,14 +4575,14 @@ void AssemblyWriter::printDbgMarker(const DbgMarker &Marker) {
 
 void AssemblyWriter::printDbgRecord(const DbgRecord &DR) {
   if (auto *DPV = dyn_cast<DbgVariableRecord>(&DR))
-    printDPValue(*DPV);
+    printDbgVariableRecord(*DPV);
   else
     llvm_unreachable("unsupported dbg record");
 }
 
-void AssemblyWriter::printDPValue(const DbgVariableRecord &Value) {
-  // There's no formal representation of a DPValue -- print purely as a
-  // debugging aid.
+void AssemblyWriter::printDbgVariableRecord(const DbgVariableRecord &Value) {
+  // There's no formal representation of a DbgVariableRecord -- print purely as
+  // a debugging aid.
   Out << "  DbgVariableRecord { ";
   auto WriterCtx = getContext();
   WriteAsOperandInternal(Out, Value.getRawLocation(), WriterCtx, true);
@@ -4861,8 +4861,8 @@ void DbgMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
 
 void DbgVariableRecord::print(raw_ostream &ROS, ModuleSlotTracker &MST,
                               bool IsForDebug) const {
-  // There's no formal representation of a DPValue -- print purely as a
-  // debugging aid.
+  // There's no formal representation of a DbgVariableRecord -- print purely as
+  // a debugging aid.
   formatted_raw_ostream OS(ROS);
   SlotTracker EmptySlotTable(static_cast<const Module *>(nullptr));
   SlotTracker &SlotTable =
@@ -4874,7 +4874,7 @@ void DbgVariableRecord::print(raw_ostream &ROS, ModuleSlotTracker &MST,
   incorporateFunction(Marker->getParent() ? Marker->getParent()->getParent()
                                           : nullptr);
   AssemblyWriter W(OS, SlotTable, getModuleFromDPI(this), nullptr, IsForDebug);
-  W.printDPValue(*this);
+  W.printDbgVariableRecord(*this);
 }
 
 void Value::print(raw_ostream &ROS, bool IsForDebug) const {

@@ -630,7 +630,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
           U.set(Poison);
         }
 
-        // RemoveDIs: do the same as below for DPValues.
+        // RemoveDIs: do the same as below for DbgVariableRecords.
         if (Block->IsNewDbgInfoFormat) {
           for (DbgVariableRecord &DPV : llvm::make_early_inc_range(
                    DbgVariableRecord::filter(I.getDbgRecordRange()))) {
@@ -672,9 +672,9 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
       DVI->moveBefore(*ExitBlock, InsertDbgValueBefore);
 
     // Due to the "head" bit in BasicBlock::iterator, we're going to insert
-    // each DPValue right at the start of the block, wheras dbg.values would be
-    // repeatedly inserted before the first instruction. To replicate this
-    // behaviour, do it backwards.
+    // each DbgVariableRecord right at the start of the block, wheras dbg.values
+    // would be repeatedly inserted before the first instruction. To replicate
+    // this behaviour, do it backwards.
     for (DbgVariableRecord *DPV : llvm::reverse(DeadDbgVarRecs))
       ExitBlock->insertDbgRecordBefore(DPV, InsertDbgValueBefore);
   }

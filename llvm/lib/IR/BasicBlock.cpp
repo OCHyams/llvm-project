@@ -78,7 +78,7 @@ void BasicBlock::convertToNewDbgFormat() {
       if (isa<DbgAssignIntrinsic>(DVI))
         continue;
 
-      // Convert this dbg.value to a DPValue.
+      // Convert this dbg.value to a DbgVariableRecord.
       DbgVariableRecord *Value = new DbgVariableRecord(DVI);
       DPVals.push_back(Value);
       DVI->eraseFromParent();

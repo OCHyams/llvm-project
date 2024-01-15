@@ -69,7 +69,7 @@ static uint32_t getFPMode(SIModeRegisterDefaults Mode) {
   return FP_ROUND_MODE_SP(FP_ROUND_ROUND_TO_NEAREST) |
          FP_ROUND_MODE_DP(FP_ROUND_ROUND_TO_NEAREST) |
          FP_DENORM_MODE_SP(Mode.fpDenormModeSPValue()) |
-         FP_DENORM_MODE_DP(Mode.fpDenormModeDPValue());
+         FP_DENORM_MODE_DP(Mode.fpDenormModeDbgVariableRecord());
 }
 
 static AsmPrinter *

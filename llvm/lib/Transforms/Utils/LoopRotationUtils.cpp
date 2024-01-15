@@ -183,7 +183,7 @@ static void RewriteUsesOfClonedInstructions(BasicBlock *OrigHeader,
     }
 
     // RemoveDIs: duplicate implementation for non-instruction debug-info
-    // storage in DPValues.
+    // storage in DbgVariableRecords.
     for (DbgVariableRecord *DPV : DbgVarRecs) {
       // The original users in the OrigHeader are already using the original
       // definitions.
@@ -552,8 +552,9 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
     for (Instruction &I : llvm::drop_begin(llvm::reverse(*OrigPreheader))) {
       if (auto *DII = dyn_cast<DbgVariableIntrinsic>(&I)) {
         DbgIntrinsics.insert(makeHash(DII));
-        // Until RemoveDIs supports dbg.declares in DPValue format, we'll need
-        // to collect DPValues attached to any other debug intrinsics.
+        // Until RemoveDIs supports dbg.declares in DbgVariableRecord format,
+        // we'll need to collect DbgVariableRecords attached to any other debug
+        // intrinsics.
         for (const DbgVariableRecord &DPV :
              DbgVariableRecord::filter(DII->getDbgRecordRange()))
           DbgIntrinsics.insert(makeHash(&DPV));
@@ -562,8 +563,8 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       }
     }
 
-    // Build DPValue hashes for DPValues attached to the terminator, which isn't
-    // considered in the loop above.
+    // Build DbgVariableRecord hashes for DbgVariableRecords attached to the
+    // terminator, which isn't considered in the loop above.
     for (const DbgVariableRecord &DPV : DbgVariableRecord::filter(
              OrigPreheader->getTerminator()->getDbgRecordRange()))
       DbgIntrinsics.insert(makeHash(&DPV));
@@ -578,25 +579,26 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
 
     Module *M = OrigHeader->getModule();
 
-    // Track the next DPValue to clone. If we have a sequence where an
+    // Track the next DbgVariableRecord to clone. If we have a sequence where an
     // instruction is hoisted instead of being cloned:
-    //    DPValue blah
+    //    DbgVariableRecord blah
     //    %foo = add i32 0, 0
-    //    DPValue xyzzy
+    //    DbgVariableRecord xyzzy
     //    %bar = call i32 @foobar()
-    // where %foo is hoisted, then the DPValue "blah" will be seen twice, once
-    // attached to %foo, then when %foo his hoisted it will "fall down" onto the
-    // function call:
-    //    DPValue blah
-    //    DPValue xyzzy
+    // where %foo is hoisted, then the DbgVariableRecord "blah" will be seen
+    // twice, once attached to %foo, then when %foo his hoisted it will "fall
+    // down" onto the function call:
+    //    DbgVariableRecord blah
+    //    DbgVariableRecord xyzzy
     //    %bar = call i32 @foobar()
     // causing it to appear attached to the call too.
     //
     // To avoid this, cloneDebugInfoFrom takes an optional "start cloning from
-    // here" position to account for this behaviour. We point it at any DPValues
-    // on the next instruction, here labelled xyzzy, before we hoist %foo.
-    // Later, we only only clone DPValues from that position (xyzzy) onwards,
-    // which avoids cloning DPValue "blah" multiple times.
+    // here" position to account for this behaviour. We point it at any
+    // DbgVariableRecords on the next instruction, here labelled xyzzy, before
+    // we hoist %foo. Later, we only only clone DbgVariableRecords from that
+    // position (xyzzy) onwards, which avoids cloning DbgVariableRecord "blah"
+    // multiple times.
     std::optional<DbgVariableRecord::self_iterator> NextDbgInst = std::nullopt;
 
     while (I != E) {

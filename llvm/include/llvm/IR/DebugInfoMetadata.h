@@ -3784,8 +3784,8 @@ public:
     return MD->getMetadataID() == DIArgListKind;
   }
 
-  SmallVector<DbgVariableRecord *> getAllDPValueUsers() {
-    return ReplaceableMetadataImpl::getAllDPValueUsers();
+  SmallVector<DbgVariableRecord *> getAllDbgVariableRecordUsers() {
+    return ReplaceableMetadataImpl::getAllDbgVariableRecordUsers();
   }
 
   void handleChangedOperand(void *Ref, Metadata *New);

@@ -206,10 +206,10 @@ private:
 /// Base class for tracking ValueAsMetadata/DIArgLists with user lookups and
 /// Owner callbacks outside of ValueAsMetadata.
 ///
-/// Currently only inherited by DPValue; if other classes need to use it, then
-/// a SubclassID will need to be added (either as a new field or by making
-/// DebugValue into a PointerIntUnion) to discriminate between the subclasses in
-/// lookup and callback handling.
+/// Currently only inherited by DbgVariableRecord; if other classes need to use
+/// it, then a SubclassID will need to be added (either as a new field or by
+/// making DebugValue into a PointerIntUnion) to discriminate between the
+/// subclasses in lookup and callback handling.
 class DebugValueUser {
 protected:
   Metadata *DebugValue;
@@ -388,8 +388,8 @@ public:
   static void SalvageDebugInfo(const Constant &C); 
   /// Returns the list of all DIArgList users of this.
   SmallVector<Metadata *> getAllArgListUsers();
-  /// Returns the list of all DPValue users of this.
-  SmallVector<DbgVariableRecord *> getAllDPValueUsers();
+  /// Returns the list of all DbgVariableRecord users of this.
+  SmallVector<DbgVariableRecord *> getAllDbgVariableRecordUsers();
 
   /// Resolve all uses of this.
   ///
@@ -473,8 +473,8 @@ public:
   SmallVector<Metadata *> getAllArgListUsers() {
     return ReplaceableMetadataImpl::getAllArgListUsers();
   }
-  SmallVector<DbgVariableRecord *> getAllDPValueUsers() {
-    return ReplaceableMetadataImpl::getAllDPValueUsers();
+  SmallVector<DbgVariableRecord *> getAllDbgVariableRecordUsers() {
+    return ReplaceableMetadataImpl::getAllDbgVariableRecordUsers();
   }
 
   static void handleDeletion(Value *V);
