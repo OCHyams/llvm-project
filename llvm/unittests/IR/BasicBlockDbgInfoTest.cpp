@@ -85,9 +85,9 @@ TEST(BasicBlockDbgInfoTest, InsertAfterSelf) {
   Instruction *Inst1 = &*BB.begin();
   Instruction *Inst2 = &*std::next(BB.begin());
   Instruction *RetInst = &*std::next(Inst2->getIterator());
-  EXPECT_TRUE(Inst1->hasDbgValues());
-  EXPECT_TRUE(Inst2->hasDbgValues());
-  EXPECT_FALSE(RetInst->hasDbgValues());
+  EXPECT_TRUE(Inst1->hasDbgRecords());
+  EXPECT_TRUE(Inst2->hasDbgRecords());
+  EXPECT_FALSE(RetInst->hasDbgRecords());
 
   // If we move Inst2 to be after Inst1, then it comes _immediately_ after. Were
   // we in dbg.value form we would then have:
@@ -99,14 +99,14 @@ TEST(BasicBlockDbgInfoTest, InsertAfterSelf) {
   Inst2->moveAfter(Inst1);
 
   // Inst1 should only have one DPValue on it.
-  EXPECT_TRUE(Inst1->hasDbgValues());
-  auto Range1 = Inst1->getDbgValueRange();
+  EXPECT_TRUE(Inst1->hasDbgRecords());
+  auto Range1 = Inst1->getDbgRecordRange();
   EXPECT_EQ(std::distance(Range1.begin(), Range1.end()), 1u);
   // Inst2 should have none.
-  EXPECT_FALSE(Inst2->hasDbgValues());
+  EXPECT_FALSE(Inst2->hasDbgRecords());
   // While the return inst should now have one on it.
-  EXPECT_TRUE(RetInst->hasDbgValues());
-  auto Range2 = RetInst->getDbgValueRange();
+  EXPECT_TRUE(RetInst->hasDbgRecords());
+  auto Range2 = RetInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(Range2.begin(), Range2.end()), 1u);
 
   M->convertFromNewDbgValues();
@@ -411,23 +411,23 @@ TEST(BasicBlockDbgInfoTest, InstrDbgAccess) {
   EXPECT_NE(DPV1, DPV2);
 
   // We should be able to get a range over exactly the same information.
-  auto Range2 = BInst->getDbgValueRange();
+  auto Range2 = BInst->getDbgRecordRange();
   EXPECT_EQ(Range1.begin(), Range2.begin());
   EXPECT_EQ(Range1.end(), Range2.end());
 
   // We should be able to query if there are DPValues,
-  EXPECT_TRUE(BInst->hasDbgValues());
-  EXPECT_TRUE(CInst->hasDbgValues());
-  EXPECT_FALSE(DInst->hasDbgValues());
+  EXPECT_TRUE(BInst->hasDbgRecords());
+  EXPECT_TRUE(CInst->hasDbgRecords());
+  EXPECT_FALSE(DInst->hasDbgRecords());
 
   // Dropping should be easy,
-  BInst->dropDbgValues();
-  EXPECT_FALSE(BInst->hasDbgValues());
+  BInst->dropDbgRecords();
+  EXPECT_FALSE(BInst->hasDbgRecords());
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 0u);
 
   // And we should be able to drop individual DPValues.
-  CInst->dropOneDbgValue(DPV1);
-  EXPECT_FALSE(CInst->hasDbgValues());
+  CInst->dropOneDbgRecord(DPV1);
+  EXPECT_FALSE(CInst->hasDbgRecords());
   EXPECT_EQ(CInst->DbgMarker->StoredDPValues.size(), 0u);
 
   UseNewDbgInfoFormat = false;
@@ -544,8 +544,8 @@ protected:
 
   void TearDown() override { UseNewDbgInfoFormat = false; }
 
-  bool InstContainsDPValue(Instruction *I, DPValue *DPV) {
-    for (DbgRecord &D : I->getDbgValueRange()) {
+  bool InstContainsDPValue(Instruction *I, DbgVariableInst *DPV) {
+    for (DbgRecord &D : I->getDbgRecordRange()) {
       if (&D == DPV) {
         // Confirm too that the links between the records are correct.
         EXPECT_EQ(DPV->Marker, I->DbgMarker);
@@ -1228,12 +1228,12 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsert) {
   ASSERT_TRUE(isa<ReturnInst>(RetInst));
 
   // add and sub should both have one DPValue on add and ret.
-  EXPECT_FALSE(SubInst->hasDbgValues());
-  EXPECT_TRUE(AddInst->hasDbgValues());
-  EXPECT_TRUE(RetInst->hasDbgValues());
-  auto R1 = AddInst->getDbgValueRange();
+  EXPECT_FALSE(SubInst->hasDbgRecords());
+  EXPECT_TRUE(AddInst->hasDbgRecords());
+  EXPECT_TRUE(RetInst->hasDbgRecords());
+  auto R1 = AddInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R1.begin(), R1.end()), 1u);
-  auto R2 = RetInst->getDbgValueRange();
+  auto R2 = RetInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R2.begin(), R2.end()), 1u);
 
   // The Supported (TM) code sequence for removing then reinserting insts
@@ -1245,19 +1245,19 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsert) {
   // We should have a re-insertion position.
   ASSERT_TRUE(Pos);
   // Both DPValues should now be attached to the ret inst.
-  auto R3 = RetInst->getDbgValueRange();
+  auto R3 = RetInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R3.begin(), R3.end()), 2u);
 
   // Re-insert and re-insert.
   AddInst->insertAfter(SubInst);
   Entry.reinsertInstInDPValues(AddInst, Pos);
   // We should be back into a position of having one DPValue on add and ret.
-  EXPECT_FALSE(SubInst->hasDbgValues());
-  EXPECT_TRUE(AddInst->hasDbgValues());
-  EXPECT_TRUE(RetInst->hasDbgValues());
-  auto R4 = AddInst->getDbgValueRange();
+  EXPECT_FALSE(SubInst->hasDbgRecords());
+  EXPECT_TRUE(AddInst->hasDbgRecords());
+  EXPECT_TRUE(RetInst->hasDbgRecords());
+  auto R4 = AddInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R4.begin(), R4.end()), 1u);
-  auto R5 = RetInst->getDbgValueRange();
+  auto R5 = RetInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R5.begin(), R5.end()), 1u);
 
   UseNewDbgInfoFormat = false;
@@ -1306,10 +1306,10 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsertForOneDPValue) {
   ASSERT_TRUE(isa<ReturnInst>(RetInst));
 
   // There should be one DPValue.
-  EXPECT_FALSE(SubInst->hasDbgValues());
-  EXPECT_TRUE(AddInst->hasDbgValues());
-  EXPECT_FALSE(RetInst->hasDbgValues());
-  auto R1 = AddInst->getDbgValueRange();
+  EXPECT_FALSE(SubInst->hasDbgRecords());
+  EXPECT_TRUE(AddInst->hasDbgRecords());
+  EXPECT_FALSE(RetInst->hasDbgRecords());
+  auto R1 = AddInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R1.begin(), R1.end()), 1u);
 
   // The Supported (TM) code sequence for removing then reinserting insts:
@@ -1320,18 +1320,18 @@ TEST(BasicBlockDbgInfoTest, RemoveInstAndReinsertForOneDPValue) {
   // No re-insertion position as there were no DPValues on the ret.
   ASSERT_FALSE(Pos);
   // The single DPValue should now be attached to the ret inst.
-  EXPECT_TRUE(RetInst->hasDbgValues());
-  auto R2 = RetInst->getDbgValueRange();
+  EXPECT_TRUE(RetInst->hasDbgRecords());
+  auto R2 = RetInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R2.begin(), R2.end()), 1u);
 
   // Re-insert and re-insert.
   AddInst->insertAfter(SubInst);
   Entry.reinsertInstInDPValues(AddInst, Pos);
   // We should be back into a position of having one DPValue on the AddInst.
-  EXPECT_FALSE(SubInst->hasDbgValues());
-  EXPECT_TRUE(AddInst->hasDbgValues());
-  EXPECT_FALSE(RetInst->hasDbgValues());
-  auto R3 = AddInst->getDbgValueRange();
+  EXPECT_FALSE(SubInst->hasDbgRecords());
+  EXPECT_TRUE(AddInst->hasDbgRecords());
+  EXPECT_FALSE(RetInst->hasDbgRecords());
+  auto R3 = AddInst->getDbgRecordRange();
   EXPECT_EQ(std::distance(R3.begin(), R3.end()), 1u);
 
   UseNewDbgInfoFormat = false;
@@ -1392,7 +1392,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty1) {
   // We should now have two dbg.values on the first instruction, and they
   // should be in the correct order of %a, then 0.
   Instruction *BInst = &*Entry.begin();
-  ASSERT_TRUE(BInst->hasDbgValues());
+  ASSERT_TRUE(BInst->hasDbgRecords());
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 2u);
   SmallVector<DPValue *, 2> DPValues;
   for (DbgRecord &DPV : BInst->getDbgValueRange())
@@ -1461,7 +1461,7 @@ TEST(BasicBlockDbgInfoTest, DbgSpliceToEmpty2) {
 
   // We should now have one dbg.values on the first instruction, %a.
   Instruction *BInst = &*Entry.begin();
-  ASSERT_TRUE(BInst->hasDbgValues());
+  ASSERT_TRUE(BInst->hasDbgRecords());
   EXPECT_EQ(BInst->DbgMarker->StoredDPValues.size(), 1u);
   SmallVector<DPValue *, 2> DPValues;
   for (DbgRecord &DPV : BInst->getDbgValueRange())
@@ -1528,7 +1528,7 @@ TEST(BasicBlockDbgInfoTest, DbgMoveToEnd) {
   // There should continue to not be any debug-info anywhere.
   EXPECT_EQ(Entry.getTrailingDPValues(), nullptr);
   EXPECT_EQ(Exit.getTrailingDPValues(), nullptr);
-  EXPECT_FALSE(Ret->hasDbgValues());
+  EXPECT_FALSE(Ret->hasDbgRecords());
 
   UseNewDbgInfoFormat = false;
 }

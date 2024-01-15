@@ -555,7 +555,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
         // Until RemoveDIs supports dbg.declares in DPValue format, we'll need
         // to collect DPValues attached to any other debug intrinsics.
         for (const DbgVariableRecord &DPV :
-             DbgVariableRecord::filter(DII->getDbgValueRange()))
+             DbgVariableRecord::filter(DII->getDbgRecordRange()))
           DbgIntrinsics.insert(makeHash(&DPV));
       } else {
         break;
@@ -565,7 +565,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
     // Build DPValue hashes for DPValues attached to the terminator, which isn't
     // considered in the loop above.
     for (const DbgVariableRecord &DPV : DbgVariableRecord::filter(
-             OrigPreheader->getTerminator()->getDbgValueRange()))
+             OrigPreheader->getTerminator()->getDbgRecordRange()))
       DbgIntrinsics.insert(makeHash(&DPV));
 
     // Remember the local noalias scope declarations in the header. After the
@@ -624,7 +624,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
               DPV.eraseFromParent();
         }
 
-        NextDbgInst = I->getDbgValueRange().begin();
+        NextDbgInst = I->getDbgRecordRange().begin();
         Inst->moveBefore(LoopEntryBranch);
 
         ++NumInstrsHoisted;

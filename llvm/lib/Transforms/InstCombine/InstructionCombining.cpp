@@ -3095,14 +3095,14 @@ void InstCombinerImpl::handleUnreachableFrom(
     if (Inst.isEHPad() || Inst.getType()->isTokenTy())
       continue;
     // RemoveDIs: erase debug-info on this instruction manually.
-    Inst.dropDbgValues();
+    Inst.dropDbgRecords();
     eraseInstFromFunction(Inst);
     MadeIRChange = true;
   }
 
   // RemoveDIs: to match behaviour in dbg.value mode, drop debug-info on
   // terminator too.
-  BB->getTerminator()->dropDbgValues();
+  BB->getTerminator()->dropDbgRecords();
 
   // Handle potentially dead successors.
   for (BasicBlock *Succ : successors(BB))

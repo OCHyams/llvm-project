@@ -243,7 +243,8 @@ iterator_range<DbgRecord::self_iterator> Instruction::cloneDebugInfoFrom(
                                              InsertAtHead);
 }
 
-iterator_range<DbgRecord::self_iterator> Instruction::getDbgValueRange() const {
+iterator_range<DbgRecord::self_iterator>
+Instruction::getDbgRecordRange() const {
   BasicBlock *Parent = const_cast<BasicBlock *>(getParent());
   assert(Parent && "Instruction must be inserted to have DPValues");
   (void)Parent;
@@ -268,14 +269,14 @@ Instruction::getDbgReinsertionPosition() {
   return NextMarker->StoredDbgRecords.begin();
 }
 
-bool Instruction::hasDbgValues() const { return !getDbgValueRange().empty(); }
+bool Instruction::hasDbgRecords() const { return !getDbgRecordRange().empty(); }
 
-void Instruction::dropDbgValues() {
+void Instruction::dropDbgRecords() {
   if (DbgRecordMarker)
     DbgRecordMarker->dropDbgRecords();
 }
 
-void Instruction::dropOneDbgValue(DbgRecord *DPV) {
+void Instruction::dropOneDbgRecord(DbgRecord *DPV) {
   DbgRecordMarker->dropOneDbgRecord(DPV);
 }
 

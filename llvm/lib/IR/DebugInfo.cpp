@@ -204,7 +204,7 @@ void DebugInfoFinder::processInstruction(const Module &M,
   if (auto DbgLoc = I.getDebugLoc())
     processLocation(M, DbgLoc.get());
 
-  for (const DbgRecord &DPR : I.getDbgValueRange())
+  for (const DbgRecord &DPR : I.getDbgRecordRange())
     processDbgRecord(M, DPR);
 }
 
@@ -546,7 +546,7 @@ bool llvm::stripDebugInfo(Function &F) {
         // DIAssignID are debug info metadata primitives.
         I.setMetadata(LLVMContext::MD_DIAssignID, nullptr);
       }
-      I.dropDbgValues();
+      I.dropDbgRecords();
     }
   }
   return Changed;

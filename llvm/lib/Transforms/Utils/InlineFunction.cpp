@@ -1728,7 +1728,7 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
     for (BasicBlock::iterator BI = FI->begin(), BE = FI->end(); BI != BE;
          ++BI) {
       UpdateInst(*BI);
-      for (DbgRecord &DPV : BI->getDbgValueRange()) {
+      for (DbgRecord &DPV : BI->getDbgRecordRange()) {
         UpdateDPV(&DPV);
       }
     }
@@ -1741,7 +1741,7 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
           BI = BI->eraseFromParent();
           continue;
         } else {
-          BI->dropDbgValues();
+          BI->dropDbgRecords();
         }
         ++BI;
       }

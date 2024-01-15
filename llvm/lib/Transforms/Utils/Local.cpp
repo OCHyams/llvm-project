@@ -1930,7 +1930,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&BI))
         Dbgs.push_back(DDI);
       for (DbgVariableRecord &DPV :
-           DbgVariableRecord::filter(BI.getDbgValueRange())) {
+           DbgVariableRecord::filter(BI.getDbgRecordRange())) {
         if (DPV.getType() == DbgVariableRecord::LocationType::Declare)
           DPVs.push_back(&DPV);
       }
@@ -2016,7 +2016,7 @@ static void insertDPValuesForPHIs(BasicBlock *BB,
   DenseMap<Value *, DbgVariableRecord *> DbgValueMap;
   for (auto &I : *BB) {
     for (DbgVariableRecord &DPV :
-         DbgVariableRecord::filter(I.getDbgValueRange())) {
+         DbgVariableRecord::filter(I.getDbgRecordRange())) {
       for (Value *V : DPV.location_ops())
         if (auto *Loc = dyn_cast_or_null<PHINode>(V))
           DbgValueMap.insert({Loc, &DPV});
@@ -2786,7 +2786,7 @@ llvm::removeAllNonTerminatorAndEHPadInstructions(BasicBlock *BB) {
   // having to update as many def-use and use-def chains.
   Instruction *EndInst = BB->getTerminator(); // Last not to be deleted.
   // RemoveDIs: erasing debug-info must be done manually.
-  EndInst->dropDbgValues();
+  EndInst->dropDbgRecords();
   while (EndInst != &BB->front()) {
     // Delete the next to last instruction.
     Instruction *Inst = &*--EndInst->getIterator();
@@ -2795,7 +2795,7 @@ llvm::removeAllNonTerminatorAndEHPadInstructions(BasicBlock *BB) {
     if (Inst->isEHPad() || Inst->getType()->isTokenTy()) {
       // EHPads can't have DPValues attached to them, but it might be possible
       // for things with token type.
-      Inst->dropDbgValues();
+      Inst->dropDbgRecords();
       EndInst = Inst;
       continue;
     }
@@ -2804,7 +2804,7 @@ llvm::removeAllNonTerminatorAndEHPadInstructions(BasicBlock *BB) {
     else
       ++NumDeadInst;
     // RemoveDIs: erasing debug-info must be done manually.
-    Inst->dropDbgValues();
+    Inst->dropDbgRecords();
     Inst->eraseFromParent();
   }
   return {NumDeadInst, NumDeadDbgInst};
@@ -3574,7 +3574,7 @@ void llvm::hoistAllInstructionsInto(BasicBlock *DomBlock, Instruction *InsertPt,
     if (I->isUsedByMetadata())
       dropDebugUsers(*I);
     // RemoveDIs: drop debug-info too as the following code does.
-    I->dropDbgValues();
+    I->dropDbgRecords();
     if (I->isDebugOrPseudoInst()) {
       // Remove DbgInfo and pseudo probe Intrinsics.
       II = I->eraseFromParent();

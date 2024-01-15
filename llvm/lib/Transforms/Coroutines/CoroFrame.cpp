@@ -1933,7 +1933,7 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       // Instructions are added to Def's user list if the attached
       // debug records use Def. Update those now.
       for (DbgVariableRecord &DPV :
-           DbgVariableRecord::filter(U->getDbgValueRange()))
+           DbgVariableRecord::filter(U->getDbgRecordRange()))
         DPV.replaceVariableLocationOp(Def, CurrentReload, true);
     }
   }

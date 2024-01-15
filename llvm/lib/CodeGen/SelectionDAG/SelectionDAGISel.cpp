@@ -1462,7 +1462,7 @@ static void processDbgDeclares(FunctionLoweringInfo &FuncInfo) {
                                 DI->getVariable(), DI->getDebugLoc()))
       FuncInfo.PreprocessedDbgDeclares.insert(DI);
     for (const DbgVariableRecord &DPV :
-         DbgVariableRecord::filter(I.getDbgValueRange())) {
+         DbgVariableRecord::filter(I.getDbgRecordRange())) {
       if (DPV.Type == DbgVariableRecord::LocationType::Declare &&
           processDbgDeclare(FuncInfo, DPV.getVariableLocationOp(0),
                             DPV.getExpression(), DPV.getVariable(),

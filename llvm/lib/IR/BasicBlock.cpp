@@ -879,12 +879,12 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
   if (Dest == end() && !Dest.getHeadBit() && OurTrailingDPValues) {
     // Are the "+" DPValues not supposed to move? If so, detach them
     // temporarily.
-    if (!First.getHeadBit() && First->hasDbgValues()) {
+    if (!First.getHeadBit() && First->hasDbgRecords()) {
       MoreDanglingDPValues = Src->getMarker(First);
       MoreDanglingDPValues->removeFromParent();
     }
 
-    if (First->hasDbgValues()) {
+    if (First->hasDbgRecords()) {
       DbgMarker *CurMarker = Src->getMarker(First);
       // Place them at the front, it would look like this:
       //            Dest
@@ -1016,7 +1016,7 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
   // If we're _not_ reading from the head of First, i.e. the "++++" DPValues,
   // move their markers onto Last. They remain in the Src block. No action
   // needed.
-  if (!ReadFromHead && First->hasDbgValues()) {
+  if (!ReadFromHead && First->hasDbgRecords()) {
     DbgMarker *OntoLast = Src->createMarker(Last);
     DbgMarker *FromFirst = Src->createMarker(First);
     OntoLast->absorbDbgRecords(*FromFirst,

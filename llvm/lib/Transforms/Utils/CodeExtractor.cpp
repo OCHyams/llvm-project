@@ -1587,7 +1587,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
 
   auto UpdateDPValuesOnInst = [&](Instruction &I) -> void {
     for (DbgVariableRecord &DPV :
-         DbgVariableRecord::filter(I.getDbgValueRange())) {
+         DbgVariableRecord::filter(I.getDbgRecordRange())) {
       // Apply the two updates that dbg.values get: invalid operands, and
       // variable metadata fixup.
       // FIXME: support dbg.assign form of DPValues.
@@ -1647,7 +1647,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   for (auto *DII : DebugIntrinsicsToDelete)
     DII->eraseFromParent();
   for (auto *DPV : DPVsToDelete)
-    DPV->getMarker()->MarkedInstr->dropOneDbgValue(DPV);
+    DPV->getMarker()->MarkedInstr->dropOneDbgRecord(DPV);
   DIB.finalizeSubprogram(NewSP);
 
   // Fix up the scope information attached to the line locations in the new

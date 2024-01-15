@@ -402,7 +402,7 @@ static bool replaceFoldableUses(Instruction *Cond, Value *ToVal,
   for (Instruction &I : reverse(*KnownAtEndOfBB)) {
     // Replace any debug-info record users of Cond with ToVal.
     for (DbgVariableRecord &DPV :
-         DbgVariableRecord::filter(I.getDbgValueRange()))
+         DbgVariableRecord::filter(I.getDbgRecordRange()))
       DPV.replaceVariableLocationOp(Cond, ToVal, true);
 
     // Reached the Cond whose uses we are trying to replace, so there are no
@@ -2112,7 +2112,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
 
   // There may be DPValues on the terminator, clone directly from marker
   // to marker as there isn't an instruction there.
-  if (BE != RangeBB->end() && BE->hasDbgValues()) {
+  if (BE != RangeBB->end() && BE->hasDbgRecords()) {
     // Dump them at the end.
     DbgMarker *Marker = RangeBB->getMarker(BE);
     DbgMarker *EndMarker = NewBB->createMarker(NewBB->end());
@@ -3120,7 +3120,7 @@ bool JumpThreadingPass::threadGuard(BasicBlock *BB, IntrinsicInst *Guard,
       NewPN->insertBefore(InsertionPoint);
       Inst->replaceAllUsesWith(NewPN);
     }
-    Inst->dropDbgValues();
+    Inst->dropDbgRecords();
     Inst->eraseFromParent();
   }
   return true;
