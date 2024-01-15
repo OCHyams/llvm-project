@@ -19,7 +19,7 @@
 using namespace llvm;
 
 PreservedAnalyses BitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
-  // RemoveDIs: there's no bitcode representation of the DPValue debug-info,
+  // RemoveDIs: there's no bitcode representation of the DbgRecord debug-info,
   // convert to dbg.values before writing out.
   bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
   if (IsNewDbgInfoFormat)
@@ -64,8 +64,8 @@ namespace {
           EmitSummaryIndex
               ? &(getAnalysis<ModuleSummaryIndexWrapperPass>().getIndex())
               : nullptr;
-      // RemoveDIs: there's no bitcode representation of the DPValue debug-info,
-      // convert to dbg.values before writing out.
+      // RemoveDIs: there's no bitcode representation of the DbgRecord
+      // debug-info, convert to dbg.values before writing out.
       bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
       if (IsNewDbgInfoFormat)
         M.convertFromNewDbgValues();
