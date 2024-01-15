@@ -259,7 +259,7 @@ SmallVector<DbgVariableRecord *> ReplaceableMetadataImpl::getAllDPValueUsers() {
   llvm::sort(DPVUsersWithID, [](auto UserA, auto UserB) {
     return UserA->second > UserB->second;
   });
-  SmallVector<DbgRecord *> DPVUsers;
+  SmallVector<DbgVariableRecord *> DPVUsers;
   for (auto UserWithID : DPVUsersWithID)
     DPVUsers.push_back(UserWithID->first.get<DebugValueUser *>()->getUser());
   return DPVUsers;
