@@ -317,9 +317,9 @@ TEST(ValueTest, replaceUsesOutsideBlock) {
   ASSERT_TRUE(Ret->getOperand(0) == cast<Value>(B));
 }
 
-TEST(ValueTest, replaceUsesOutsideBlockDPValue) {
+TEST(ValueTest, replaceUsesOutsideBlockDbgVariableRecord) {
   // Check that Value::replaceUsesOutsideBlock(New, BB) replaces uses outside
-  // BB, including DPValues.
+  // BB, including DbgVariableRecords.
   const auto *IR = R"(
     define i32 @f() !dbg !6 {
     entry:
