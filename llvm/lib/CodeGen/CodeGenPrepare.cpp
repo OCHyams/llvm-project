@@ -459,8 +459,8 @@ private:
   bool optimizeExtractElementInst(Instruction *Inst);
   bool dupRetToEnableTailCallOpts(BasicBlock *BB, ModifyDT &ModifiedDT);
   bool fixupDbgValue(Instruction *I);
-  bool fixupDPValue(DbgVariableRecord &I);
-  bool fixupDPValuesOnInst(Instruction &I);
+  bool fixupDbgVariableRecord(DbgVariableRecord &I);
+  bool fixupDbgRecordsOnInst(Instruction &I);
   bool placeDbgValues(Function &F);
   bool placePseudoProbes(Function &F);
   bool canFormExtLd(const SmallVectorImpl<Instruction *> &MovedExts,
@@ -6978,7 +6978,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
   // won't be individually optimised by optimizeInst, so we need to perform
   // DPValue maintenence here instead.
   for (SelectInst *SI : ArrayRef(ASI).drop_front())
-    fixupDPValuesOnInst(*SI);
+    fixupDbgRecordsOnInst(*SI);
 
   bool VectorCond = !SI->getCondition()->getType()->isIntegerTy(1);
 
@@ -8134,7 +8134,7 @@ static bool optimizeBranch(BranchInst *Branch, const TargetLowering &TLI,
 
 bool CodeGenPrepare::optimizeInst(Instruction *I, ModifyDT &ModifiedDT) {
   bool AnyChange = false;
-  AnyChange = fixupDPValuesOnInst(*I);
+  AnyChange = fixupDbgRecordsOnInst(*I);
 
   // Bail out if we inserted the instruction to prevent optimizations from
   // stepping on each other's toes.
@@ -8400,17 +8400,17 @@ bool CodeGenPrepare::fixupDbgValue(Instruction *I) {
   return AnyChange;
 }
 
-bool CodeGenPrepare::fixupDPValuesOnInst(Instruction &I) {
+bool CodeGenPrepare::fixupDbgRecordsOnInst(Instruction &I) {
   bool AnyChange = false;
   for (DbgVariableRecord &DPV :
        DbgVariableRecord::filter(I.getDbgRecordRange()))
-    AnyChange |= fixupDPValue(DPV);
+    AnyChange |= fixupDbgVariableRecord(DPV);
   return AnyChange;
 }
 
 // FIXME: should updating debug-info really cause the "changed" flag to fire,
 // which can cause a function to be reprocessed?
-bool CodeGenPrepare::fixupDPValue(DbgVariableRecord &DPV) {
+bool CodeGenPrepare::fixupDbgVariableRecord(DbgVariableRecord &DPV) {
   if (DPV.Type != DbgVariableRecord::LocationType::Value)
     return false;
 
