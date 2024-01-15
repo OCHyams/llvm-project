@@ -1130,7 +1130,7 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
   processGlobalObjectMetadata(F);
   for (auto &BB : F) {
     for (auto &I : BB) {
-      for (const DbgRecord &DPV : I.getDbgValueRange())
+      for (const DbgRecord &DPV : I.getDbgRecordRange())
         processDbgRecordMetadata(DPV);
       processInstructionMetadata(I);
     }
@@ -4562,7 +4562,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 void AssemblyWriter::printDbgMarker(const DbgMarker &Marker) {
   // There's no formal representation of a DbgMarker -- print purely as a
   // debugging aid.
-  for (const DbgRecord &DPR : Marker.StoredDPValues) {
+  for (const DbgRecord &DPR : Marker.StoredDbgRecords) {
     printDbgRecord(DPR);
     Out << "\n";
   }

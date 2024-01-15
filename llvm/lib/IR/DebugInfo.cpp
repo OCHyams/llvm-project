@@ -93,7 +93,8 @@ static void findDbgIntrinsics(SmallVectorImpl<IntrinsicT *> &Result, Value *V,
         continue;
       DIArgList *DI = cast<DIArgList>(AL);
       for (DbgVariableRecord *DPV : DI->getAllDPValueUsers()) {
-        if (Type == DPValue::LocationType::Any || DPV->getType() == Type)
+        if (Type == DbgVariableRecord::LocationType::Any ||
+            DPV->getType() == Type)
           if (EncounteredDPValues.insert(DPV).second)
             DPValues->push_back(DPV);
       }

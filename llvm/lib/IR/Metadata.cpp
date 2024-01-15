@@ -241,7 +241,7 @@ SmallVector<Metadata *> ReplaceableMetadataImpl::getAllArgListUsers() {
   return MDUsers;
 }
 
-SmallVector<DbgRecord *> ReplaceableMetadataImpl::getAllDPValueUsers() {
+SmallVector<DbgVariableRecord *> ReplaceableMetadataImpl::getAllDPValueUsers() {
   SmallVector<std::pair<OwnerTy, uint64_t> *> DPVUsersWithID;
   for (auto Pair : UseMap) {
     OwnerTy Owner = Pair.second.first;

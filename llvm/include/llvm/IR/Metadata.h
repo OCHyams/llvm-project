@@ -389,7 +389,7 @@ public:
   /// Returns the list of all DIArgList users of this.
   SmallVector<Metadata *> getAllArgListUsers();
   /// Returns the list of all DPValue users of this.
-  SmallVector<DbgRecord *> getAllDPValueUsers();
+  SmallVector<DbgVariableRecord *> getAllDPValueUsers();
 
   /// Resolve all uses of this.
   ///
@@ -473,7 +473,7 @@ public:
   SmallVector<Metadata *> getAllArgListUsers() {
     return ReplaceableMetadataImpl::getAllArgListUsers();
   }
-  SmallVector<DbgRecord *> getAllDPValueUsers() {
+  SmallVector<DbgVariableRecord *> getAllDPValueUsers() {
     return ReplaceableMetadataImpl::getAllDPValueUsers();
   }
 
