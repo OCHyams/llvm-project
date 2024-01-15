@@ -615,7 +615,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
         if (LoopEntryBranch->getParent()->IsNewDbgInfoFormat) {
           auto DbgValueRange =
               LoopEntryBranch->cloneDebugInfoFrom(Inst, NextDbgInst);
-          RemapDPValueRange(M, DbgValueRange, ValueMap,
+          RemapDbgVariableRecords(M, DbgValueRange, ValueMap,
                             RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
           // Erase anything we've seen before.
           for (DbgVariableRecord &DPV :
@@ -639,7 +639,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
 
       if (LoopEntryBranch->getParent()->IsNewDbgInfoFormat) {
         auto Range = C->cloneDebugInfoFrom(Inst, NextDbgInst);
-        RemapDPValueRange(M, Range, ValueMap,
+        RemapDbgVariableRecords(M, Range, ValueMap,
                           RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
         NextDbgInst = std::nullopt;
         // Erase anything we've seen before.
