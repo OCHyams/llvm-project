@@ -1,4 +1,6 @@
 ; RUN: opt < %s -S -passes='speculative-execution' | FileCheck %s
+;; FXIME: RemoveDIs not supported in speculative-execution
+; run: opt --try-experimental-debuginfo-iterators < %s -S -passes='speculative-execution' | FileCheck %s
 
 %class.B = type { ptr }
 

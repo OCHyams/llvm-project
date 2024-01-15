@@ -5,11 +5,19 @@
 ; RUN:   -experimental-debug-variable-locations \
 ; RUN:   | FileCheck %s --check-prefix=EXPER-INPUT
 
+; RUN: llc %s -mtriple=x86_64-unknown-unknown -o - -stop-before=finalize-isel \
+; RUN:   --try-experimental-debuginfo-iterators \
+; RUN:   | FileCheck %s --check-prefix=EXPER-INPUT
+
 ; RUN: llc %s -mtriple=x86_64-unknown-unknown -o - -stop-after=livedebugvars \
 ; RUN:   | FileCheck %s --check-prefix=OUTPUT
 
 ; RUN: llc %s -mtriple=x86_64-unknown-unknown -o - -stop-after=livedebugvars \
 ; RUN:   -experimental-debug-variable-locations \
+; RUN:   | FileCheck %s --check-prefix=OUTPUT
+
+; RUN: llc %s -mtriple=x86_64-unknown-unknown -o - -stop-after=livedebugvars \
+; RUN:   --try-experimental-debuginfo-iterators \
 ; RUN:   | FileCheck %s --check-prefix=OUTPUT
 
 ; This test checks that LiveDebugVariables strips all debug instructions
@@ -24,6 +32,10 @@
 ; locations are represented by DBG_INSTR_REF instead of DBG_VALUE. The test
 ; verifies that a DBG_INSTR_REF is emitted by the option, and that it is also
 ; stripped.
+
+; Repeat the test with --try-experimental-debuginfo-iterators, which tells
+; llvm to use non-instruction representation for debug info that is currently
+; tracked using debug intrinsics.
 
 ; Generated from:
 ;

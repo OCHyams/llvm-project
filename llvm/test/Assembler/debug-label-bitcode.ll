@@ -1,4 +1,5 @@
 ; Test bitcode writer/reader for DILabel metadata.
+;; FIXME: Add --try-experimental-debuginfo-iterators to more tools?
 ; RUN: llvm-as < %s | llvm-dis | llvm-as | llvm-dis | FileCheck %s
 ; RUN: verify-uselistorder %s
 ;
