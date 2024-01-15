@@ -4176,7 +4176,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   // For all debug values in the destination block, the sunk instruction
   // will still be available, so they do not need to be dropped.
   SmallVector<DbgVariableIntrinsic *, 2> DbgUsersToSalvage;
-  SmallVector<DbgVariableRecord *, 2> DPValuesToSalvage;
+  SmallVector<DbgVariableRecord *, 2> DbgVarRecsToSalvage;
   for (auto &DbgUser : DbgUsers)
     if (DbgUser->getParent() != DestBlock)
       DbgUsersToSalvage.push_back(DbgUser);
@@ -4222,8 +4222,8 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   if (!DIIClones.empty()) {
     // RemoveDIs: pass in empty vector of DPValues until we get to instrumenting
     // this pass.
-    SmallVector<DbgVariableRecord *, 1> DummyDPValues;
-    salvageDebugInfoForDbgValues(*I, DbgUsersToSalvage, DummyDPValues);
+    SmallVector<DbgVariableRecord *, 1> DummyDbgVarRecs;
+    salvageDebugInfoForDbgValues(*I, DbgUsersToSalvage, DummyDbgVarRecs);
     // The clones are in reverse order of original appearance, reverse again to
     // maintain the original order.
     for (auto &DIIClone : llvm::reverse(DIIClones)) {

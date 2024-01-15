@@ -221,8 +221,8 @@ void SSAUpdater::UpdateDebugValues(Instruction *I,
 }
 
 void SSAUpdater::UpdateDebugValues(
-    Instruction *I, SmallVectorImpl<DbgVariableRecord *> &DPValues) {
-  for (auto &DPV : DPValues) {
+    Instruction *I, SmallVectorImpl<DbgVariableRecord *> &DbgVarRecs) {
+  for (auto &DPV : DbgVarRecs) {
     UpdateDebugValue(I, DPV);
   }
 }

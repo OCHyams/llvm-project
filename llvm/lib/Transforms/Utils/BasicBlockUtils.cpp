@@ -382,7 +382,7 @@ bool llvm::MergeBlockSuccessorsIntoGivenBlocks(
 /// - Check fully overlapping fragments and not only identical fragments.
 /// - Support dbg.declare. dbg.label, and possibly other meta instructions being
 ///   part of the sequence of consecutive instructions.
-static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
+static bool DbgRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
@@ -426,7 +426,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
 
 static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   if (BB->IsNewDbgInfoFormat)
-    return DPValuesRemoveRedundantDbgInstrsUsingBackwardScan(BB);
+    return DbgRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BB);
 
   SmallVector<DbgValueInst *, 8> ToBeRemoved;
   SmallDenseSet<DebugVariable> VariableSet;
@@ -485,7 +485,7 @@ static bool removeRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
 ///
 /// Possible improvements:
 /// - Keep track of non-overlapping fragments.
-static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
+static bool DbgRecordsRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
   SmallVector<DbgVariableRecord *, 8> ToBeRemoved;
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>
       VariableMap;
@@ -518,7 +518,7 @@ static bool DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
 
 static bool removeRedundantDbgInstrsUsingForwardScan(BasicBlock *BB) {
   if (BB->IsNewDbgInfoFormat)
-    return DPValuesRemoveRedundantDbgInstrsUsingForwardScan(BB);
+    return DbgRecordsRemoveRedundantDbgInstrsUsingForwardScan(BB);
 
   SmallVector<DbgValueInst *, 8> ToBeRemoved;
   DenseMap<DebugVariable, std::pair<SmallVector<Value *, 4>, DIExpression *>>

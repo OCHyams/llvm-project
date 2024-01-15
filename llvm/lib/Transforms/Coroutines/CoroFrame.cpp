@@ -1985,11 +1985,11 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
     G->setName(Alloca->getName() + Twine(".reload.addr"));
 
     SmallVector<DbgVariableIntrinsic *, 4> DIs;
-    SmallVector<DbgVariableRecord *> DPValues;
-    findDbgUsers(DIs, Alloca, &DPValues);
+    SmallVector<DbgVariableRecord *> DbgVarRecs;
+    findDbgUsers(DIs, Alloca, &DbgVarRecs);
     for (auto *DVI : DIs)
       DVI->replaceUsesOfWith(Alloca, G);
-    for (auto *DPV : DPValues)
+    for (auto *DPV : DbgVarRecs)
       DPV->replaceVariableLocationOp(Alloca, G);
 
     for (Instruction *I : UsersToUpdate) {

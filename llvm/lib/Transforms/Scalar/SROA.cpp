@@ -5044,10 +5044,10 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
   SmallVector<DbgDeclareInst *, 1> DbgDeclares;
-  SmallVector<DbgVariableRecord *, 1> DPValues;
-  findDbgDeclares(DbgDeclares, &AI, &DPValues);
+  SmallVector<DbgVariableRecord *, 1> DbgVarRecs;
+  findDbgDeclares(DbgDeclares, &AI, &DbgVarRecs);
   for_each(DbgDeclares, MigrateOne);
-  for_each(DPValues, MigrateOne);
+  for_each(DbgVarRecs, MigrateOne);
   for_each(at::getAssignmentMarkers(&AI), MigrateOne);
 
   return Changed;
@@ -5171,11 +5171,11 @@ bool SROA::deleteDeadInstructions(
     if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
       DeletedAllocas.insert(AI);
       SmallVector<DbgDeclareInst *, 1> DbgDeclares;
-      SmallVector<DbgVariableRecord *, 1> DPValues;
-      findDbgDeclares(DbgDeclares, AI, &DPValues);
+      SmallVector<DbgVariableRecord *, 1> DbgVarRecs;
+      findDbgDeclares(DbgDeclares, AI, &DbgVarRecs);
       for (DbgDeclareInst *OldDII : DbgDeclares)
         OldDII->eraseFromParent();
-      for (DbgVariableRecord *OldDII : DPValues)
+      for (DbgVariableRecord *OldDII : DbgVarRecs)
         OldDII->eraseFromParent();
     }
 
