@@ -109,7 +109,7 @@ void BasicBlock::convertFromNewDbgFormat() {
       continue;
 
     DbgMarker &Marker = *Inst.DbgRecordMarker;
-    for (DbgRecord &DR : Marker.getDbgValueRange()) {
+    for (DbgRecord &DR : Marker.getDbgRecordRange()) {
       if (auto *DPV = dyn_cast<DbgVariableRecord>(&DR))
         InstList.insert(Inst.getIterator(),
                         DPV->createDebugIntrinsic(getModule(), nullptr));
@@ -169,7 +169,7 @@ bool BasicBlock::validateDbgRecords(bool Assert, bool Msg, raw_ostream *OS) {
                 "Debug Marker points to incorrect instruction?");
 
     // Now validate any records in the marker.
-    for (DbgRecord &DR : CurrentDebugMarker->getDbgValueRange()) {
+    for (DbgRecord &DR : CurrentDebugMarker->getDbgRecordRange()) {
       // Validate DebugProgramValues.
       TestFailure(DR.getMarker() == CurrentDebugMarker,
                   "Not pointing at correct next marker!");

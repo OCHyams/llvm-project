@@ -359,7 +359,7 @@ void DbgMarker::eraseFromParent() {
   delete this;
 }
 
-iterator_range<DbgRecord::self_iterator> DbgMarker::getDbgValueRange() {
+iterator_range<DbgRecord::self_iterator> DbgMarker::getDbgRecordRange() {
   return make_range(StoredDbgRecords.begin(), StoredDbgRecords.end());
 }
 

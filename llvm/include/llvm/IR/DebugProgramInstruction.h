@@ -365,7 +365,7 @@ public:
   void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
 
   /// Produce a range over all the records in this Marker.
-  iterator_range<simple_ilist<DbgRecord>::iterator> getDbgValueRange();
+  iterator_range<simple_ilist<DbgRecord>::iterator> getDbgRecordRange();
   /// Transfer any records from \p Src into this DbgMarker. If \p InsertAtHead
   /// is true, place them before existing records, otherwise afterwards.
   void absorbDbgRecords(DbgMarker &Src, bool InsertAtHead);

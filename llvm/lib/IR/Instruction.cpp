@@ -252,7 +252,7 @@ Instruction::getDbgRecordRange() const {
   if (!DbgRecordMarker)
     return DbgMarker::getEmptyDbgRecordRange();
 
-  return DbgRecordMarker->getDbgValueRange();
+  return DbgRecordMarker->getDbgRecordRange();
 }
 
 std::optional<DbgRecord::self_iterator>
