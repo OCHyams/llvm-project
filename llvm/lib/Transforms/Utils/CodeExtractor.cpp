@@ -1587,6 +1587,25 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
 
   auto UpdateDbgRecordsOnInst = [&](Instruction &I) -> void {
     for (DbgRecord &DR : I.getDbgRecordRange()) {
+      DR.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DR.getDebugLoc(),
+                                                          *NewSP, Ctx, Cache));
+      if (DbgLabelRecord *DLR = cast<DbgLabelRecord>(&DR)) {
+        // Point the intrinsic to a fresh label within the new function if the
+        // intrinsic was not inlined from some other function.
+        if (DLR->getDebugLoc().getInlinedAt())
+          continue;
+        DILabel *OldLabel = DLR->getLabel();
+        DINode *&NewLabel = RemappedMetadata[OldLabel];
+        if (!NewLabel) {
+          DILocalScope *NewScope = DILocalScope::cloneScopeForSubprogram(
+              *OldLabel->getScope(), *NewSP, Ctx, Cache);
+          NewLabel = DILabel::get(Ctx, NewScope, OldLabel->getName(),
+                                  OldLabel->getFile(), OldLabel->getLine());
+        }
+        DLR->setLabel(cast<DILabel>(NewLabel));
+        continue;
+      }
+
       DbgVariableRecord &DVR = cast<DbgVariableRecord>(DR);
       // Apply the two updates that dbg.values get: invalid operands, and
       // variable metadata fixup.
@@ -1597,8 +1616,6 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
       }
       if (!DVR.getDebugLoc().getInlinedAt())
         DVR.setVariable(GetUpdatedDIVariable(DVR.getVariable()));
-      DVR.setDebugLoc(DebugLoc::replaceInlinedAtSubprogram(DVR.getDebugLoc(),
-                                                           *NewSP, Ctx, Cache));
     }
   };
 

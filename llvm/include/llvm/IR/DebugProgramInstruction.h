@@ -141,6 +141,11 @@ protected:
   ~DbgRecord() = default;
 };
 
+inline raw_ostream &operator<<(raw_ostream &OS, const DbgRecord &R) {
+  R.print(OS);
+  return OS;
+}
+
 /// Records a position in IR for a source label (DILabel). Corresponds to the
 /// llvm.dbg.label intrinsic.
 class DbgLabelRecord : public DbgRecord {

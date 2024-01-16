@@ -85,6 +85,12 @@ void BasicBlock::convertToNewDbgFormat() {
       continue;
     }
 
+    if (DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(&I)) {
+      DPVals.push_back(new DbgLabelRecord(DLI->getLabel(), DLI->getDebugLoc()));
+      DLI->eraseFromParent();
+      continue;
+    }
+
     // Create a marker to store records in. Technically we don't need to store
     // one marker per instruction, but that's a future optimisation.
     createMarker(&I);
@@ -110,15 +116,26 @@ void BasicBlock::convertFromNewDbgFormat() {
 
     DbgMarker &Marker = *Inst.DbgRecordMarker;
     for (DbgRecord &DR : Marker.getDbgRecordRange()) {
-      if (auto *DPV = dyn_cast<DbgVariableRecord>(&DR))
+      if (auto *DPV = dyn_cast<DbgVariableRecord>(&DR)) {
         InstList.insert(Inst.getIterator(),
                         DPV->createDebugIntrinsic(getModule(), nullptr));
-      else
+      } else if (auto *DPL = dyn_cast<DbgLabelRecord>(&DR)) {
+        auto *LabelFn =
+            Intrinsic::getDeclaration(getModule(), Intrinsic::dbg_label);
+        Value *Args[] = {
+            MetadataAsValue::get(getModule()->getContext(), DPL->getLabel())};
+        DbgLabelInst *DbgLabel = cast<DbgLabelInst>(
+            CallInst::Create(LabelFn->getFunctionType(), LabelFn, Args));
+        DbgLabel->setTailCall();
+        DbgLabel->setDebugLoc(DPL->getDebugLoc());
+        InstList.insert(Inst.getIterator(), DbgLabel);
+      } else {
         llvm_unreachable("unsupported entity kind");
+      }
     }
 
     Marker.eraseFromParent();
-  };
+  }
 
   // Assume no trailing records: we could technically create them at the end
   // of the block, after a terminator, but this would be non-cannonical and

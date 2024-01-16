@@ -237,6 +237,10 @@ DbgVariableRecord *DbgVariableRecord::clone() const {
   return new DbgVariableRecord(*this);
 }
 
+DbgLabelRecord *DbgLabelRecord::clone() const {
+  return new DbgLabelRecord(Label, getDebugLoc());
+}
+
 DbgVariableIntrinsic *
 DbgVariableRecord::createDebugIntrinsic(Module *M,
                                         Instruction *InsertBefore) const {
