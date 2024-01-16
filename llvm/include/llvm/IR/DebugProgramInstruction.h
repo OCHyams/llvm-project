@@ -82,7 +82,7 @@ public:
   /// Marker that this DbgRecord is linked into.
   DbgMarker *Marker = nullptr;
   /// Subclass discriminator.
-  enum Kind : uint8_t { ValueKind };
+  enum Kind : uint8_t { ValueKind, LabelKind };
 
 protected:
   DebugLoc DbgLoc;
@@ -139,6 +139,30 @@ protected:
   /// cleanup.
   /// Use deleteRecord to delete a generic record.
   ~DbgRecord() = default;
+};
+
+/// Records a position in IR for a source label (DILabel). Corresponds to the
+/// llvm.dbg.label intrinsic.
+class DbgLabelRecord : public DbgRecord {
+  DILabel *Label;
+
+public:
+  DbgLabelRecord(DILabel *Label, DebugLoc DL)
+      : DbgRecord(LabelKind, DL), Label(Label) {
+    assert(Label && "unexpected nullptr");
+  }
+
+  DbgLabelRecord *clone() const;
+  void print(raw_ostream &O, bool IsForDebug = false) const;
+  void print(raw_ostream &ROS, ModuleSlotTracker &MST, bool IsForDebug) const;
+
+  void setLabel(DILabel *NewLabel) { Label = NewLabel; }
+  DILabel *getLabel() const { return Label; }
+
+  /// Support type inquiry through isa, cast, and dyn_cast.
+  static bool classof(const DbgRecord *E) {
+    return E->getRecordKind() == LabelKind;
+  }
 };
 
 /// Record of a variable value-assignment, aka a non instruction representation

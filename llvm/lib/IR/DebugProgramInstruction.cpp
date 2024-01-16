@@ -46,6 +46,9 @@ void DbgRecord::deleteRecord() {
   case ValueKind:
     delete cast<DbgVariableRecord>(this);
     break;
+  case LabelKind:
+    delete cast<DbgLabelRecord>(this);
+    break;
   default:
     llvm_unreachable("unsupported record kind");
   }
@@ -54,6 +57,9 @@ void DbgRecord::print(raw_ostream &O, bool IsForDebug) const {
   switch (RecordKind) {
   case ValueKind:
     cast<DbgVariableRecord>(this)->print(O, IsForDebug);
+    break;
+  case LabelKind:
+    cast<DbgLabelRecord>(this)->print(O, IsForDebug);
     break;
   default:
     llvm_unreachable("unsupported record kind");
@@ -65,6 +71,9 @@ void DbgRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   switch (RecordKind) {
   case ValueKind:
     cast<DbgVariableRecord>(this)->print(O, MST, IsForDebug);
+    break;
+  case LabelKind:
+    cast<DbgLabelRecord>(this)->print(O, MST, IsForDebug);
     break;
   default:
     llvm_unreachable("unsupported record kind");
@@ -217,6 +226,8 @@ DbgRecord *DbgRecord::clone() const {
   switch (RecordKind) {
   case ValueKind:
     return cast<DbgVariableRecord>(this)->clone();
+  case LabelKind:
+    return cast<DbgLabelRecord>(this)->clone();
   default:
     llvm_unreachable("unsupported record kind");
   };
