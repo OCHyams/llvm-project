@@ -1436,9 +1436,9 @@ bool HWAddressSanitizer::instrumentStack(memtag::StackInfo &SInfo,
           DDI->setExpression(DIExpression::appendOpsToArg(DDI->getExpression(),
                                                           NewOps, LocNo));
       if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DDI)) {
-        assert(DAI->getAddress() == AI);
-        DAI->setAddressExpression(
-            DIExpression::prependOpcodes(DDI->getExpression(), NewOps));
+        if (DAI->getAddress() == AI)
+          DAI->setAddressExpression(
+              DIExpression::prependOpcodes(DDI->getExpression(), NewOps));
       }
     }
 
