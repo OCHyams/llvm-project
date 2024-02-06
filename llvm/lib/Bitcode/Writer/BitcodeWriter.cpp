@@ -128,6 +128,8 @@ enum {
   FUNCTION_INST_RET_VAL_ABBREV,
   FUNCTION_INST_UNREACHABLE_ABBREV,
   FUNCTION_INST_GEP_ABBREV,
+  FUNCTION_INST_DEBUG_LOC_ABBREV,
+  FUNCTION_INST_TEST_ABBREV,
 };
 
 /// Abstract class to manage the bitcode writing, subclassed for each bitcode
@@ -392,6 +394,7 @@ private:
                        SmallVectorImpl<uint64_t> &Vals);
   void writeInstruction(const Instruction &I, unsigned InstID,
                         SmallVectorImpl<unsigned> &Vals);
+  void writeDebugLocAbbrev(const DILocation *N, SmallVectorImpl<unsigned> &Vals);
   void writeFunctionLevelValueSymbolTable(const ValueSymbolTable &VST);
   void writeGlobalValueSymbolTable(
       DenseMap<const Function *, uint64_t> &FunctionToBitcodeIndex);
@@ -1638,6 +1641,18 @@ void ModuleBitcodeWriter::writeDILocation(const DILocation *N,
   Record.push_back(N->isImplicitCode());
 
   Stream.EmitRecord(bitc::METADATA_LOCATION, Record, Abbrev);
+  Record.clear();
+}
+
+void ModuleBitcodeWriter::writeDebugLocAbbrev(const DILocation *N,
+                                              SmallVectorImpl<unsigned> &Record) {
+  Record.push_back(N->getLine());
+  Record.push_back(N->getColumn());
+  Record.push_back(VE.getMetadataID(N->getScope()));
+  Record.push_back(VE.getMetadataOrNullID(N->getInlinedAt()));
+  Record.push_back(N->isImplicitCode());
+
+  Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Record, FUNCTION_INST_DEBUG_LOC_ABBREV);
   Record.clear();
 }
 
@@ -3484,13 +3499,8 @@ void ModuleBitcodeWriter::writeFunction(
         continue;
       }
 
-      Vals.push_back(DL->getLine());
-      Vals.push_back(DL->getColumn());
-      Vals.push_back(VE.getMetadataOrNullID(DL->getScope()));
-      Vals.push_back(VE.getMetadataOrNullID(DL->getInlinedAt()));
-      Vals.push_back(DL->isImplicitCode());
-      Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Vals);
-      Vals.clear();
+      // xxx
+      writeDebugLocAbbrev(DL, Vals);
 
       LastDL = DL;
     }
@@ -3731,6 +3741,20 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_INST_GEP_ABBREV)
+      llvm_unreachable("Unexpected abbrev ordering!");
+  }
+  {
+    auto Abbv = std::make_shared<BitCodeAbbrev>();
+    Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_LOC));
+    // DILocations attached to instructions are never distinct
+    // (inlinedAt field DILocations may be).
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // line
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // column
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // scope
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // inlined-at
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // isImplicit
+    if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
+        FUNCTION_INST_DEBUG_LOC_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering!");
   }
 
