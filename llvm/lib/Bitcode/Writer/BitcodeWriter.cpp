@@ -1647,7 +1647,7 @@ void ModuleBitcodeWriter::writeDebugLocAbbrev(const DILocation *N,
                                               SmallVectorImpl<unsigned> &Record) {
   Record.push_back(N->getLine());
   Record.push_back(N->getColumn());
-  Record.push_back(VE.getMetadataID(N->getScope()));
+  Record.push_back(VE.getMetadataOrNullID(N->getScope()));
   Record.push_back(VE.getMetadataOrNullID(N->getInlinedAt()));
   Record.push_back(N->isImplicitCode());
 
