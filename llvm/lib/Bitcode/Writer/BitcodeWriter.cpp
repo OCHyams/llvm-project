@@ -393,7 +393,8 @@ private:
                        SmallVectorImpl<uint64_t> &Vals);
   void writeInstruction(const Instruction &I, unsigned InstID,
                         SmallVectorImpl<unsigned> &Vals);
-  void writeDebugLocAbbrev(const DILocation *N, SmallVectorImpl<unsigned> &Vals);
+  void writeDebugLocAbbrev(const DILocation *N,
+                           SmallVectorImpl<unsigned> &Vals);
   void writeFunctionLevelValueSymbolTable(const ValueSymbolTable &VST);
   void writeGlobalValueSymbolTable(
       DenseMap<const Function *, uint64_t> &FunctionToBitcodeIndex);
@@ -1643,15 +1644,16 @@ void ModuleBitcodeWriter::writeDILocation(const DILocation *N,
   Record.clear();
 }
 
-void ModuleBitcodeWriter::writeDebugLocAbbrev(const DILocation *N,
-                                              SmallVectorImpl<unsigned> &Record) {
+void ModuleBitcodeWriter::writeDebugLocAbbrev(
+    const DILocation *N, SmallVectorImpl<unsigned> &Record) {
   Record.push_back(N->getLine());
   Record.push_back(N->getColumn());
   Record.push_back(VE.getMetadataOrNullID(N->getScope()));
   Record.push_back(VE.getMetadataOrNullID(N->getInlinedAt()));
   Record.push_back(N->isImplicitCode());
 
-  Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Record, FUNCTION_INST_DEBUG_LOC_ABBREV);
+  Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Record,
+                    FUNCTION_INST_DEBUG_LOC_ABBREV);
   Record.clear();
 }
 
@@ -3746,10 +3748,10 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_LOC));
     // DILocations attached to instructions are never distinct
     // (inlinedAt field DILocations may be).
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // line
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // column
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // scope
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // inlined-at
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // line
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // column
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // scope
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // inlined-at
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // isImplicit
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_INST_DEBUG_LOC_ABBREV)
