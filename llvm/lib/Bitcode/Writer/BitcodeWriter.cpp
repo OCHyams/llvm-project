@@ -129,7 +129,6 @@ enum {
   FUNCTION_INST_UNREACHABLE_ABBREV,
   FUNCTION_INST_GEP_ABBREV,
   FUNCTION_INST_DEBUG_LOC_ABBREV,
-  FUNCTION_INST_TEST_ABBREV,
 };
 
 /// Abstract class to manage the bitcode writing, subclassed for each bitcode
@@ -3499,7 +3498,6 @@ void ModuleBitcodeWriter::writeFunction(
         continue;
       }
 
-      // xxx
       writeDebugLocAbbrev(DL, Vals);
 
       LastDL = DL;
