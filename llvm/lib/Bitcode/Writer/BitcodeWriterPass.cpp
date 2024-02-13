@@ -24,7 +24,7 @@ PreservedAnalyses BitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   // RemoveDIs: there's no bitcode representation of the DPValue debug-info,
   // convert to dbg.values before writing out.
   bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
-  if (!DDDDirectBC)
+  if (!DDDDirectBC && IsNewDbgInfoFormat)
     M.convertFromNewDbgValues();
 
   const ModuleSummaryIndex *Index =

@@ -4445,10 +4445,11 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
       // The interesting case.
       break;
     }
+    6472
 
-    // Read a record.
-    Expected<unsigned> MaybeBitCode = Stream.readRecord(Entry.ID, Record);
-
+        // Read a record.
+        Expected<unsigned>
+            MaybeBitCode = Stream.readRecord(Entry.ID, Record);
     if (!MaybeBitCode)
       return MaybeBitCode.takeError();
     switch (unsigned BitCode = MaybeBitCode.get()) {
@@ -6474,11 +6475,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         unsigned ArgTyID = getContainedTypeID(FTyID, i + 1);
         if (FTy->getParamType(i)->isLabelTy())
           Args.push_back(getBasicBlock(Record[OpNum]));
-        else {
-          Value *V = getValue(Record, OpNum, NextValueNo, FTy->getParamType(i),
-                              ArgTyID, CurBB);
-          Args.push_back(V);
-        }
+        else
+          Args.push_back(getValue(Record, OpNum, NextValueNo,
+                                  FTy->getParamType(i), ArgTyID, CurBB));
         ArgTyIDs.push_back(ArgTyID);
         if (!Args.back())
           return error("Invalid record");
