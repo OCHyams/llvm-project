@@ -631,6 +631,16 @@ enum FunctionCodes {
   // bit.
   FUNC_CODE_DEBUG_VAR_LOC_WVALUES =
       62, // DPVALUE: [value-ref, ty, expression, variable, dilocation]
+
+  // Let's get dbg.assigns in and working...
+  // I wonder if we'd get any value out of abbrev like: []
+  FUNC_CODE_DEBUG_RECORD_VALUE =
+      63, // [location, expression, variable, dilocation]
+  FUNC_CODE_DEBUG_RECORD_DECLARE =
+      64, // [location, expression, variable, dilocation]
+  FUNC_CODE_DEBUG_RECORD_ASSIGN =
+      65, // [location, expression, variable, dialoction, assignid, location,
+          // expression]
 };
 
 enum UseListCodes {

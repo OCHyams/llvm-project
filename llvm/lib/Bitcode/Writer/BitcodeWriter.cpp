@@ -131,8 +131,6 @@ enum {
   FUNCTION_INST_UNREACHABLE_ABBREV,
   FUNCTION_INST_GEP_ABBREV,
 
-  // lolol jeremy abbrev id's
-//  DPVALUE_ABBREV,
   DPVALUE2_ABBREV,
 };
 

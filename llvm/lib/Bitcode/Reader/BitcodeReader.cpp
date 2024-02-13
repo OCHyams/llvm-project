@@ -865,6 +865,8 @@ private:
       DenseMap<Function *, uint64_t>::iterator DeferredFunctionInfoIterator);
 
   SyncScope::ID getDecodedSyncScopeID(unsigned Val);
+
+  DPValue *parseDebugRecord(unsigned BitCode, ArrayRef<uint64_t> Record);
 };
 
 /// Class to manage reading and parsing function summary index bitcode
@@ -3975,6 +3977,38 @@ void BitcodeReader::callValueTypeCallback(Value *F, unsigned TypeID) {
   }
 }
 
+DPValue *BitcodeReader::parseDebugRecord(unsigned BitCode,
+                                         ArrayRef<uint64_t> Record) {
+  assert(BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE ||
+         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE ||
+         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN);
+  assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
+  assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
+
+  // Parse the common fields: [location, variable, expression, dbgloc]
+  Metadata *Values = getFnMetadataByID(Record[0]);
+  DIExpression *Expr = cast<DIExpression>(getFnMetadataByID(Record[1]));
+  DILocalVariable *Var = cast<DILocalVariable>(getFnMetadataByID(Record[2]));
+  // The rest of the record describes the DebugLoc.
+  DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[3]));
+
+  DPValue *DPV = nullptr;
+  if (BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE) {
+    DPV = new DPValue(Values, Var, Expr, DIL, DPValue::LocationType::Value);
+  } else if (BitCode == bitc::FUNC_CODE_DEBUG_RECORD_DECLARE) {
+    DPV = new DPValue(Values, Var, Expr, DIL, DPValue::LocationType::Declare);
+  } else {
+    assert(BitCode == bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN &&
+           "unexpected record kind");
+    DIAssignID *ID = cast<DIAssignID>(getFnMetadataByID(Record[4]));
+    Metadata *Addr = getFnMetadataByID(Record[5]);
+    DIExpression *AddrExpr = cast<DIExpression>(getFnMetadataByID(Record[6]));
+    DPV = new DPValue(Values, Var, Expr, ID, Addr, AddrExpr, DIL);
+  }
+
+  return DPV;
+}
+
 Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
   // v1: [type, callingconv, isproto, linkage, paramattr, alignment, section,
   // visibility, gc, unnamed_addr, prologuedata, dllstorageclass, comdat,
@@ -6427,6 +6461,17 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
           Inst->getParent()->createMarker(Inst);
         Inst->getParent()->insertDPValueBefore(DPV, Inst->getIterator());
       }
+      continue; // This isn't an instruction.
+    }
+    case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
+    case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
+    case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
+      // DPValues are placed after the Instructions that they are attached to.
+      Instruction *Inst = getLastInstruction();
+      if (!Inst)
+        return error("Invalid record");
+      DPValue *DPV = parseDebugRecord(BitCode, Record);
+      Inst->getParent()->insertDPValueBefore(DPV, Inst->getIterator());
       continue; // This isn't an instruction.
     }
     case bitc::FUNC_CODE_INST_CALL: {
