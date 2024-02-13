@@ -1137,8 +1137,6 @@ void ValueEnumerator::incorporateFunction(const Function &F) {
         if (Metadata *M = DPV.getRawLocation())
           if (!isa<LocalAsMetadata>(M))
             AddFnLocalMetadata(M);
-      // XXX jmorse -- don't enumerate DPValue normal metadata refs as we'll
-      // emit those directly.
 
       if (!I.getType()->isVoidTy())
         EnumerateValue(&I);
