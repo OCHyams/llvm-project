@@ -4445,11 +4445,9 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
       // The interesting case.
       break;
     }
-    6472
 
-        // Read a record.
-        Expected<unsigned>
-            MaybeBitCode = Stream.readRecord(Entry.ID, Record);
+    // Read a record.
+    Expected<unsigned> MaybeBitCode = Stream.readRecord(Entry.ID, Record);
     if (!MaybeBitCode)
       return MaybeBitCode.takeError();
     switch (unsigned BitCode = MaybeBitCode.get()) {
