@@ -6388,9 +6388,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       // The rest of the record describes the DebugLoc.
       DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[3]));
       DPValue *DPV = new DPValue(Values, Var, Expr, DIL);
-      // Inst->getParent()->IsNewDbgInfoFormat = true; // uh... need to do this for all
-      // blocks... Inst->getParent()->getParent()->IsNewDbgInfoFormat = true; // uh...
-      // need to do this for all blocks...
+      // Inst->getParent()->IsNewDbgInfoFormat = true; // uh... need to do this
+      // for all blocks... Inst->getParent()->getParent()->IsNewDbgInfoFormat =
+      // true; // uh... need to do this for all blocks...
       // Inst->getParent()->getParent()->getParent()->IsNewDbgInfoFormat = true;
       if (!Inst->DbgMarker)
         Inst->getParent()->createMarker(Inst);
@@ -6410,7 +6410,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       unsigned ValTypeID = 0;
       if (getValueTypePair(Record, Slot, NextValueNo, Val, ValTypeID, CurBB))
         return error("Invalid record");
-      DIExpression *Expr = cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
+      DIExpression *Expr =
+          cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
       DILocalVariable *Var =
           cast<DILocalVariable>(getFnMetadataByID(Record[Slot++]));
       DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[Slot++]));
@@ -6421,9 +6422,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       // need to switch to parsing the metadata block, or get a fwd-reference
       // metadata node that'll be tracked, untracked, then tracked.
       DPValue *DPV = new DPValue(ValueAsMetadata::get(Val), Var, Expr, DIL);
-      // Inst->getParent()->IsNewDbgInfoFormat = true; // uh... need to do this for all
-      // blocks... Inst->getParent()->getParent()->IsNewDbgInfoFormat = true; // uh...
-      // need to do this for all blocks...
+      // Inst->getParent()->IsNewDbgInfoFormat = true; // uh... need to do this
+      // for all blocks... Inst->getParent()->getParent()->IsNewDbgInfoFormat =
+      // true; // uh... need to do this for all blocks...
       // Inst->getParent()->getParent()->getParent()->IsNewDbgInfoFormat = true;
       if (!Inst->DbgMarker)
         Inst->getParent()->createMarker(Inst);

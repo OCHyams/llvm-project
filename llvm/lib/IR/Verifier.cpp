@@ -2975,13 +2975,12 @@ void Verifier::visitBasicBlock(BasicBlock &BB) {
     Check(I.getParent() == &BB, "Instruction has bogus parent pointer!");
   }
 
-  // Check(BB.IsNewDbgInfoFormat || !DDDDirectBC, "BB should be inhaled in bc mode " +
-  // BB.getName() + " in " + BB.getParent()->getName());
   Check(BB.IsNewDbgInfoFormat == BB.getParent()->IsNewDbgInfoFormat,
-        "BB inahledness should match parent " + BB.getName() + " in " +
+        "BB debug format should match parent " + BB.getName() + " in " +
             BB.getParent()->getName());
-  Check(BB.getParent()->IsNewDbgInfoFormat == BB.getParent()->getParent()->IsNewDbgInfoFormat,
-        "FN inahledness should match parent" + BB.getName() + " in " +
+  Check(BB.getParent()->IsNewDbgInfoFormat ==
+            BB.getParent()->getParent()->IsNewDbgInfoFormat,
+        "Fn debug format should match parent " + BB.getName() + " in " +
             BB.getParent()->getName());
 
   // Confirm that no issues arise from the debug program.

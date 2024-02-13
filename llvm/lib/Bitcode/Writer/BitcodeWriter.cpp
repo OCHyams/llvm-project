@@ -1321,10 +1321,10 @@ serializeSanitizerMetadata(const GlobalValue::SanitizerMetadata &Meta) {
 /// descriptors for global variables, and function prototype info.
 /// Returns the bit offset to backpatch with the location of the real VST.
 void ModuleBitcodeWriter::writeModuleInfo() {
-// jmorse: is this like, new debug-info?
-SmallVector<unsigned, 1> lolvals;
-lolvals.push_back(M.IsNewDbgInfoFormat);
-Stream.EmitRecord(bitc::MODULE_CODE_LOL_IS_NEW_DEBUG_INFO, lolvals);
+  // jmorse: is this like, new debug-info?
+  SmallVector<unsigned, 1> lolvals;
+  lolvals.push_back(M.IsNewDbgInfoFormat);
+  Stream.EmitRecord(bitc::MODULE_CODE_LOL_IS_NEW_DEBUG_INFO, lolvals);
 
   // Emit various pieces of data attached to a module.
   if (!M.getTargetTriple().empty())
@@ -3547,7 +3547,8 @@ void ModuleBitcodeWriter::writeFunction(
             if (M)
               Vals.push_back(VE.getMetadataID(M));
             else // Little hack to ensure `!{}` locations work.
-              Vals.push_back(VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+              Vals.push_back(
+                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
           }
           Vals.push_back(VE.getMetadataID(DPV.getExpression()));
           Vals.push_back(VE.getMetadataID(DPV.getVariable()));
