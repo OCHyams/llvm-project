@@ -4289,6 +4289,11 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
     return Error::success();
   };
 
+  // This might not be the right place for this?
+  // Based on slack discussion: assume we're in the new format. If we find old
+  // intrinsics then upgrade them (drop them?).
+  TheModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
+
   // Read all the records for this module.
   while (true) {
     Expected<llvm::BitstreamEntry> MaybeEntry = Stream.advance();
@@ -4443,13 +4448,11 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
 
     // Read a record.
     Expected<unsigned> MaybeBitCode = Stream.readRecord(Entry.ID, Record);
+
     if (!MaybeBitCode)
       return MaybeBitCode.takeError();
     switch (unsigned BitCode = MaybeBitCode.get()) {
     default: break;  // Default behavior, ignore unknown content.
-    case bitc::MODULE_CODE_LOL_IS_NEW_DEBUG_INFO:
-      TheModule->IsNewDbgInfoFormat = Record[0] != 0;
-      break;
     case bitc::MODULE_CODE_VERSION: {
       Expected<unsigned> VersionOrErr = parseVersionRecord(Record);
       if (!VersionOrErr)
