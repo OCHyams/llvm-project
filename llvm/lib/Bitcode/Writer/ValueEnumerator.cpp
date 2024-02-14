@@ -144,6 +144,12 @@ static OrderMap orderModule(const Module &M) {
             for (const auto *VAM : AL->getArgs())
               orderConstantValue(VAM->getValue());
           }
+          if (DPV.isDbgAssign()) {
+            if (const auto *VAM =
+                    dyn_cast_or_null<ValueAsMetadata>(DPV.getRawAddress())) {
+              orderConstantValue(VAM->getValue());
+            }
+          }
         }
         for (const Value *V : I.operands()) {
           if (const auto *MAV = dyn_cast<MetadataAsValue>(V)) {
@@ -288,6 +294,12 @@ static UseListOrderStack predictUseListOrder(const Module &M) {
                          dyn_cast_or_null<DIArgList>(DPV.getRawLocation())) {
             for (const auto *VAM : AL->getArgs())
               predictValueUseListOrder(VAM->getValue(), &F, OM, Stack);
+          }
+          if (DPV.isDbgAssign()) {
+            if (const auto *VAM =
+                    dyn_cast_or_null<ValueAsMetadata>(DPV.getRawAddress())) {
+              predictValueUseListOrder(VAM->getValue(), &F, OM, Stack);
+            }
           }
         }
         for (const Value *Op : I.operands()) {
@@ -438,20 +450,27 @@ ValueEnumerator::ValueEnumerator(const Module &M,
           EnumerateMetadata(&F, &*DPV.getDebugLoc());
 
           // Enumerate non-local location metadata.
-          if (!DPV.getRawLocation()) {
-            // Little hack to ensure `!{}` locations work.
-            // FIXME: getRawLocation isn't really a "raw" location, since it
-            // preserves the "empty MD tuple as nullptr" abstraction.
-            EnumerateMetadata(&F, MDTuple::get(I.getContext(), {}));
-          } else if (const auto *AL =
-                         dyn_cast<DIArgList>(DPV.getRawLocation())) {
-            for (const auto *VAM : AL->getArgs()) {
-              if (isa<ConstantAsMetadata>(VAM))
-                EnumerateMetadata(&F, VAM);
+          auto ThingLoc = [&](Metadata *Raw) {
+            if (!Raw) {
+              // Little hack to ensure `!{}` locations work.
+              // FIXME: getRawLocation isn't really a "raw" location, since it
+              // preserves the "empty MD tuple as nullptr" abstraction.
+              EnumerateMetadata(&F, MDTuple::get(I.getContext(), {}));
+            } else if (const auto *AL = dyn_cast<DIArgList>(Raw)) {
+              for (const auto *VAM : AL->getArgs()) {
+                if (isa<ConstantAsMetadata>(VAM))
+                  EnumerateMetadata(&F, VAM);
+              }
+            } else if (!isa<LocalAsMetadata>(Raw)) {
+              EnumerateMetadata(&F, Raw); // jmorse. of interest.
+              // XXX this doesn't enumerate non-locals at all?
             }
-          } else if (!isa<LocalAsMetadata>(DPV.getRawLocation())) {
-            EnumerateMetadata(&F, DPV.getRawLocation()); // jmorse. of interest.
-            // XXX this doesn't enumerate non-locals at all?
+          };
+          ThingLoc(DPV.getRawLocation());
+          if (DPV.isDbgAssign()) {
+            EnumerateMetadata(&F, DPV.getAssignID());
+            EnumerateMetadata(&F, DPV.getAddressExpression());
+            ThingLoc(DPV.getRawAddress());
           }
         }
         for (const Use &Op : I.operands()) {
@@ -1133,11 +1152,13 @@ void ValueEnumerator::incorporateFunction(const Function &F) {
           AddFnLocalMetadata(MD->getMetadata());
       }
       /// DDD: Add non-instruction function-local metadata uses.
-      for (DPValue &DPV : I.getDbgValueRange())
+      for (DPValue &DPV : I.getDbgValueRange()) {
         if (Metadata *M = DPV.getRawLocation())
-          if (!isa<LocalAsMetadata>(M))
-            AddFnLocalMetadata(M);
-
+          // if (!isa<LocalAsMetadata>(M))
+          AddFnLocalMetadata(M);
+        if (Metadata *M = DPV.getRawAddress())
+          AddFnLocalMetadata(M);
+      }
       if (!I.getType()->isVoidTy())
         EnumerateValue(&I);
     }

@@ -3980,7 +3980,7 @@ void BitcodeReader::callValueTypeCallback(Value *F, unsigned TypeID) {
 DPValue *BitcodeReader::parseDebugRecord(unsigned BitCode,
                                          ArrayRef<uint64_t> Record) {
   assert(BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE ||
-         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE ||
+         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_DECLARE ||
          BitCode == bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN);
   assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
   assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
