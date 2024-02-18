@@ -131,7 +131,10 @@ enum {
   FUNCTION_INST_UNREACHABLE_ABBREV,
   FUNCTION_INST_GEP_ABBREV,
 
-  DPVALUE2_ABBREV,
+
+  //DPVALUE2_ABBREV,
+  FUNCTION_DEBUG_RECORD_VALUE_ABBREV,
+  //FUNCTION_DEBUG_RECORD_LONG_ABBREV,
 };
 
 /// Abstract class to manage the bitcode writing, subclassed for each bitcode
@@ -3578,7 +3581,7 @@ void ModuleBitcodeWriter::writeFunction(
           Vals.push_back(VE.getMetadataID(DPV.getVariable()));
           Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
           if (DPV.isDbgValue()) {
-            Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals);
+            Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
           } else if (DPV.isDbgDeclare()) {
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_DECLARE, Vals);
           } else {
@@ -3852,6 +3855,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
       llvm_unreachable("Unexpected abbrev ordering! 1");
   }
 #endif
+#if 0
   {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_VAR_LOC_WVALUES));
@@ -3860,6 +3864,19 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 16));
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         DPVALUE2_ABBREV)
+      llvm_unreachable("Unexpected abbrev ordering! 1");
+  }
+  #endif
+  {
+    auto Abbv = std::make_shared<BitCodeAbbrev>();
+    Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE));
+    // fmt: loc, expr, var, dbgloc
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
+        FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering! 1");
   }
 
