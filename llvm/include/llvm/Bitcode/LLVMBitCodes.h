@@ -629,7 +629,7 @@ enum FunctionCodes {
       61, // DPVALUE: [values, expression, variable, dilocation]
   // XXX jmorse, this can become the same as above if we add another selector
   // bit.
-  FUNC_CODE_DEBUG_VAR_LOC_WVALUES =
+  FUNC_CODE_DEBUG_RECORD_WVALUES =
       62, // DPVALUE: [value-ref, ty, expression, variable, dilocation]
 
   // Let's get dbg.assigns in and working...

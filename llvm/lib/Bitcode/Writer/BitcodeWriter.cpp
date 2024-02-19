@@ -3573,18 +3573,52 @@ void ModuleBitcodeWriter::writeFunction(
         //}
         //EjectArrayOfAbbrevs();
         for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
-          if (Metadata *M = DPV.getRawLocation())
-            Vals.push_back(VE.getMetadataID(M));
-          else // Little hack to ensure `!{}` locations work.
-            Vals.push_back(VE.getMetadataID(MDTuple::get(I.getContext(), {})));
-          Vals.push_back(VE.getMetadataID(DPV.getExpression()));
-          Vals.push_back(VE.getMetadataID(DPV.getVariable()));
-          Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+
           if (DPV.isDbgValue()) {
-            Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
+            bool Split = false;
+            if (Metadata *M = DPV.getRawLocation();
+                M && isa<ValueAsMetadata>(M)) {
+              Split = true;
+              ValueAsMetadata *VAM = dyn_cast<ValueAsMetadata>(M);
+              // type not always pushed back
+              if (pushValueAndType(VAM->getValue(), InstID, Vals)) {
+                Split = false;
+                Vals.clear();
+              }
+            }
+            if (!Split) {
+              if (Metadata *M = DPV.getRawLocation())
+                Vals.push_back(VE.getMetadataID(M));
+              else // Little hack to ensure `!{}` locations work.
+                Vals.push_back(
+                    VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+            }
+            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+            if (Split)
+              Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_WVALUES, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
+            else
+              Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals);
           } else if (DPV.isDbgDeclare()) {
+            if (Metadata *M = DPV.getRawLocation())
+              Vals.push_back(VE.getMetadataID(M));
+            else // Little hack to ensure `!{}` locations work.
+              Vals.push_back(
+                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_DECLARE, Vals);
           } else {
+            if (Metadata *M = DPV.getRawLocation())
+              Vals.push_back(VE.getMetadataID(M));
+            else // Little hack to ensure `!{}` locations work.
+              Vals.push_back(
+                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
             assert(DPV.isDbgAssign());
             Vals.push_back(VE.getMetadataID(DPV.getAssignID()));
             if (Metadata *M = DPV.getRawAddress())
@@ -3839,19 +3873,19 @@ void ModuleBitcodeWriter::writeBlockInfo() {
       llvm_unreachable("Unexpected abbrev ordering!");
   }
 // jmorse
-#if 0
+#if 1
   {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
-    Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_VAR_LOC_WVALUES));
+    Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_WVALUES));
     // fmt: value, optional-type, expr, var, dilocation.
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
+    //Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // don't do it when types need fwd
     // There's usually tons of metadata.
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 16));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 16));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 16));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
-        DPVALUE_ABBREV)
+        FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering! 1");
   }
 #endif
@@ -3867,6 +3901,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
       llvm_unreachable("Unexpected abbrev ordering! 1");
   }
   #endif
+#if 0
   {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE));
@@ -3879,7 +3914,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
         FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering! 1");
   }
-
+#endif
   Stream.ExitBlock();
 }
 

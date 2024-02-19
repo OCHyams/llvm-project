@@ -6428,7 +6428,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       Inst->getParent()->insertDPValueBefore(DPV, Inst->getIterator());
       continue; // This isn't an instruction.
     }
-    case bitc::FUNC_CODE_DEBUG_VAR_LOC_WVALUES: {
+    case bitc::FUNC_CODE_DEBUG_RECORD_WVALUES: {
       assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
       assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
       // DPValues are placed after the Instructions that they are attached to.
