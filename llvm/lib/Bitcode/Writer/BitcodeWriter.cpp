@@ -3530,8 +3530,8 @@ void ModuleBitcodeWriter::writeFunction(
       // start "before" the instruction.
       if (I.DbgMarker && DDDDirectBC) {
         for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
+
           if (DPV.isDbgValue()) {
-            Vals.push_back(0); // split
             bool Split = false;
             if (Metadata *M = DPV.getRawLocation();
                 M && isa<ValueAsMetadata>(M)) {
@@ -3541,7 +3541,6 @@ void ModuleBitcodeWriter::writeFunction(
               if (pushValueAndType(VAM->getValue(), InstID, Vals)) {
                 Split = false;
                 Vals.clear();
-                Vals.push_back(0);
               }
             }
             if (!Split) {
@@ -3554,12 +3553,10 @@ void ModuleBitcodeWriter::writeFunction(
             Vals.push_back(VE.getMetadataID(DPV.getExpression()));
             Vals.push_back(VE.getMetadataID(DPV.getVariable()));
             Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
-            //if (Split)
-            //  Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
-            //else
-             // Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals);
-             Vals[0] = Split;
-             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
+            if (Split)
+              Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
+            else
+              Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals);
           } else if (DPV.isDbgDeclare()) {
             if (Metadata *M = DPV.getRawLocation())
               Vals.push_back(VE.getMetadataID(M));
@@ -3836,11 +3833,12 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE));
     // fmt: value, optional-type, expr, var, dilocation.
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // use-value-directly
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // value or md
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // expr
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // var
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));  // dbg
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
+    //Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // don't do it when types need fwd
+    // There's usually tons of metadata.
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering! 1");
