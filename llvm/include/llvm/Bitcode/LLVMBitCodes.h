@@ -625,22 +625,15 @@ enum FunctionCodes {
                                   //             ordering, synchscope]
   FUNC_CODE_BLOCKADDR_USERS = 60, // BLOCKADDR_USERS: [value...]
 
-  FUNC_CODE_DEBUG_VAR_LOC =
-      61, // DPVALUE: [values, expression, variable, dilocation]
-  // XXX jmorse, this can become the same as above if we add another selector
-  // bit.
-  FUNC_CODE_DEBUG_RECORD_WVALUES =
-      62, // DPVALUE: [value-ref, ty, expression, variable, dilocation]
-
-  // Let's get dbg.assigns in and working...
-  // I wonder if we'd get any value out of abbrev like: []
   FUNC_CODE_DEBUG_RECORD_VALUE =
-      63, // [location, expression, variable, dilocation]
+      61, // [location, expression, variable, dilocation]
   FUNC_CODE_DEBUG_RECORD_DECLARE =
-      64, // [location, expression, variable, dilocation]
+      62, // [location, expression, variable, dilocation]
   FUNC_CODE_DEBUG_RECORD_ASSIGN =
-      65, // [location, expression, variable, dialoction, assignid, location,
+      63, // [location, expression, variable, dialoction, assignid, location,
           // expression]
+  FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE =
+      64, // DPVALUE: [value-ref, expression, variable, dilocation]
 };
 
 enum UseListCodes {

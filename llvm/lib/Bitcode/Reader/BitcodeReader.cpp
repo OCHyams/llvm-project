@@ -6409,26 +6409,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_DEBUG_VAR_LOC: {
-      assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
-      assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
-      // DPValues are placed after the Instructions that they are attached to.
-      Instruction *Inst = getLastInstruction();
-      if (!Inst)
-        return error("Invalid record");
-
-      Metadata *Values = getFnMetadataByID(Record[0]);
-      DIExpression *Expr = cast<DIExpression>(getFnMetadataByID(Record[1]));
-      DILocalVariable *Var =
-          cast<DILocalVariable>(getFnMetadataByID(Record[2]));
-      // The rest of the record describes the DebugLoc.
-      DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[3]));
-      DPValue *DPV = new DPValue(Values, Var, Expr, DIL);
-
-      Inst->getParent()->insertDPValueBefore(DPV, Inst->getIterator());
-      continue; // This isn't an instruction.
-    }
-    case bitc::FUNC_CODE_DEBUG_RECORD_WVALUES: {
+    case bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE: {
       assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
       assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
       // DPValues are placed after the Instructions that they are attached to.
