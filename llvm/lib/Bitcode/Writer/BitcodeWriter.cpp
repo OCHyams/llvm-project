@@ -3573,80 +3573,62 @@ void ModuleBitcodeWriter::writeFunction(
         //}
         //EjectArrayOfAbbrevs();
         for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
-            SmallVector<unsigned, 1> Tmp;
-            Vals.push_back((int)DPV.getType());
-            Vals.push_back(0); // 1 skip-md-ref
-            Vals.push_back(0); // 2 value
-            Vals.push_back(0); // 3 expr
-            Vals.push_back(0); // 4 var
-            Vals.push_back(0); // 5 dbg
-            //Vals.push_back(0); // 6 [ID
-            //Vals.push_back(0); // 7  addr
-            //Vals.push_back(0); // 8 addr expr]
-            
+
+          if (DPV.isDbgValue()) {
             bool Split = false;
             if (Metadata *M = DPV.getRawLocation();
                 M && isa<ValueAsMetadata>(M)) {
               Split = true;
               ValueAsMetadata *VAM = dyn_cast<ValueAsMetadata>(M);
               // type not always pushed back
-              if (pushValueAndType(VAM->getValue(), InstID, Tmp)) {
+              if (pushValueAndType(VAM->getValue(), InstID, Vals)) {
                 Split = false;
-              } else {
-                Vals[2] = Tmp[0];
+                Vals.clear();
               }
-              Tmp.clear();
             }
             if (!Split) {
               if (Metadata *M = DPV.getRawLocation())
-                Vals[2] = VE.getMetadataID(M);
+                Vals.push_back(VE.getMetadataID(M));
               else // Little hack to ensure `!{}` locations work.
-                Vals[2] =
-                    VE.getMetadataID(MDTuple::get(I.getContext(), {}));
-            }
-            Vals[1] = Split;
-            Vals[3] = VE.getMetadataID(DPV.getExpression());
-            Vals[4] = VE.getMetadataID(DPV.getVariable());
-            Vals[5] = VE.getMetadataID(&*DPV.getDebugLoc());
-
-          if (DPV.isDbgAssign()) {
-            Vals.push_back(0); // 6 [ID
-            Vals.push_back(0); // 7  addr
-            Vals.push_back(0); // 8 addr expr]
-            
-            Vals[6] = VE.getMetadataID(DPV.getAssignID());
-            Split = false;
-            if (Metadata *M = DPV.getRawLocation();
-                Vals[1] && M && isa<ValueAsMetadata>(M)) {
-              Split = true;
-              ValueAsMetadata *VAM = dyn_cast<ValueAsMetadata>(M);
-              // type not always pushed back
-              if (pushValueAndType(VAM->getValue(), InstID, Tmp)) {
-                Split = false;
-              } else {
-                Vals[7] = Tmp[0];
-              }
-              Tmp.clear();
-            }
-            if (!Split) {
-              if (Metadata *M = DPV.getRawLocation())
-                Vals[7] = (VE.getMetadataID(M));
-              else // Little hack to ensure `!{}` locations work.
-                Vals[7] = (
+                Vals.push_back(
                     VE.getMetadataID(MDTuple::get(I.getContext(), {})));
             }
-            Vals[8] = (VE.getMetadataID(DPV.getAddressExpression()));
-            //Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN, Vals);
+            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+            if (Split)
+              Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_WVALUES, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
+            else
+              Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals);
+          } else if (DPV.isDbgDeclare()) {
+            if (Metadata *M = DPV.getRawLocation())
+              Vals.push_back(VE.getMetadataID(M));
+            else // Little hack to ensure `!{}` locations work.
+              Vals.push_back(
+                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+            Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_DECLARE, Vals);
+          } else {
+            if (Metadata *M = DPV.getRawLocation())
+              Vals.push_back(VE.getMetadataID(M));
+            else // Little hack to ensure `!{}` locations work.
+              Vals.push_back(
+                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+            assert(DPV.isDbgAssign());
+            Vals.push_back(VE.getMetadataID(DPV.getAssignID()));
+            if (Metadata *M = DPV.getRawAddress())
+              Vals.push_back(VE.getMetadataID(M));
+            else // Little hack to ensure `!{}` locations work.
+              Vals.push_back(
+                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
+            Vals.push_back(VE.getMetadataID(DPV.getAddressExpression()));
+            Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN, Vals);
           }
-          if (Vals[1] && !Split) {
-              if (Metadata *M = DPV.getRawLocation())
-                Vals[2] = VE.getMetadataID(M);
-              else // Little hack to ensure `!{}` locations work.
-                Vals[2] = VE.getMetadataID(MDTuple::get(I.getContext(), {}));
-            Vals[1] = false;
-          }
-          
-          Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_WVALUES, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
           Vals.clear();
         }
       }
@@ -3896,10 +3878,11 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_WVALUES));
     // fmt: value, optional-type, expr, var, dilocation.
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR,   4)); // kind
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // all value refs skip MD wrapper
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
+    //Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // don't do it when types need fwd
     // There's usually tons of metadata.
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Array)); // fields (3 + dbg [ assign fields])
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
