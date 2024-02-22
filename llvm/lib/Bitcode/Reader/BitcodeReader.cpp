@@ -865,11 +865,6 @@ private:
       DenseMap<Function *, uint64_t>::iterator DeferredFunctionInfoIterator);
 
   SyncScope::ID getDecodedSyncScopeID(unsigned Val);
-
-  Error parseDebugRecord(unsigned BitCode,
-                         const SmallVectorImpl<uint64_t> &Record,
-                         unsigned NextValueNo, BasicBlock *BB,
-                         DPValue *&DPValue);
 };
 
 /// Class to manage reading and parsing function summary index bitcode
@@ -3980,71 +3975,6 @@ void BitcodeReader::callValueTypeCallback(Value *F, unsigned TypeID) {
   }
 }
 
-Error BitcodeReader::parseDebugRecord(unsigned BitCode,
-                                      const SmallVectorImpl<uint64_t> &Record,
-                                      unsigned NextValueNo, BasicBlock *BB,
-                                      DPValue *&DPV) {
-  assert(BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE ||
-         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE ||
-         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_DECLARE ||
-         BitCode == bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN);
-  assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
-  assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
-
-  // First 3 fields are common to all kinds:
-  //   DILocation, DILocalVariable, DIExpression
-  // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE)
-  //   ..., LocationMetadata
-  // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE - abbrev'd)
-  //   ..., Value
-  // dbg_declare (FUNC_CODE_DEBUG_RECORD_DECLARE)
-  //   ..., LocationMetadata
-  // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
-  //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
-
-  unsigned Slot = 0;
-  // Common fields (0-2).
-  DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[Slot++]));
-  DILocalVariable *Var =
-      cast<DILocalVariable>(getFnMetadataByID(Record[Slot++]));
-  DIExpression *Expr = cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
-
-  // Union field (3: LocationMetadata | Value).
-  Metadata *RawLocation = nullptr;
-  if (BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE) {
-    Value *V = nullptr;
-    unsigned TyID = 0;
-    if (getValueTypePair(Record, Slot, NextValueNo, V, TyID, BB))
-      return error("Invalid record");
-    RawLocation = ValueAsMetadata::get(V);
-  } else {
-    RawLocation = getFnMetadataByID(Record[Slot++]);
-  }
-
-  DPV = nullptr;
-  switch (BitCode) {
-  case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
-  case bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE:
-    DPV =
-        new DPValue(RawLocation, Var, Expr, DIL, DPValue::LocationType::Value);
-    return Error::success();
-  case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
-    DPV = new DPValue(RawLocation, Var, Expr, DIL,
-                      DPValue::LocationType::Declare);
-    return Error::success();
-  case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
-    DIAssignID *ID = cast<DIAssignID>(getFnMetadataByID(Record[Slot++]));
-    DIExpression *AddrExpr =
-        cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
-    Metadata *Addr = getFnMetadataByID(Record[Slot++]);
-    DPV = new DPValue(RawLocation, Var, Expr, ID, Addr, AddrExpr, DIL);
-    return Error::success();
-  }
-  }
-  llvm_unreachable("Unknown debug record bitcode");
-  return error("Invalid record");
-}
-
 Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
   // v1: [type, callingconv, isproto, linkage, paramattr, alignment, section,
   // visibility, gc, unnamed_addr, prologuedata, dllstorageclass, comdat,
@@ -6449,14 +6379,65 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
     case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
     case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
     case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
+      assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
+      assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
       // DPValues are placed after the Instructions that they are attached to.
       Instruction *Inst = getLastInstruction();
       if (!Inst)
         return error("Invalid record");
+
+      // First 3 fields are common to all kinds:
+      //   DILocation, DILocalVariable, DIExpression
+      // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE)
+      //   ..., LocationMetadata
+      // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE - abbrev'd)
+      //   ..., Value
+      // dbg_declare (FUNC_CODE_DEBUG_RECORD_DECLARE)
+      //   ..., LocationMetadata
+      // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
+      //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
+      unsigned Slot = 0;
+      // Common fields (0-2).
+      DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[Slot++]));
+      DILocalVariable *Var =
+          cast<DILocalVariable>(getFnMetadataByID(Record[Slot++]));
+      DIExpression *Expr =
+          cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
+
+      // Union field (3: LocationMetadata | Value).
+      Metadata *RawLocation = nullptr;
+      if (BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE) {
+        Value *V = nullptr;
+        unsigned TyID = 0;
+        if (getValueTypePair(Record, Slot, NextValueNo, V, TyID, CurBB))
+          return error("Invalid record");
+        RawLocation = ValueAsMetadata::get(V);
+      } else {
+        RawLocation = getFnMetadataByID(Record[Slot++]);
+      }
+
       DPValue *DPV = nullptr;
-      if (Error Err =
-              parseDebugRecord(BitCode, Record, NextValueNo, CurBB, DPV))
-        return Err;
+      switch (BitCode) {
+      case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
+      case bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE:
+        DPV = new DPValue(RawLocation, Var, Expr, DIL,
+                          DPValue::LocationType::Value);
+        break;
+      case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
+        DPV = new DPValue(RawLocation, Var, Expr, DIL,
+                          DPValue::LocationType::Declare);
+        break;
+      case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
+        DIAssignID *ID = cast<DIAssignID>(getFnMetadataByID(Record[Slot++]));
+        DIExpression *AddrExpr =
+            cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
+        Metadata *Addr = getFnMetadataByID(Record[Slot++]);
+        DPV = new DPValue(RawLocation, Var, Expr, ID, Addr, AddrExpr, DIL);
+        break;
+      }
+      default:
+        llvm_unreachable("Unknown DPValue bitcode");
+      }
       Inst->getParent()->insertDPValueBefore(DPV, Inst->getIterator());
       continue; // This isn't an instruction.
     }
