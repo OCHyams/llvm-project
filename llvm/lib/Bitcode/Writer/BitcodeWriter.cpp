@@ -3546,6 +3546,16 @@ void ModuleBitcodeWriter::writeFunction(
           return false;
         };
 
+        // First 3 fields are common to all kinds:
+        //   DILocation, DILocalVariable, DIExpression
+        // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE)
+        //   ..., LocationMetadata
+        // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE - abbrev'd)
+        //   ..., Value
+        // dbg_declare (FUNC_CODE_DEBUG_RECORD_DECLARE)
+        //   ..., LocationMetadata
+        // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
+        //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
         for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
           Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
           Vals.push_back(VE.getMetadataID(DPV.getVariable()));
@@ -3560,8 +3570,8 @@ void ModuleBitcodeWriter::writeFunction(
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_DECLARE, Vals);
           } else {
             assert(DPV.isDbgAssign() && "Unexpected DbgRecord kind");
-            Vals.push_back(VE.getMetadataID(DPV.getRawLocation()));
             Vals.push_back(VE.getMetadataID(DPV.getAssignID()));
+            Vals.push_back(VE.getMetadataID(DPV.getRawLocation()));
             Vals.push_back(VE.getMetadataID(DPV.getAddressExpression()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN, Vals);
           }
@@ -3811,11 +3821,18 @@ void ModuleBitcodeWriter::writeBlockInfo() {
   {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE));
+    // dbgloc
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // line
+    Abbv->Add(
+        BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 8)); // col, ususally under 256
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));   // scope
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));   // ia
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // implicit
     // fmt: value, optional-type, expr, var, dilocation.
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
+    // Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); //dl
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // var
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // expr
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // val
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering! 1");
