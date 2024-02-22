@@ -3821,15 +3821,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
   {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE));
-    // dbgloc
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // line
-    Abbv->Add(
-        BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 8)); // col, ususally under 256
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));   // scope
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));   // ia
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // implicit
-    // fmt: value, optional-type, expr, var, dilocation.
-    // Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); //dl
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // dbgloc
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // var
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7)); // expr
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // val
