@@ -130,11 +130,7 @@ enum {
   FUNCTION_INST_RET_VAL_ABBREV,
   FUNCTION_INST_UNREACHABLE_ABBREV,
   FUNCTION_INST_GEP_ABBREV,
-
-
-  //DPVALUE2_ABBREV,
   FUNCTION_DEBUG_RECORD_VALUE_ABBREV,
-  //FUNCTION_DEBUG_RECORD_LONG_ABBREV,
 };
 
 /// Abstract class to manage the bitcode writing, subclassed for each bitcode
@@ -3529,60 +3525,43 @@ void ModuleBitcodeWriter::writeFunction(
       // when reading the bitcode, even though conceptually the debug locations
       // start "before" the instruction.
       if (I.DbgMarker && DDDDirectBC) {
-        for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
+        /// Try to push the value only (unwrapped), otherwise push the
+        /// metadata wrapped value. Returns true if the value was pushed
+        /// without the ValueAsMetadata wrapper.
+        auto PushValueOrMetadata = [&Vals, InstID, this](Metadata *RawLocation) {
+          assert(RawLocation && "RawLocation unexpectedly null in DPValue");
+          if (ValueAsMetadata *VAM = dyn_cast<ValueAsMetadata>(RawLocation)) {
+            SmallVector<unsigned, 2> ValAndType;
+            // If the value is a fwd-ref the type is also pushed. We don't
+            // want the type, so fwd-refs are kept wrapped (pushValueAndType
+            // returns false if the value is pushed without type).
+            if (!pushValueAndType(VAM->getValue(), InstID, ValAndType)) {
+              Vals.push_back(ValAndType[0]);
+              return true;
+            }
+          }
+          // The metadata is a DIArgList, or ValueAsMetadata wrapping a
+          // fwd-ref. Push the metadata ID.
+          Vals.push_back(VE.getMetadataID(RawLocation));
+          return false;
+        };
 
+        for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
+          Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+          Vals.push_back(VE.getMetadataID(DPV.getVariable()));
+          Vals.push_back(VE.getMetadataID(DPV.getExpression()));
           if (DPV.isDbgValue()) {
-            bool Split = false;
-            if (Metadata *M = DPV.getRawLocation();
-                M && isa<ValueAsMetadata>(M)) {
-              Split = true;
-              ValueAsMetadata *VAM = dyn_cast<ValueAsMetadata>(M);
-              // type not always pushed back
-              if (pushValueAndType(VAM->getValue(), InstID, Vals)) {
-                Split = false;
-                Vals.clear();
-              }
-            }
-            if (!Split) {
-              if (Metadata *M = DPV.getRawLocation())
-                Vals.push_back(VE.getMetadataID(M));
-              else // Little hack to ensure `!{}` locations work.
-                Vals.push_back(
-                    VE.getMetadataID(MDTuple::get(I.getContext(), {})));
-            }
-            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
-            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
-            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
-            if (Split)
+            if (PushValueOrMetadata(DPV.getRawLocation()))
               Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE, Vals, FUNCTION_DEBUG_RECORD_VALUE_ABBREV);
             else
               Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_VALUE, Vals);
           } else if (DPV.isDbgDeclare()) {
-            if (Metadata *M = DPV.getRawLocation())
-              Vals.push_back(VE.getMetadataID(M));
-            else // Little hack to ensure `!{}` locations work.
-              Vals.push_back(
-                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
-            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
-            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
-            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
+            Vals.push_back(VE.getMetadataID(DPV.getRawLocation()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_DECLARE, Vals);
           } else {
-            if (Metadata *M = DPV.getRawLocation())
-              Vals.push_back(VE.getMetadataID(M));
-            else // Little hack to ensure `!{}` locations work.
-              Vals.push_back(
-                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
-            Vals.push_back(VE.getMetadataID(DPV.getExpression()));
-            Vals.push_back(VE.getMetadataID(DPV.getVariable()));
-            Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
-            assert(DPV.isDbgAssign());
+            assert(DPV.isDbgAssign() && "Unexpected DbgRecord kind");
+            Vals.push_back(VE.getMetadataID(DPV.getRawLocation()));
             Vals.push_back(VE.getMetadataID(DPV.getAssignID()));
-            if (Metadata *M = DPV.getRawAddress())
-              Vals.push_back(VE.getMetadataID(M));
-            else // Little hack to ensure `!{}` locations work.
-              Vals.push_back(
-                  VE.getMetadataID(MDTuple::get(I.getContext(), {})));
             Vals.push_back(VE.getMetadataID(DPV.getAddressExpression()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN, Vals);
           }
@@ -3833,12 +3812,10 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE));
     // fmt: value, optional-type, expr, var, dilocation.
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));
-    //Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // don't do it when types need fwd
-    // There's usually tons of metadata.
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 7));
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering! 1");
