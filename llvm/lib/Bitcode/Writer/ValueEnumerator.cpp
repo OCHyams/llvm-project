@@ -135,7 +135,8 @@ static OrderMap orderModule(const Module &M) {
     // so visit any constants used by it beforehand.
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
-        for (DPValue &DPV : I.getDbgValueRange()) {
+        // FIXME: Remove filter.
+        for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
           if (const auto *VAM =
                   dyn_cast_or_null<ValueAsMetadata>(DPV.getRawLocation())) {
             orderConstantValue(VAM->getValue());
@@ -286,7 +287,8 @@ static UseListOrderStack predictUseListOrder(const Module &M) {
       predictValueUseListOrder(&A, &F, OM, Stack);
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
-        for (DPValue &DPV : I.getDbgValueRange()) {
+        // FIXME: Remove filter.
+        for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
           if (const auto *VAM =
                   dyn_cast_or_null<ValueAsMetadata>(DPV.getRawLocation())) {
             predictValueUseListOrder(VAM->getValue(), &F, OM, Stack);
@@ -443,7 +445,8 @@ ValueEnumerator::ValueEnumerator(const Module &M,
 
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
-        for (DPValue &DPV : I.getDbgValueRange()) {
+        // FIXME: Remove filter.
+        for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
           // Enumerate non-local location metadata.
           auto EnumerateRawLocation = [&](Metadata *Raw) {
             assert(Raw && "DPValue location unexpectedly null");
@@ -1148,7 +1151,8 @@ void ValueEnumerator::incorporateFunction(const Function &F) {
           AddFnLocalMetadata(MD->getMetadata());
       }
       /// RemoteDIs: Add non-instruction function-local metadata uses.
-      for (DPValue &DPV : I.getDbgValueRange()) {
+      // FIXME: Remove filter.
+      for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
         assert(DPV.getRawLocation() && "DPValue location unexpectedly null");
         AddFnLocalMetadata(DPV.getRawLocation());
         if (DPV.isDbgAssign()) {

@@ -3556,7 +3556,8 @@ void ModuleBitcodeWriter::writeFunction(
         //   ..., LocationMetadata
         // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
         //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
-        for (DPValue &DPV : I.DbgMarker->getDbgValueRange()) {
+        // FIXME: Remove filter.
+        for (DPValue &DPV : DPValue::filter(I.DbgMarker->getDbgValueRange())) {
           Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
           Vals.push_back(VE.getMetadataID(DPV.getVariable()));
           Vals.push_back(VE.getMetadataID(DPV.getExpression()));
