@@ -3524,7 +3524,7 @@ void ModuleBitcodeWriter::writeFunction(
       // they come after the instruction so that it's easy to attach them again
       // when reading the bitcode, even though conceptually the debug locations
       // start "before" the instruction.
-      if (I.DbgMarker && DDDDirectBC) {
+      if (I.hasDbgValues() && DDDDirectBC) {
         /// Try to push the value only (unwrapped), otherwise push the
         /// metadata wrapped value. Returns true if the value was pushed
         /// without the ValueAsMetadata wrapper.

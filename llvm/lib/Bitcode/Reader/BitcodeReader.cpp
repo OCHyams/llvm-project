@@ -91,7 +91,6 @@
 using namespace llvm;
 
 extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
-extern bool DDDDirectBC;
 
 static cl::opt<bool> PrintSummaryGUIDs(
     "print-summary-global-ids", cl::init(false), cl::Hidden,
@@ -6380,7 +6379,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
     case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
     case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
       assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
-      assert(DDDDirectBC && "not in ddd bc mode but have dpvalue record");
       // DPValues are placed after the Instructions that they are attached to.
       Instruction *Inst = getLastInstruction();
       if (!Inst)

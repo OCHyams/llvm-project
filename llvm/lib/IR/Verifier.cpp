@@ -131,7 +131,6 @@ static cl::opt<bool> VerifyNoAliasScopeDomination(
     "verify-noalias-scope-decl-dom", cl::Hidden, cl::init(false),
     cl::desc("Ensure that llvm.experimental.noalias.scope.decl for identical "
              "scopes are not dominating"));
-extern bool DDDDirectBC;
 namespace llvm {
 
 struct VerifierSupport {
