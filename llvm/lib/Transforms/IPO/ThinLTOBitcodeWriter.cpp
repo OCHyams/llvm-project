@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ModuleSummaryAnalysis.h"
@@ -575,7 +574,7 @@ bool writeThinLTOBitcode(raw_ostream &OS, raw_ostream *ThinLinkOS,
 }
 
 } // anonymous namespace
-
+extern bool DDDDirectBC;
 PreservedAnalyses
 llvm::ThinLTOBitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   FunctionAnalysisManager &FAM =
@@ -584,7 +583,7 @@ llvm::ThinLTOBitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   // RemoveDIs: there's no bitcode representation of the DPValue debug-info,
   // convert to dbg.values before writing out.
   bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
-  if (IsNewDbgInfoFormat)
+  if (!DDDDirectBC && IsNewDbgInfoFormat)
     M.convertFromNewDbgValues();
 
   bool Changed = writeThinLTOBitcode(
@@ -594,7 +593,7 @@ llvm::ThinLTOBitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
       },
       M, &AM.getResult<ModuleSummaryIndexAnalysis>(M));
 
-  if (IsNewDbgInfoFormat)
+  if (!DDDDirectBC && IsNewDbgInfoFormat)
     M.convertToNewDbgValues();
 
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
