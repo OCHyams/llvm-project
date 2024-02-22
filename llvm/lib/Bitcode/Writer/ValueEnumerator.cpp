@@ -444,33 +444,26 @@ ValueEnumerator::ValueEnumerator(const Module &M,
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
         for (DPValue &DPV : I.getDbgValueRange()) {
-          // Enumerate non-location metadata.
-          EnumerateMetadata(&F, DPV.getExpression());
-          EnumerateMetadata(&F, DPV.getVariable());
-          EnumerateMetadata(&F, &*DPV.getDebugLoc());
-
           // Enumerate non-local location metadata.
-          auto ThingLoc = [&](Metadata *Raw) {
-            if (!Raw) {
-              // Little hack to ensure `!{}` locations work.
-              // FIXME: getRawLocation isn't really a "raw" location, since it
-              // preserves the "empty MD tuple as nullptr" abstraction.
-              EnumerateMetadata(&F, MDTuple::get(I.getContext(), {}));
-            } else if (const auto *AL = dyn_cast<DIArgList>(Raw)) {
+          auto EnumerateRawLocation = [&](Metadata *Raw) {
+            assert(Raw && "DPValue location unexpectedly null");
+            if (const auto *AL = dyn_cast<DIArgList>(Raw)) {
               for (const auto *VAM : AL->getArgs()) {
                 if (isa<ConstantAsMetadata>(VAM))
                   EnumerateMetadata(&F, VAM);
               }
             } else if (!isa<LocalAsMetadata>(Raw)) {
-              EnumerateMetadata(&F, Raw); // jmorse. of interest.
-              // XXX this doesn't enumerate non-locals at all?
+              EnumerateMetadata(&F, Raw);
             }
           };
-          ThingLoc(DPV.getRawLocation());
+          EnumerateRawLocation(DPV.getRawLocation());
+          EnumerateMetadata(&F, DPV.getExpression());
+          EnumerateMetadata(&F, DPV.getVariable());
+          EnumerateMetadata(&F, &*DPV.getDebugLoc());
           if (DPV.isDbgAssign()) {
+            EnumerateRawLocation(DPV.getRawAddress());
             EnumerateMetadata(&F, DPV.getAssignID());
             EnumerateMetadata(&F, DPV.getAddressExpression());
-            ThingLoc(DPV.getRawAddress());
           }
         }
         for (const Use &Op : I.operands()) {
@@ -479,6 +472,7 @@ ValueEnumerator::ValueEnumerator(const Module &M,
             EnumerateOperandType(Op);
             continue;
           }
+
           // Local metadata is enumerated during function-incorporation, but
           // any ConstantAsMetadata arguments in a DIArgList should be examined
           // now.
@@ -490,6 +484,7 @@ ValueEnumerator::ValueEnumerator(const Module &M,
                 EnumerateMetadata(&F, VAM);
             continue;
           }
+
           EnumerateMetadata(&F, MD->getMetadata());
         }
         if (auto *SVI = dyn_cast<ShuffleVectorInst>(&I))
@@ -849,6 +844,7 @@ static unsigned getMetadataTypeOrder(const Metadata *MD) {
 void ValueEnumerator::organizeMetadata() {
   assert(MetadataMap.size() == MDs.size() &&
          "Metadata map and vector out of sync");
+
   if (MDs.empty())
     return;
 
@@ -1151,13 +1147,14 @@ void ValueEnumerator::incorporateFunction(const Function &F) {
         if (auto *MD = dyn_cast<MetadataAsValue>(&OI))
           AddFnLocalMetadata(MD->getMetadata());
       }
-      /// DDD: Add non-instruction function-local metadata uses.
+      /// RemoteDIs: Add non-instruction function-local metadata uses.
       for (DPValue &DPV : I.getDbgValueRange()) {
-        if (Metadata *M = DPV.getRawLocation())
-          // if (!isa<LocalAsMetadata>(M))
-          AddFnLocalMetadata(M);
-        if (Metadata *M = DPV.getRawAddress())
-          AddFnLocalMetadata(M);
+        assert(DPV.getRawLocation() && "DPValue location unexpectedly null");
+        AddFnLocalMetadata(DPV.getRawLocation());
+        if (DPV.isDbgAssign()) {
+          assert(DPV.getRawAddress() && "DPValue location unexpectedly null");
+          AddFnLocalMetadata(DPV.getRawAddress());
+        }
       }
       if (!I.getType()->isVoidTy())
         EnumerateValue(&I);

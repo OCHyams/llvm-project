@@ -1007,10 +1007,10 @@ Error BitcodeReader::materializeForwardReferencedFunctions() {
   }
   assert(BasicBlockFwdRefs.empty() && "Function missing from queue");
 
-  for (Function *F : BackwardRefFunctions) {
+  for (Function *F : BackwardRefFunctions)
     if (Error Err = materialize(F))
       return Err;
-  }
+
   BackwardRefFunctions.clear();
 
   // Reset state.
