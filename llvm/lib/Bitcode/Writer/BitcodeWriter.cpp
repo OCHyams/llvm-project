@@ -3572,8 +3572,8 @@ void ModuleBitcodeWriter::writeFunction(
           } else {
             assert(DPV.isDbgAssign() && "Unexpected DbgRecord kind");
             Vals.push_back(VE.getMetadataID(DPV.getAssignID()));
-            Vals.push_back(VE.getMetadataID(DPV.getRawLocation()));
             Vals.push_back(VE.getMetadataID(DPV.getAddressExpression()));
+            Vals.push_back(VE.getMetadataID(DPV.getRawAddress()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN, Vals);
           }
           Vals.clear();
