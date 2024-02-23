@@ -24,12 +24,8 @@ PreservedAnalyses BitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   // RemoveDIs: there's no bitcode representation of the DPValue debug-info,
   // convert to dbg.values before writing out.
   bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
-  errs() << "BitcodeWriterPass on module " << M.getName() << "\n";
-  errs() << " - IsNewDbgInfoFormat " << IsNewDbgInfoFormat << "\n";
-  if (!DDDDirectBC && IsNewDbgInfoFormat) {
-    errs() << " - convertFromNewDbgValues\n";
+  if (!DDDDirectBC && IsNewDbgInfoFormat)
     M.convertFromNewDbgValues();
-  }
 
   const ModuleSummaryIndex *Index =
       EmitSummaryIndex ? &(AM.getResult<ModuleSummaryIndexAnalysis>(M))
@@ -65,12 +61,8 @@ namespace {
       // RemoveDIs: there's no bitcode representation of the DPValue debug-info,
       // convert to dbg.values before writing out.
       bool IsNewDbgInfoFormat = M.IsNewDbgInfoFormat;
-      errs() << "BitcodeWriterPass runOnModule " << M.getName() << "\n";
-      errs() << " - IsNewDbgInfoFormat " << IsNewDbgInfoFormat << "\n";
-      if (!DDDDirectBC && IsNewDbgInfoFormat) {
-        errs() << " - convertFromNewDbgValues\n";
+      if (!DDDDirectBC && IsNewDbgInfoFormat)
         M.convertFromNewDbgValues();
-      }
 
       WriteBitcodeToFile(M, OS, ShouldPreserveUseListOrder, /*Index=*/nullptr,
                          /*EmitModuleHash=*/false);
