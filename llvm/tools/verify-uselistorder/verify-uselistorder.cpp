@@ -166,6 +166,11 @@ std::unique_ptr<Module> TempFile::readBitcode(LLVMContext &Context) const {
                           "verify-uselistorder: error: ");
     return nullptr;
   }
+  // FIXME: Check use-list order using the old debug format until support
+  // is added for DbgRecord order-checking.
+  // --- ERRR... why isn't this working ? :)
+  if (ModuleOr.get()->IsNewDbgInfoFormat)
+    ModuleOr.get()->convertFromNewDbgValues();
   return std::move(ModuleOr.get());
 }
 
