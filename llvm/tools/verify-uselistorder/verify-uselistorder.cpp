@@ -166,9 +166,8 @@ std::unique_ptr<Module> TempFile::readBitcode(LLVMContext &Context) const {
                           "verify-uselistorder: error: ");
     return nullptr;
   }
-  // FIXME: Check use-list order using the old debug format until support
-  // is added for DbgRecord order-checking.
-  // --- ERRR... why isn't this working ? :)
+  // verify-uselistoder currently only supports old-style debug info mode.
+  // FIXME: Update mapping code for RemoveDIs.
   if (ModuleOr.get()->IsNewDbgInfoFormat)
     ModuleOr.get()->convertFromNewDbgValues();
   return std::move(ModuleOr.get());
@@ -180,6 +179,7 @@ std::unique_ptr<Module> TempFile::readAssembly(LLVMContext &Context) const {
   std::unique_ptr<Module> M = parseAssemblyFile(Filename, Err, Context);
   if (!M.get())
     Err.print("verify-uselistorder", errs());
+  assert(!M->IsNewDbgInfoFormat && "Unexpectedly new debug info mode");
   return M;
 }
 
@@ -546,6 +546,10 @@ int main(int argc, char **argv) {
 
   // Load the input module...
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
+  // verify-uselistoder currently only supports old-style debug info mode.
+  // FIXME: Update mapping code for RemoveDIs.
+  if (M->IsNewDbgInfoFormat)
+    M->convertFromNewDbgValues();
 
   if (!M.get()) {
     Err.print(argv[0], errs());
