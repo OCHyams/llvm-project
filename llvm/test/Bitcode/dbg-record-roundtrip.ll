@@ -3,8 +3,9 @@
 ; RUN: llvm-as %s -o - | verify-uselistorder
 ; RUN: verify-uselistorder %s
 ;; Check that llvm-link doesn't explode if we give it different formats to
-;; link (old-mode IR and new-mode bitcode from this IR).
+;; link.
 ; RUN: llvm-link %s --experimental-debuginfo-iterators=false < llvm-as %s --experimental-debuginfo-iterators=true
+; RUN: llvm-link %s --experimental-debuginfo-iterators=true < llvm-as %s --experimental-debuginfo-iterators=false
 
 ;; Checks inline.
 
