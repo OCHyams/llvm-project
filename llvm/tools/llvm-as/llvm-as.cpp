@@ -139,6 +139,15 @@ int main(int argc, char **argv) {
     Err.print(argv[0], errs());
     return 1;
   }
+
+  // Convert to desired debug format.
+  if (M->IsNewDbgInfoFormat != UseNewDbgInfoFormat) {
+    if (UseNewDbgInfoFormat)
+      M->convertToNewDbgValues();
+    else
+      M->convertFromNewDbgValues();
+  }
+
   std::unique_ptr<ModuleSummaryIndex> Index = std::move(ModuleAndIndex.Index);
 
   if (!DisableVerify) {

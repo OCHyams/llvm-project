@@ -1,7 +1,15 @@
+;; Roundtrip tests.
 ; RUN: llvm-as %s -o - | llvm-dis | FileCheck %s
 ;; Check that verify-uselistorder passes regardless of input format.
 ; RUN: llvm-as %s -o - | verify-uselistorder
 ; RUN: verify-uselistorder %s
+
+;; Confirm we're producing RemoveDI records.
+; RUN: llvm-as %s -o - | llvm-bcanalyzer - | FileCheck %s --check-prefix=BITCODE
+; BITCODE-DAG: DEBUG_RECORD_VALUE
+; BITCODE-DAG: DEBUG_RECORD_ASSIGN
+; BITCODE-DAG: DEBUG_RECORD_DECLARE
+
 ;; Check that llvm-link doesn't explode if we give it different formats to
 ;; link.
 ; RUN: llvm-link %s --experimental-debuginfo-iterators=false < llvm-as %s --experimental-debuginfo-iterators=true
