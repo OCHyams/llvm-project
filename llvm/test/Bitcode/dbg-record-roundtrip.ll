@@ -1,14 +1,54 @@
-; RUN: llvm-as %s | llvm-dis | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis | FileCheck %s
+; rUN: llvm-as %s -o - | verify-uselistorder
+; rUN: verify-uselistorder %s
 
-; CHECK: dbg.declare
+;; Standard dbg.value configurations.
+; CHECK: entry:
+; CHECK-NEXT: dbg.value(metadata i32 %p, metadata ![[e:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg:[0-9]+]]
+; CHECK-NEXT: dbg.value(metadata ![[empty:[0-9]+]], metadata ![[e]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.value(metadata i32 poison, metadata ![[e]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.value(metadata i32 1, metadata ![[f:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+
+;; Standard dbg.declare configurations.
+; CHECK:      dbg.declare(metadata ptr %a, metadata ![[a:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.declare(metadata ![[empty:[0-9]+]], metadata ![[b:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.declare(metadata ptr poison, metadata ![[c:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.declare(metadata ptr null, metadata ![[d:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+
+;; Argument value dbg.declare.
+; CHECK: dbg.declare(metadata ptr %storage, metadata ![[g:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+;; Non-argument local value dbg.value.
+; CHECK: dbg.value(metadata i32 %0, metadata ![[e]], metadata !DIExpression()), !dbg ![[dbg]]
+
+; CHECK-DAG: ![[a]] = !DILocalVariable(name: "a",
+; CHECK-DAG: ![[b]] = !DILocalVariable(name: "b",
+; CHECK-DAG: ![[c]] = !DILocalVariable(name: "c",
+; CHECK-DAG: ![[d]] = !DILocalVariable(name: "d",
+; CHECK-DAG: ![[e]] = !DILocalVariable(name: "e",
+; CHECK-DAG: ![[f]] = !DILocalVariable(name: "f",
+; CHECK-DAG: ![[g]] = !DILocalVariable(name: "g",
+
 
 @g = dso_local global i32 0, align 4, !dbg !0
 
-define dso_local noundef i32 @_Z3funv() !dbg !13 {
+define dso_local noundef i32 @_Z3funv(i32 %p, ptr %storage) !dbg !13 {
 entry:
+  ;; Dbg record at top of block, check dbg.value configurations.
+  tail call void @llvm.dbg.value(metadata i32 %p, metadata !32, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.value(metadata !29, metadata !32, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.value(metadata i32 poison, metadata !32, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.value(metadata i32 1, metadata !33, metadata !DIExpression()), !dbg !19
   %a = alloca i32, align 4
+  ;; Check dbg.declare configurations.
   tail call void @llvm.dbg.declare(metadata ptr %a, metadata !17, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.declare(metadata !29, metadata !28, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.declare(metadata ptr poison, metadata !30, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.declare(metadata ptr null, metadata !31, metadata !DIExpression()), !dbg !19
+  ;; Argument value for dbg.declare.
+  tail call void @llvm.dbg.declare(metadata ptr %storage, metadata !34, metadata !DIExpression()), !dbg !19
   %0 = load i32, ptr @g, align 4, !dbg !20
+  ;; Non-argument local value for dbg.value.
+  tail call void @llvm.dbg.value(metadata i32 %0, metadata !32, metadata !DIExpression()), !dbg !19
   store i32 %0, ptr %a, align 4, !dbg !19
   %1 = load i32, ptr %a, align 4, !dbg !25
   ret i32 %1, !dbg !27
@@ -46,3 +86,10 @@ declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, 
 !25 = !DILocation(line: 4, column: 12, scope: !13)
 !26 = !DILocation(line: 5, column: 1, scope: !13)
 !27 = !DILocation(line: 4, column: 5, scope: !13)
+!28 = !DILocalVariable(name: "b", scope: !13, file: !3, line: 3, type: !5)
+!29 = !{}
+!30 = !DILocalVariable(name: "c", scope: !13, file: !3, line: 3, type: !5)
+!31 = !DILocalVariable(name: "d", scope: !13, file: !3, line: 3, type: !5)
+!32 = !DILocalVariable(name: "e", scope: !13, file: !3, line: 3, type: !5)
+!33 = !DILocalVariable(name: "f", scope: !13, file: !3, line: 3, type: !5)
+!34 = !DILocalVariable(name: "g", scope: !13, file: !3, line: 3, type: !5)
