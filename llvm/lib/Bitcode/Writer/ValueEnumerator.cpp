@@ -135,7 +135,6 @@ static OrderMap orderModule(const Module &M) {
     // so visit any constants used by it beforehand.
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
-        // FIXME: Remove filter.
         for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
           if (const auto *VAM =
                   dyn_cast_or_null<ValueAsMetadata>(DPV.getRawLocation())) {
@@ -287,7 +286,6 @@ static UseListOrderStack predictUseListOrder(const Module &M) {
       predictValueUseListOrder(&A, &F, OM, Stack);
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
-        // FIXME: Remove filter.
         for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
           if (const auto *VAM =
                   dyn_cast_or_null<ValueAsMetadata>(DPV.getRawLocation())) {
@@ -448,6 +446,7 @@ ValueEnumerator::ValueEnumerator(const Module &M,
         for (DbgRecord &DR : I.getDbgValueRange()) {
           if (DPLabel *DPL = dyn_cast<DPLabel>(&DR)) {
             EnumerateMetadata(&F, DPL->getLabel());
+            EnumerateMetadata(&F, &*DPL->getDebugLoc());
             continue;
           }
           // Enumerate non-local location metadata.
@@ -1155,7 +1154,6 @@ void ValueEnumerator::incorporateFunction(const Function &F) {
           AddFnLocalMetadata(MD->getMetadata());
       }
       /// RemoteDIs: Add non-instruction function-local metadata uses.
-      // FIXME: Remove filter.
       for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
         assert(DPV.getRawLocation() && "DPValue location unexpectedly null");
         AddFnLocalMetadata(DPV.getRawLocation());
