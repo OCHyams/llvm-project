@@ -63,6 +63,8 @@ entry:
   tail call void @llvm.dbg.value(metadata i32 %0, metadata !32, metadata !DIExpression()), !dbg !19
   store i32 %0, ptr %a, align 4, !dbg !19
   %1 = load i32, ptr %a, align 4, !dbg !25
+; CHECK: dbg.label(metadata ![[label:[0-9]+]]), !dbg ![[dbg]]
+  tail call void @llvm.dbg.label(metadata !38), !dbg !19
   ret i32 %1, !dbg !27
 }
 
@@ -74,11 +76,14 @@ entry:
 ; CHECK-DAG: ![[f]] = !DILocalVariable(name: "f",
 ; CHECK-DAG: ![[g]] = !DILocalVariable(name: "g",
 ; CHECK-DAG: ![[h]] = !DILocalVariable(name: "h",
-; HECK-DAG: ![[i]] = !DILocalVariable(name: "i",
+; CHECK-DAG: ![[i]] = !DILocalVariable(name: "i",
+; CHECK-DAG: ![[empty]] = !{}
+; CHECK-DAG: ![[label]] = !DILabel
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
 declare void @llvm.dbg.value(metadata, metadata, metadata)
 declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, metadata)
+declare void @llvm.dbg.label(metadata)
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!6, !7, !8, !9, !10, !11}
@@ -118,3 +123,4 @@ declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, 
 !35 = !DILocalVariable(name: "h", scope: !13, file: !3, line: 3, type: !5)
 !36 = !DILocalVariable(name: "i", scope: !13, file: !3, line: 3, type: !5)
 !37 = distinct !DIAssignID()
+!38 = !DILabel(scope: !13, name: "label", file: !3, line: 1)
