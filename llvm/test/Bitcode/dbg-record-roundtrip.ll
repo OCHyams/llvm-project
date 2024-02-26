@@ -2,12 +2,15 @@
 ;; Check that verify-uselistorder passes regardless of input format.
 ; RUN: llvm-as %s -o - | verify-uselistorder
 ; RUN: verify-uselistorder %s
+;; Check that llvm-link doesn't explode if we give it different formats to
+;; link (old-mode IR and new-mode bitcode from this IR).
+; RUN: llvm-link %s --experimental-debuginfo-iterators=false < llvm-as %s --experimental-debuginfo-iterators=true
 
 ;; Checks inline.
 
-@g = dso_local global i32 0, align 4, !dbg !0
+@g = internal dso_local global i32 0, align 4, !dbg !0
 
-define dso_local noundef i32 @_Z3funv(i32 %p, ptr %storage) !dbg !13 {
+define internal dso_local noundef i32 @_Z3funv(i32 %p, ptr %storage) !dbg !13 {
 entry:
 ;; Dbg record at top of block, check dbg.value configurations.
 ; CHECK: entry:
@@ -22,16 +25,23 @@ entry:
 ;; Arglist with an argument, constant, local use before def, poison.
 ; CHECK-NEXT: dbg.value(metadata !DIArgList(i32 %p, i32 0, i32 %0, i32 poison), metadata ![[f]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus, DW_OP_LLVM_arg, 2, DW_OP_LLVM_arg, 3, DW_OP_plus, DW_OP_minus)), !dbg ![[dbg]]
   tail call void @llvm.dbg.value(metadata !DIArgList(i32 %p, i32 0, i32 %0, i32 poison), metadata !33, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus, DW_OP_LLVM_arg, 2, DW_OP_LLVM_arg, 3, DW_OP_plus, DW_OP_minus)), !dbg !19
-  %a = alloca i32, align 4
+;; Check dbg.assign use before def (value, addr and ID). Check expression order too.
+; CHECK: dbg.assign(metadata i32 %0, metadata ![[i:[0-9]+]], metadata !DIExpression(DW_OP_plus_uconst, 0),
+; CHECK-SAME:       metadata ![[ID:[0-9]+]], metadata ptr %a, metadata !DIExpression(DW_OP_plus_uconst, 1)), !dbg ![[dbg]]
+  tail call void @llvm.dbg.assign(metadata i32 %0, metadata !36, metadata !DIExpression(DW_OP_plus_uconst, 0), metadata !37, metadata ptr %a, metadata !DIExpression(DW_OP_plus_uconst, 1)), !dbg !19
+  %a = alloca i32, align 4, !DIAssignID !37
+; CHECK: %a = alloca i32, align 4, !DIAssignID ![[ID]]
 ;; Check dbg.declare configurations.
-; CHECK:      dbg.declare(metadata ptr %a, metadata ![[a:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.declare(metadata ptr %a, metadata ![[a:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
 ; CHECK-NEXT: dbg.declare(metadata ![[empty:[0-9]+]], metadata ![[b:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
 ; CHECK-NEXT: dbg.declare(metadata ptr poison, metadata ![[c:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
 ; CHECK-NEXT: dbg.declare(metadata ptr null, metadata ![[d:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
+; CHECK-NEXT: dbg.declare(metadata ptr @g, metadata ![[h:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
   tail call void @llvm.dbg.declare(metadata ptr %a, metadata !17, metadata !DIExpression()), !dbg !19
   tail call void @llvm.dbg.declare(metadata !29, metadata !28, metadata !DIExpression()), !dbg !19
   tail call void @llvm.dbg.declare(metadata ptr poison, metadata !30, metadata !DIExpression()), !dbg !19
   tail call void @llvm.dbg.declare(metadata ptr null, metadata !31, metadata !DIExpression()), !dbg !19
+  tail call void @llvm.dbg.declare(metadata ptr @g, metadata !35, metadata !DIExpression()), !dbg !19
 ;; Argument value dbg.declare.
 ; CHECK: dbg.declare(metadata ptr %storage, metadata ![[g:[0-9]+]], metadata !DIExpression()), !dbg ![[dbg]]
   tail call void @llvm.dbg.declare(metadata ptr %storage, metadata !34, metadata !DIExpression()), !dbg !19
@@ -54,6 +64,8 @@ entry:
 ; CHECK-DAG: ![[e]] = !DILocalVariable(name: "e",
 ; CHECK-DAG: ![[f]] = !DILocalVariable(name: "f",
 ; CHECK-DAG: ![[g]] = !DILocalVariable(name: "g",
+; CHECK-DAG: ![[h]] = !DILocalVariable(name: "h",
+; HECK-DAG: ![[i]] = !DILocalVariable(name: "i",
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
 declare void @llvm.dbg.value(metadata, metadata, metadata)
@@ -94,5 +106,6 @@ declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, 
 !32 = !DILocalVariable(name: "e", scope: !13, file: !3, line: 3, type: !5)
 !33 = !DILocalVariable(name: "f", scope: !13, file: !3, line: 3, type: !5)
 !34 = !DILocalVariable(name: "g", scope: !13, file: !3, line: 3, type: !5)
-
-
+!35 = !DILocalVariable(name: "h", scope: !13, file: !3, line: 3, type: !5)
+!36 = !DILocalVariable(name: "i", scope: !13, file: !3, line: 3, type: !5)
+!37 = distinct !DIAssignID()
