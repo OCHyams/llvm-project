@@ -445,9 +445,13 @@ ValueEnumerator::ValueEnumerator(const Module &M,
 
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB) {
-        // FIXME: Remove filter.
-        for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
+        for (DbgRecord &DR : I.getDbgValueRange()) {
+          if (DPLabel *DPL = dyn_cast<DPLabel>(&DR)) {
+            EnumerateMetadata(&F, DPL->getLabel());
+            continue;
+          }
           // Enumerate non-local location metadata.
+          DPValue &DPV = cast<DPValue>(DR);
           auto EnumerateRawLocation = [&](Metadata *Raw) {
             assert(Raw && "DPValue location unexpectedly null");
             if (const auto *AL = dyn_cast<DIArgList>(Raw)) {

@@ -3546,18 +3546,29 @@ void ModuleBitcodeWriter::writeFunction(
           return false;
         };
 
-        // First 3 fields are common to all kinds:
-        //   DILocation, DILocalVariable, DIExpression
-        // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE)
-        //   ..., LocationMetadata
-        // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE - abbrev'd)
-        //   ..., Value
-        // dbg_declare (FUNC_CODE_DEBUG_RECORD_DECLARE)
-        //   ..., LocationMetadata
-        // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
-        //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
-        // FIXME: Remove filter.
-        for (DPValue &DPV : DPValue::filter(I.DbgMarker->getDbgValueRange())) {
+        // Write out non-instruction debug information attached to this
+        // instruction. Write it after the instruction so that it's easy to
+        // re-attach to the instruction reading the records in.
+        for (DbgRecord &DR : I.DbgMarker->getDbgValueRange()) {
+          if (DPLabel *DPL = dyn_cast<DPLabel>(&DR)) {
+            Vals.push_back(VE.getMetadataID(&*DPL->getDebugLoc()));
+            Vals.push_back(VE.getMetadataID(DPL->getLabel()));
+            Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_LABEL, Vals);
+            Vals.clear();
+            continue;
+          }
+
+          // First 3 fields are common to all kinds:
+          //   DILocation, DILocalVariable, DIExpression
+          // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE)
+          //   ..., LocationMetadata
+          // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE - abbrev'd)
+          //   ..., Value
+          // dbg_declare (FUNC_CODE_DEBUG_RECORD_DECLARE)
+          //   ..., LocationMetadata
+          // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
+          //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
+          DPValue &DPV = cast<DPValue>(DR);
           Vals.push_back(VE.getMetadataID(&*DPV.getDebugLoc()));
           Vals.push_back(VE.getMetadataID(DPV.getVariable()));
           Vals.push_back(VE.getMetadataID(DPV.getExpression()));

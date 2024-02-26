@@ -634,6 +634,7 @@ enum FunctionCodes {
           // expression]
   FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE =
       64, // DPVALUE: [value-ref, expression, variable, dilocation]
+  FUNC_CODE_DEBUG_RECORD_LABEL = 65, // DPVALUE: [label, dilocation]
 };
 
 enum UseListCodes {

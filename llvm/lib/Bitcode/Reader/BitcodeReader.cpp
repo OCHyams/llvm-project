@@ -6374,6 +6374,17 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
+    case bitc::FUNC_CODE_DEBUG_RECORD_LABEL: {
+      // DPLabels are placed after the Instructions that they are attached to.
+      Instruction *Inst = getLastInstruction();
+      if (!Inst)
+        return error("Invalid record");
+      DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[0]));
+      DILabel *Label = cast<DILabel>(getFnMetadataByID(Record[1]));
+      Inst->getParent()->insertDPValueBefore(new DPLabel(Label, DIL),
+                                             Inst->getIterator());
+      continue; // This isn't an instruction.
+    }
     case bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE:
     case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
     case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
