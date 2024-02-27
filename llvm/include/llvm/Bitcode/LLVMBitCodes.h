@@ -626,15 +626,15 @@ enum FunctionCodes {
   FUNC_CODE_BLOCKADDR_USERS = 60, // BLOCKADDR_USERS: [value...]
 
   FUNC_CODE_DEBUG_RECORD_VALUE =
-      61, // [location, expression, variable, dilocation]
+      61, // [DILocation, DILocalVariable, DIExpression, ValueAsMetadata]
   FUNC_CODE_DEBUG_RECORD_DECLARE =
-      62, // [location, expression, variable, dilocation]
+      62, // [DILocation, DILocalVariable, DIExpression, ValueAsMetadata]
   FUNC_CODE_DEBUG_RECORD_ASSIGN =
-      63, // [location, expression, variable, dialoction, assignid, location,
-          // expression]
+      63, // [DILocation, DILocalVariable, DIExpression, ValueAsMetadata,
+          //  DIAssignID, DIExpression (addr), ValueAsMetadata (addr)]
   FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE =
-      64, // DPVALUE: [value-ref, expression, variable, dilocation]
-  FUNC_CODE_DEBUG_RECORD_LABEL = 65, // DPVALUE: [label, dilocation]
+      64,  // [DILocation, DILocalVariable, DIExpression, Value]
+  FUNC_CODE_DEBUG_RECORD_LABEL = 65, // DPVALUE: [DILocation, DILabel]
 };
 
 enum UseListCodes {
