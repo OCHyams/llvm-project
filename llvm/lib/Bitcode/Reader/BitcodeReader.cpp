@@ -1010,7 +1010,6 @@ Error BitcodeReader::materializeForwardReferencedFunctions() {
   for (Function *F : BackwardRefFunctions)
     if (Error Err = materialize(F))
       return Err;
-
   BackwardRefFunctions.clear();
 
   // Reset state.
@@ -4708,29 +4707,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       return &FunctionBBs[CurBBNo - 1]->back();
     return nullptr;
   };
-  // FIXME: Should use Error return type?
-  auto DecodeDebugLoc =
-      [this](ArrayRef<uint64_t> Record) -> std::optional<DILocation *> {
-    unsigned Line = Record[0], Col = Record[1];
-    unsigned ScopeID = Record[2], IAID = Record[3];
-    bool IsImplicitCode = Record.size() == 5 && Record[4];
-
-    MDNode *Scope = nullptr, *IA = nullptr;
-    if (ScopeID) {
-      Scope = dyn_cast_or_null<MDNode>(
-          MDLoader->getMetadataFwdRefOrLoad(ScopeID - 1));
-      if (!Scope)
-        return std::nullopt;
-    }
-    if (IAID) {
-      IA =
-          dyn_cast_or_null<MDNode>(MDLoader->getMetadataFwdRefOrLoad(IAID - 1));
-      if (!IA)
-        return std::nullopt;
-    }
-    return DILocation::get(Scope->getContext(), Line, Col, Scope, IA,
-                           IsImplicitCode);
-  };
 
   std::vector<OperandBundleDef> OperandBundles;
 
@@ -4871,10 +4847,26 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       I = getLastInstruction();
       if (!I || Record.size() < 4)
         return error("Invalid record");
-      auto MaybeDbgLoc = DecodeDebugLoc(Record);
-      if (!MaybeDbgLoc)
-        return error("Invalid record");
-      LastLoc = *MaybeDbgLoc;
+
+      unsigned Line = Record[0], Col = Record[1];
+      unsigned ScopeID = Record[2], IAID = Record[3];
+      bool isImplicitCode = Record.size() == 5 && Record[4];
+
+      MDNode *Scope = nullptr, *IA = nullptr;
+      if (ScopeID) {
+        Scope = dyn_cast_or_null<MDNode>(
+            MDLoader->getMetadataFwdRefOrLoad(ScopeID - 1));
+        if (!Scope)
+          return error("Invalid record");
+      }
+      if (IAID) {
+        IA = dyn_cast_or_null<MDNode>(
+            MDLoader->getMetadataFwdRefOrLoad(IAID - 1));
+        if (!IA)
+          return error("Invalid record");
+      }
+      LastLoc = DILocation::get(Scope->getContext(), Line, Col, Scope, IA,
+                                isImplicitCode);
       I->setDebugLoc(LastLoc);
       I = nullptr;
       continue;
