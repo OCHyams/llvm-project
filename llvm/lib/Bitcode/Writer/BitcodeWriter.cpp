@@ -3494,25 +3494,21 @@ void ModuleBitcodeWriter::writeFunction(
       NeedsMetadataAttachment |= I.hasMetadataOtherThanDebugLoc();
 
       // If the instruction has a debug location, emit it.
-      DILocation *DL = I.getDebugLoc();
-      if (!DL)
-        continue;
-
-      if (DL == LastDL) {
-        // Just repeat the same debug loc as last time.
-        Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC_AGAIN, Vals);
-        continue;
+      if (DILocation *DL = I.getDebugLoc()) {
+        if (DL == LastDL) {
+          // Just repeat the same debug loc as last time.
+          Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC_AGAIN, Vals);
+        } else {
+          Vals.push_back(DL->getLine());
+          Vals.push_back(DL->getColumn());
+          Vals.push_back(VE.getMetadataOrNullID(DL->getScope()));
+          Vals.push_back(VE.getMetadataOrNullID(DL->getInlinedAt()));
+          Vals.push_back(DL->isImplicitCode());
+          Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Vals);
+          Vals.clear();
+          LastDL = DL;
+        }
       }
-
-      Vals.push_back(DL->getLine());
-      Vals.push_back(DL->getColumn());
-      Vals.push_back(VE.getMetadataOrNullID(DL->getScope()));
-      Vals.push_back(VE.getMetadataOrNullID(DL->getInlinedAt()));
-      Vals.push_back(DL->isImplicitCode());
-      Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Vals);
-      Vals.clear();
-
-      LastDL = DL;
 
       // If the instruction has DPValues attached to it, emit them. Note that
       // they come after the instruction so that it's easy to attach them again
