@@ -4561,7 +4561,11 @@ Error BitcodeReader::parseBitcodeInto(Module *M, bool ShouldLazyLoadMetadata,
   };
   MDCallbacks.MDType = Callbacks.MDType;
   MDLoader = MetadataLoader(Stream, *M, ValueList, IsImporting, MDCallbacks);
-  return parseModule(0, ShouldLazyLoadMetadata, Callbacks);
+  if (Error Err = parseModule(0, ShouldLazyLoadMetadata, Callbacks))
+    return Err;
+  if (TheModule->IsNewDbgInfoFormat)
+    TheModule->convertFromNewDbgValues();
+  return Error::success();
 }
 
 Error BitcodeReader::typeCheckLoadStoreInst(Type *ValType, Type *PtrType) {
@@ -6839,6 +6843,10 @@ Error BitcodeReader::materializeModule() {
     I.first->eraseFromParent();
   }
   UpgradedIntrinsics.clear();
+
+
+  if (TheModule->IsNewDbgInfoFormat)
+    TheModule->convertFromNewDbgValues();
 
   UpgradeDebugInfo(*TheModule);
 
