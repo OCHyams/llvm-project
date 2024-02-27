@@ -2976,12 +2976,15 @@ void Verifier::visitBasicBlock(BasicBlock &BB) {
   }
 
   Check(BB.IsNewDbgInfoFormat == BB.getParent()->IsNewDbgInfoFormat,
-        "BB debug format should match parent " + BB.getName() + " in " +
+        "BB debug format (new=" + std::to_string(BB.IsNewDbgInfoFormat) +
+            ") should match parent " + BB.getName() + " in " +
             BB.getParent()->getName());
   Check(BB.getParent()->IsNewDbgInfoFormat ==
             BB.getParent()->getParent()->IsNewDbgInfoFormat,
-        "Fn debug format should match parent " + BB.getParent()->getName() +
-            " in " + BB.getParent()->getParent()->getName());
+        "Fn debug format (new=" +
+            std::to_string(BB.getParent()->IsNewDbgInfoFormat) +
+            ") should match parent " + BB.getParent()->getName() + " in " +
+            BB.getParent()->getParent()->getName());
 
   // Confirm that no issues arise from the debug program.
   if (BB.IsNewDbgInfoFormat) {
