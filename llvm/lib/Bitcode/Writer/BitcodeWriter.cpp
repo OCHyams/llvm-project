@@ -3511,6 +3511,7 @@ void ModuleBitcodeWriter::writeFunction(
       Vals.push_back(DL->isImplicitCode());
       Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Vals);
       Vals.clear();
+
       LastDL = DL;
 
       // If the instruction has DPValues attached to it, emit them. Note that
