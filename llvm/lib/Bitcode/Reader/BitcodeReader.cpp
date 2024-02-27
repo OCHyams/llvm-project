@@ -4008,7 +4008,7 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
       Function::Create(cast<FunctionType>(FTy), GlobalValue::ExternalLinkage,
                        AddrSpace, Name, TheModule);
 
-  Func->IsNewDbgInfoFormat = TheModule->IsNewDbgInfoFormat;
+  // Func->IsNewDbgInfoFormat = TheModule->IsNewDbgInfoFormat;
 
   assert(Func->getFunctionType() == FTy &&
          "Incorrect fully specified type provided for function");
@@ -4290,7 +4290,7 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
   // This might not be the right place for this?
   // Based on slack discussion: assume we're in the new format. If we find old
   // intrinsics then upgrade them (drop them?).
-  TheModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
+  // TheModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat; @OCH
 
   // Read all the records for this module.
   while (true) {
@@ -4561,11 +4561,7 @@ Error BitcodeReader::parseBitcodeInto(Module *M, bool ShouldLazyLoadMetadata,
   };
   MDCallbacks.MDType = Callbacks.MDType;
   MDLoader = MetadataLoader(Stream, *M, ValueList, IsImporting, MDCallbacks);
-  if (Error Err = parseModule(0, ShouldLazyLoadMetadata, Callbacks))
-    return Err;
-  if (TheModule->IsNewDbgInfoFormat)
-    TheModule->convertFromNewDbgValues();
-  return Error::success();
+  return parseModule(0, ShouldLazyLoadMetadata, Callbacks);
 }
 
 Error BitcodeReader::typeCheckLoadStoreInst(Type *ValType, Type *PtrType) {
@@ -6385,7 +6381,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
     case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
     case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
     case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
-      assert(UseNewDbgInfoFormat && "not in ddd mode but have dpvalue record");
       // DPValues are placed after the Instructions that they are attached to.
       Instruction *Inst = getLastInstruction();
       if (!Inst)
@@ -6725,9 +6720,21 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
   // Move the bit stream to the saved position of the deferred function body.
   if (Error JumpFailed = Stream.JumpToBit(DFII->second))
     return JumpFailed;
+
+  // @OCH
+  // Set the debug info mode to "new", forcing a mismatch between
+  // module and function debug modes. This is okay because we'll convert
+  // everything back to the old mode after parsing.
+  // FIXME: Remove this once all tools support RemoveDIs.
+  F->IsNewDbgInfoFormat = true;
+
   if (Error Err = parseFunctionBody(F))
     return Err;
   F->setIsMaterializable(false);
+
+  // Convert new debug info records into intrinsics.
+  // FIXME: Remove this once all tools support RemoveDIs.
+  F->convertFromNewDbgValues();
 
   if (StripDebugInfo)
     stripDebugInfo(*F);
@@ -6843,10 +6850,6 @@ Error BitcodeReader::materializeModule() {
     I.first->eraseFromParent();
   }
   UpgradedIntrinsics.clear();
-
-
-  if (TheModule->IsNewDbgInfoFormat)
-    TheModule->convertFromNewDbgValues();
 
   UpgradeDebugInfo(*TheModule);
 
