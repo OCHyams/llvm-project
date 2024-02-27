@@ -2980,8 +2980,8 @@ void Verifier::visitBasicBlock(BasicBlock &BB) {
             BB.getParent()->getName());
   Check(BB.getParent()->IsNewDbgInfoFormat ==
             BB.getParent()->getParent()->IsNewDbgInfoFormat,
-        "Fn debug format should match parent " + BB.getName() + " in " +
-            BB.getParent()->getName());
+        "Fn debug format should match parent " + BB.getParent()->getName() +
+            " in " + BB.getParent()->getParent()->getName());
 
   // Confirm that no issues arise from the debug program.
   if (BB.IsNewDbgInfoFormat) {
