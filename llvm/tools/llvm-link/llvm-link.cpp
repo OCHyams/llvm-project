@@ -414,15 +414,6 @@ static bool linkFiles(const char *argv0, LLVMContext &Context, Linker &L,
       return false;
     }
 
-    // Don't mix debug-info modes. Convert all input modules into the desired
-    // mode.
-    if (M->IsNewDbgInfoFormat != UseNewDbgInfoFormat) {
-      if (UseNewDbgInfoFormat)
-        M->convertToNewDbgValues();
-      else
-        M->convertFromNewDbgValues();
-    }
-
     // Note that when ODR merging types cannot verify input files in here When
     // doing that debug metadata in the src module might already be pointing to
     // the destination.
