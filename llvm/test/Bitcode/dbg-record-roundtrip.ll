@@ -4,7 +4,8 @@
 ; RUN: llvm-as %s -o - | verify-uselistorder
 ; RUN: verify-uselistorder %s
 
-;; Confirm we're producing RemoveDI records.
+;; Confirm we're producing RemoveDI records from various tools.
+; RUN: opt %s -o - | llvm-bcanalyzer - | FileCheck %s --check-prefix=BITCODE
 ; RUN: llvm-as %s -o - | llvm-bcanalyzer - | FileCheck %s --check-prefix=BITCODE
 ; BITCODE-DAG: DEBUG_RECORD_VALUE
 ; BITCODE-DAG: DEBUG_RECORD_ASSIGN

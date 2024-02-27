@@ -100,6 +100,7 @@ extern FunctionSummary::ForceSummaryHotnessType ForceSummaryEdgesCold;
 }
 
 extern bool DDDDirectBC;
+extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
 
 namespace {
 
