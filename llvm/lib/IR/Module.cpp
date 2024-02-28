@@ -68,11 +68,11 @@ template class llvm::SymbolTableListTraits<GlobalIFunc>;
 //===----------------------------------------------------------------------===//
 // Primitive Module methods.
 //
-
+extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
 Module::Module(StringRef MID, LLVMContext &C)
     : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>(-1)),
       ModuleID(std::string(MID)), SourceFileName(std::string(MID)), DL(""),
-      IsNewDbgInfoFormat(false) {
+      IsNewDbgInfoFormat(UseNewDbgInfoFormat) {
   Context.addModule(this);
 }
 

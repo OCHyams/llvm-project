@@ -579,7 +579,9 @@ LTO::RegularLTOState::RegularLTOState(unsigned ParallelCodeGenParallelismLevel,
                                       const Config &Conf)
     : ParallelCodeGenParallelismLevel(ParallelCodeGenParallelismLevel),
       Ctx(Conf), CombinedModule(std::make_unique<Module>("ld-temp.o", Ctx)),
-      Mover(std::make_unique<IRMover>(*CombinedModule)) {}
+      Mover(std::make_unique<IRMover>(*CombinedModule)) {
+  CombinedModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
+}
 
 LTO::ThinLTOState::ThinLTOState(ThinBackend Backend)
     : Backend(Backend), CombinedIndex(/*HaveGVs*/ false) {
@@ -823,7 +825,10 @@ LTO::addRegularLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
   if (LTOMode == LTOK_UnifiedRegular)
     if (NamedMDNode *CfiFunctionsMD = M.getNamedMetadata("cfi.functions"))
       M.eraseNamedMetadata(CfiFunctionsMD);
-
+  // normalize debug info mode
+  M.IsNewDbgInfoFormat = true;
+  M.convertFromNewDbgValues();
+  M.convertToNewDbgValues();
   UpgradeDebugInfo(M);
 
   ModuleSymbolTable SymTab;
@@ -987,7 +992,8 @@ Error LTO::linkRegularLTO(RegularLTOState::AddedModule Mod,
 
     Keep.push_back(GV);
   }
-
+  // errs() << "LTO::linkRegularLTO IsNewDbgInfoFormat " <<
+  // Mod.M->IsNewDbgInfoFormat << "\n";
   return RegularLTO.Mover->move(std::move(Mod.M), Keep, nullptr,
                                 /* IsPerformingImport */ false);
 }

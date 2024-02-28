@@ -85,8 +85,15 @@ bool LLParser::Run(bool UpgradeDebugInfo,
       return true;
   }
 
+  auto JimmyDebug = [&]() {
+    M->IsNewDbgInfoFormat = true; // normalize to new mode
+    M->convertFromNewDbgValues();
+    M->convertToNewDbgValues();
+    return false;
+  };
+
   return parseTopLevelEntities() || validateEndOfModule(UpgradeDebugInfo) ||
-         validateEndOfIndex();
+         validateEndOfIndex() || JimmyDebug();
 }
 
 bool LLParser::parseStandaloneConstantValue(Constant *&C,

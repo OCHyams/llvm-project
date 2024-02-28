@@ -1130,6 +1130,23 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
   // Materialize if needed.
   if (Error Err = Src.materialize())
     return Err;
+  /*
+    bool SrcModuleNewDbgFormat = Src.IsNewDbgInfoFormat;
+    if (Dst.IsNewDbgInfoFormat != Src.IsNewDbgInfoFormat) {
+      if (Dst.IsNewDbgInfoFormat)
+        Src.convertToNewDbgValues();
+      else
+        Src.convertFromNewDbgValues();
+    }
+    // Undo debug mode conversion afterwards.
+    auto Cleanup = make_scope_exit([&]() {
+      if (SrcModuleNewDbgFormat != Src.IsNewDbgInfoFormat) {
+        if (SrcModuleNewDbgFormat)
+          Src.convertToNewDbgValues();
+        else
+          Src.convertFromNewDbgValues();
+      }
+    });*/
 
   // Link in the operands without remapping.
   if (Src.hasPrefixData())
@@ -1550,6 +1567,8 @@ Error IRLinker::run() {
       return Err;
 
   // Convert source module to match dest for the duration of the link.
+  // errs() << "SrM IsNewDbgInfoFormat " << SrcM->IsNewDbgInfoFormat << "\n";
+  // errs() << "DstM IsNewDbgInfoFormat " << DstM.IsNewDbgInfoFormat << "\n";
   bool SrcModuleNewDbgFormat = SrcM->IsNewDbgInfoFormat;
   if (DstM.IsNewDbgInfoFormat != SrcM->IsNewDbgInfoFormat) {
     if (DstM.IsNewDbgInfoFormat)

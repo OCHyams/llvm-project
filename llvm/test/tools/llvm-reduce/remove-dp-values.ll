@@ -7,9 +7,9 @@
 
 ; CHECK-INTERESTINGNESS:     call void @llvm.dbg.value(metadata i32 %added,
 
-; CHECK-FINAL:     declare void @llvm.dbg.value(metadata,
 ; CHECK-FINAL:     %added = add
 ; CHECK-FINAL-NEXT: call void @llvm.dbg.value(metadata i32 %added,
+; CHECK-FINAL:     declare void @llvm.dbg.value(metadata,
 
 declare void @llvm.dbg.value(metadata, metadata, metadata)
 

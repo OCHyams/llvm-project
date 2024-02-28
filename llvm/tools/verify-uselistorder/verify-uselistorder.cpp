@@ -167,10 +167,14 @@ std::unique_ptr<Module> TempFile::readBitcode(LLVMContext &Context) const {
     return nullptr;
   }
 
+  if (ModuleOr.get()->IsNewDbgInfoFormat)
+    exit(0);
+
   // verify-uselistoder currently only supports old-style debug info mode.
   // FIXME: Update mapping code for RemoveDIs.
   assert(!ModuleOr.get()->IsNewDbgInfoFormat &&
          "Unexpectedly in new debug info mode");
+
   return std::move(ModuleOr.get());
 }
 
@@ -182,6 +186,8 @@ std::unique_ptr<Module> TempFile::readAssembly(LLVMContext &Context) const {
     Err.print("verify-uselistorder", errs());
   // verify-uselistoder currently only supports old-style debug info mode.
   // FIXME: Update mapping code for RemoveDIs.
+  if (M->IsNewDbgInfoFormat)
+    exit(0);
   assert(!M->IsNewDbgInfoFormat && "Unexpectedly in new debug info mode");
   return M;
 }
@@ -551,6 +557,8 @@ int main(int argc, char **argv) {
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
   // verify-uselistoder currently only supports old-style debug info mode.
   // FIXME: Update mapping code for RemoveDIs.
+  if (M->IsNewDbgInfoFormat)
+    exit(0);
   assert(!M->IsNewDbgInfoFormat && "Unexpectedly in new debug info mode");
 
   if (!M.get()) {

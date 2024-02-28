@@ -6722,6 +6722,8 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
   // Convert new debug info records into intrinsics.
   // FIXME: Remove this once all tools support RemoveDIs.
   F->convertFromNewDbgValues();
+  F->convertToNewDbgValues();
+  F->getParent()->IsNewDbgInfoFormat = true; // Spam as we are making it so.
 
   if (StripDebugInfo)
     stripDebugInfo(*F);
