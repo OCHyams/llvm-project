@@ -3825,9 +3825,9 @@ void ModuleBitcodeWriter::writeBlockInfo() {
   {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE));
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 24)); // dbgloc
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 24)); // var
-    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 24)); // expr
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 21)); // dbgloc
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 21)); // var
+    Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 21)); // expr
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // val
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_DEBUG_RECORD_VALUE_ABBREV)
