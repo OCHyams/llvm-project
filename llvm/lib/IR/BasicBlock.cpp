@@ -61,6 +61,8 @@ DPMarker *BasicBlock::createMarker(InstListType::iterator It) {
 }
 
 void BasicBlock::convertToNewDbgValues() {
+  if (IsNewDbgInfoFormat)
+    return;
   IsNewDbgInfoFormat = true;
 
   // Iterate over all instructions in the instruction list, collecting dbg.value
@@ -98,6 +100,9 @@ void BasicBlock::convertToNewDbgValues() {
 }
 
 void BasicBlock::convertFromNewDbgValues() {
+  if (!IsNewDbgInfoFormat)
+    return;
+
   invalidateOrders();
   IsNewDbgInfoFormat = false;
 
