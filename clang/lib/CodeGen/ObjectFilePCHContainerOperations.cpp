@@ -176,6 +176,7 @@ public:
     Ctx = &Context;
     VMContext.reset(new llvm::LLVMContext());
     M.reset(new llvm::Module(MainFileName, *VMContext));
+    M->IsNewDbgInfoFormat = true;
     M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
     Builder.reset(new CodeGen::CodeGenModule(
         *Ctx, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags));

@@ -85,6 +85,7 @@ namespace {
           PreprocessorOpts(PPO), CodeGenOpts(CGO), HandlingTopLevelDecls(0),
           CoverageInfo(CoverageInfo),
           M(new llvm::Module(ExpandModuleName(ModuleName, CGO), C)) {
+      M->IsNewDbgInfoFormat = true;
       C.setDiscardValueNames(CGO.DiscardValueNames);
     }
 
@@ -137,7 +138,7 @@ namespace {
                               llvm::LLVMContext &C) {
       assert(!M && "Replacing existing Module?");
       M.reset(new llvm::Module(ExpandModuleName(ModuleName, CodeGenOpts), C));
-
+      M->IsNewDbgInfoFormat = true;
       std::unique_ptr<CodeGenModule> OldBuilder = std::move(Builder);
 
       Initialize(*Ctx);
