@@ -4747,9 +4747,10 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
             (void)DI->EmitDeclareOfAutoVariable(SharedVar, ContextValue,
                                                 CGF.Builder, false);
           llvm::Instruction &Last = CGF.Builder.GetInsertBlock()->back();
+
           // Get the call dbg.declare instruction we just created and update
           // its DIExpression to add offset to base address.
-          if (auto DDI = dyn_cast<llvm::DbgVariableIntrinsic>(&Last)) {
+          auto UpdateExpr = [&](auto *DDI) {
             SmallVector<uint64_t, 8> Ops;
             // Add offset to the base address if non zero.
             if (Offset) {
@@ -4760,7 +4761,11 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
             auto &Ctx = DDI->getContext();
             llvm::DIExpression *DIExpr = llvm::DIExpression::get(Ctx, Ops);
             Last.setOperand(2, llvm::MetadataAsValue::get(Ctx, DIExpr));
-          }
+          };
+          if (Last.hasDbgValues())
+            UpdateExpr(&*std::prev(Last.getDbgValueRange().end()));
+          else if (auto DDI = dyn_cast<llvm::DbgVariableIntrinsic>(&Last))
+            UpdateExpr(DDI);
         }
       }
     }
