@@ -1,5 +1,5 @@
 ;; Roundtrip tests.
-; RUN: llvm-as --write-experimental-debuginfo-iterators-to-bitcode=true %s -o - | llvm-dis | FileCheck %s
+; RUN: llvm-as --write-experimental-debuginfo-iterators-to-bitcode=true %s -o - | llvm-dis --write-experimental-debuginfo=false | FileCheck %s
 ;; Check that verify-uselistorder passes regardless of input format.
 ; RUN: llvm-as %s --write-experimental-debuginfo-iterators-to-bitcode=true -o - | verify-uselistorder
 ; RUN: verify-uselistorder %s
