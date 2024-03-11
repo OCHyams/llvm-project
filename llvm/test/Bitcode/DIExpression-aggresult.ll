@@ -1,11 +1,10 @@
-; RUN: llvm-dis -o - %s.bc | FileCheck %s --check-prefix=OLD
-; RUN: llvm-dis -o - %s.bc | llvm-as --write-experimental-debuginfo-iterators-to-bitcode=true  -o - | llvm-dis -o -  | FileCheck %s --check-prefix=NEW
+; RUN: llvm-dis -o - %s.bc | FileCheck %s
+; RUN: llvm-dis -o - %s.bc | llvm-as --write-experimental-debuginfo-iterators-to-bitcode=true  -o - | llvm-dis -o - | FileCheck %s
 
 %class.A = type { i32, i32, i32, i32 }
 
 define void @_Z3fooi(%class.A* sret(%class.A) %agg.result) #0 !dbg !3 {
-  ; OLD: call void @llvm.dbg.declare({{.*}}, metadata !DIExpression()), !dbg
-  ; NEW: #dbg_declare({{.*}}, metadata !DIExpression(), ![[#]])
+  ; CHECK: call void @llvm.dbg.declare({{.*}}, metadata !DIExpression()), !dbg
   call void @llvm.dbg.declare(metadata %class.A* %agg.result, metadata !13, metadata !16), !dbg !17
   ret void, !dbg !17
 }
