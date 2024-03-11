@@ -4278,7 +4278,7 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
                                  ParserCallbacks Callbacks) {
   // Force the debug-info mode into the old format for now.
   // FIXME: Remove this once all tools support RemoveDIs.
-  TheModule->IsNewDbgInfoFormat = false;
+  TheModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
   this->ValueTypeCallback = std::move(Callbacks.ValueType);
   if (ResumeBit) {
@@ -6766,7 +6766,8 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
   // module and function debug modes. This is okay because we'll convert
   // everything back to the old mode after parsing.
   // FIXME: Remove this once all tools support RemoveDIs.
-  F->IsNewDbgInfoFormat = true;
+  if (!F->getParent()->IsNewDbgInfoFormat)
+    F->IsNewDbgInfoFormat = true;
 
   if (Error Err = parseFunctionBody(F))
     return Err;
@@ -6774,7 +6775,8 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
 
   // Convert new debug info records into intrinsics.
   // FIXME: Remove this once all tools support RemoveDIs.
-  F->convertFromNewDbgValues();
+  if (!F->getParent()->IsNewDbgInfoFormat)
+    F->convertFromNewDbgValues();
 
   if (StripDebugInfo)
     stripDebugInfo(*F);
