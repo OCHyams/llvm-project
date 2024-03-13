@@ -2371,6 +2371,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     bool IsNVVM = Name.consume_front("nvvm.");
     bool IsARM = Name.consume_front("arm.");
     bool IsAMDGCN = Name.consume_front("amdgcn.");
+    bool IsDbg = Name.consume_front("dbg.");
 
     if (IsX86 && Name.starts_with("sse4a.movnt.")) {
       SmallVector<Metadata *, 1> Elts;
@@ -4210,6 +4211,28 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
       Rep = upgradeARMIntrinsicCall(Name, CI, F, Builder);
     } else if (IsAMDGCN) {
       Rep = upgradeAMDGCNIntrinsicCall(Name, CI, F, Builder);
+    } else if (IsDbg && CI->getModule()->IsNewDbgInfoFormat) {
+      // Handle intrinsics that are upgraded to non-instruction DbgRecords.
+      DbgRecord *DR = nullptr;
+      if (Name == "label")
+        DR = new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
+      else if (Name == "assign")
+        DR = new DPValue(
+            unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
+            unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
+            unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
+            CI->getDebugLoc());
+      else if (Name == "declare")
+        DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                         unwrapMAVOp<DILocalVariable>(CI, 1),
+                         unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc(),
+                         DPValue::LocationType::Declare);
+      else if (Name == "value")
+        DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                         unwrapMAVOp<DILocalVariable>(CI, 1),
+                         unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc());
+      assert(DR && "Unhandled intrinsic kind in upgrade to DbgRecord");
+      CI->getParent()->insertDPValueBefore(DR, CI->getIterator());
     } else {
       llvm_unreachable("Unknown function for CallBase upgrade.");
     }
@@ -4256,41 +4279,6 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
         ConstantExpr::getPointerCast(NewFn, CI->getCalledOperand()->getType()));
     return;
   };
-
-  // Handle intrinsics that are upgraded to non-instruction DbgRecords.
-  if (!NewFn && CI->getModule()->IsNewDbgInfoFormat) {
-    DbgRecord *DR = nullptr;
-    switch (CI->getIntrinsicID()) {
-    case Intrinsic::dbg_label:
-      DR = new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
-      break;
-
-    case Intrinsic::dbg_assign:
-      DR = new DPValue(
-          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
-          unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
-          unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
-          CI->getDebugLoc());
-      break;
-
-    case Intrinsic::dbg_declare:
-      DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
-                       unwrapMAVOp<DILocalVariable>(CI, 1),
-                       unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc(),
-                       DPValue::LocationType::Declare);
-      break;
-
-    case Intrinsic::dbg_value:
-      DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
-                       unwrapMAVOp<DILocalVariable>(CI, 1),
-                       unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc());
-      break;
-    }
-    assert(DR && "unhandled intrinsic kind in upgrade to DbgRecord");
-    CI->getParent()->insertDPValueBefore(DR, CI->getIterator());
-    CI->eraseFromParent();
-    return;
-  }
 
   CallInst *NewCall = nullptr;
   switch (NewFn->getIntrinsicID()) {
