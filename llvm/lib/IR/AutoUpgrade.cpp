@@ -4479,12 +4479,13 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
         CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
         // Do not break - the only thing left to do for new debug mode
         // is to delete CI.
-      } else {
-        NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0),
-                                             CI->getArgOperand(1),
-                                             MetadataAsValue::get(C, Expr)});
-        break;
+        CI->eraseFromParent();
+        return;
       }
+      NewCall =
+          Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
+                                     MetadataAsValue::get(C, Expr)});
+      break;
     }
 
     // Upgrade from the old version that had an extra offset argument.
@@ -4500,15 +4501,28 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
             CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
             // Do not break - the only thing left to do for new debug mode
             // is to delete CI.
-          } else {
-            NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0),
-                                                 CI->getArgOperand(2),
-                                                 CI->getArgOperand(3)});
-            break;
+            CI->eraseFromParent();
+            return;
           }
+          NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0),
+                                               CI->getArgOperand(2),
+                                               CI->getArgOperand(3)});
+          break;
         }
       }
     }
+
+    if (CI->getModule()->IsNewDbgInfoFormat) {
+      DPValue *DPV = new DPValue(
+          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 1),
+          unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc());
+      CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
+      // Do not break - the only thing left to do for new debug mode
+      // is to delete CI.
+      CI->eraseFromParent();
+      return;
+    }
+
     CI->eraseFromParent();
     return;
   }
