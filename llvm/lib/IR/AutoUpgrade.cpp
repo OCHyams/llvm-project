@@ -4423,6 +4423,18 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0)});
     break;
 
+  case Intrinsic::dbg_label: {
+    if (UseNewDbgInfoFormat) {
+      DPLabel *DPL =
+          new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
+      CI->getParent()->insertDPValueBefore(DPL, CI->getIterator());
+      // Do not break - the only thing left to do for new debug mode
+      // is to delete CI.
+      CI->eraseFromParent();
+    }
+    return;
+  }
+
   case Intrinsic::dbg_assign: {
     if (UseNewDbgInfoFormat) {
       DPValue *DPV = new DPValue(
@@ -4430,6 +4442,20 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
           unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
           unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
           CI->getDebugLoc());
+      CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
+      // Do not break - the only thing left to do for new debug mode
+      // is to delete CI.
+      CI->eraseFromParent();
+    }
+    return;
+  }
+
+  case Intrinsic::dbg_declare: {
+    if (UseNewDbgInfoFormat) {
+      DPValue *DPV = new DPValue(
+          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 1),
+          unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc(),
+          DPValue::LocationType::Declare);
       CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
       // Do not break - the only thing left to do for new debug mode
       // is to delete CI.
