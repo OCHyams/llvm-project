@@ -4418,28 +4418,51 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
 
   case Intrinsic::dbg_value: {
     StringRef Name = F->getName();
-    Name = Name.substr(5); // Strip llvm.
+    Name = Name.substr(9); // Strip llvm.dbg.
+    auto unwrapMAVOp = [](CallBase *CI, unsigned Op) -> Metadata * {
+      return cast<MetadataAsValue>(CI->getArgOperand(Op))->getMetadata();
+    };
+
     // Upgrade `dbg.addr` to `dbg.value` with `DW_OP_deref`.
-    if (Name.starts_with("dbg.addr")) {
-      DIExpression *Expr = cast<DIExpression>(
-          cast<MetadataAsValue>(CI->getArgOperand(2))->getMetadata());
+    if (Name.starts_with("addr")) {
+      DIExpression *Expr = cast<DIExpression>(unwrapMAVOp(CI, 2));
       Expr = DIExpression::append(Expr, dwarf::DW_OP_deref);
-      NewCall =
-          Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
-                                     MetadataAsValue::get(C, Expr)});
-      break;
+      if (UseNewDbgInfoFormat) {
+        DPValue *DPV = new DPValue(unwrapMAVOp(CI, 0),
+                                   cast<DILocalVariable>(unwrapMAVOp(CI, 1)),
+                                   Expr, CI->getDebugLoc());
+        CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
+        // Do not break - the only thing left to do for new debug mode
+        // is to delete CI.
+      } else {
+        NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0),
+                                             CI->getArgOperand(1),
+                                             MetadataAsValue::get(C, Expr)});
+        break;
+      }
     }
 
     // Upgrade from the old version that had an extra offset argument.
-    assert(CI->arg_size() == 4);
-    // Drop nonzero offsets instead of attempting to upgrade them.
-    if (auto *Offset = dyn_cast_or_null<Constant>(CI->getArgOperand(1)))
-      if (Offset->isZeroValue()) {
-        NewCall = Builder.CreateCall(
-            NewFn,
-            {CI->getArgOperand(0), CI->getArgOperand(2), CI->getArgOperand(3)});
-        break;
+    if (CI->arg_size() == 4) {
+      // Drop nonzero offsets instead of attempting to upgrade them.
+      if (auto *Offset = dyn_cast_or_null<Constant>(CI->getArgOperand(1))) {
+        if (Offset->isZeroValue()) {
+          if (UseNewDbgInfoFormat) {
+            DPValue *DPV = new DPValue(
+                unwrapMAVOp(CI, 0), cast<DILocalVariable>(unwrapMAVOp(CI, 2)),
+                cast<DIExpression>(unwrapMAVOp(CI, 3)), CI->getDebugLoc());
+            CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
+            // Do not break - the only thing left to do for new debug mode
+            // is to delete CI.
+          } else {
+            NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0),
+                                                 CI->getArgOperand(2),
+                                                 CI->getArgOperand(3)});
+            break;
+          }
+        }
       }
+    }
     CI->eraseFromParent();
     return;
   }
