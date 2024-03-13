@@ -1052,11 +1052,22 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   }
   case 'd':
     if (Name.consume_front("dbg.")) {
+      // Update llvm.dbg.addr intrinsics even in "new debug mode"; they'll get
+      // converted to DPValues later.
       if (Name == "addr" || (Name == "value" && F->arg_size() == 4)) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::dbg_value);
         return true;
       }
+      // FIXME: Is this check "enough"?
+      if (UseNewDbgInfoFormat) {
+        if (Name == "value" || Name == "assign" || Name == "label") {
+          rename(F);
+          NewFn = nullptr; // Nothing to replace these functions with.
+          return true;
+        }
+      }
+
       break; // No other 'dbg.*'.
     }
     break;
