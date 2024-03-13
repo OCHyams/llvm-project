@@ -4256,6 +4256,42 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
         ConstantExpr::getPointerCast(NewFn, CI->getCalledOperand()->getType()));
     return;
   };
+
+  // Handle intrinsics that are upgraded to non-instruction DbgRecords.
+  if (!NewFn && CI->getModule()->IsNewDbgInfoFormat) {
+    DbgRecord *DR = nullptr;
+    switch (CI->getIntrinsicID()) {
+    case Intrinsic::dbg_label:
+      DR = new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
+      break;
+
+    case Intrinsic::dbg_assign:
+      DR = new DPValue(
+          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
+          unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
+          unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
+          CI->getDebugLoc());
+      break;
+
+    case Intrinsic::dbg_declare:
+      DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                       unwrapMAVOp<DILocalVariable>(CI, 1),
+                       unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc(),
+                       DPValue::LocationType::Declare);
+      break;
+
+    case Intrinsic::dbg_value:
+      DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                       unwrapMAVOp<DILocalVariable>(CI, 1),
+                       unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc());
+      break;
+    }
+    assert(DR && "unhandled intrinsic kind in upgrade to DbgRecord");
+    CI->getParent()->insertDPValueBefore(DR, CI->getIterator());
+    CI->eraseFromParent();
+    return;
+  }
+
   CallInst *NewCall = nullptr;
   switch (NewFn->getIntrinsicID()) {
   default: {
@@ -4422,47 +4458,6 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
   case Intrinsic::convert_from_fp16:
     NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0)});
     break;
-
-  case Intrinsic::dbg_label: {
-    if (CI->getModule()->IsNewDbgInfoFormat) {
-      DPLabel *DPL =
-          new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
-      CI->getParent()->insertDPValueBefore(DPL, CI->getIterator());
-      // Do not break - the only thing left to do for new debug mode
-      // is to delete CI.
-      CI->eraseFromParent();
-    }
-    return;
-  }
-
-  case Intrinsic::dbg_assign: {
-    if (CI->getModule()->IsNewDbgInfoFormat) {
-      DPValue *DPV = new DPValue(
-          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
-          unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
-          unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
-          CI->getDebugLoc());
-      CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
-      // Do not break - the only thing left to do for new debug mode
-      // is to delete CI.
-      CI->eraseFromParent();
-    }
-    return;
-  }
-
-  case Intrinsic::dbg_declare: {
-    if (UseNewDbgInfoFormat) {
-      DPValue *DPV = new DPValue(
-          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 1),
-          unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc(),
-          DPValue::LocationType::Declare);
-      CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
-      // Do not break - the only thing left to do for new debug mode
-      // is to delete CI.
-      CI->eraseFromParent();
-    }
-    return;
-  }
 
   case Intrinsic::dbg_value: {
     StringRef Name = F->getName();
