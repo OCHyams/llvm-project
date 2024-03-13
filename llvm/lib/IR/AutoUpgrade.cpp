@@ -4424,7 +4424,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     break;
 
   case Intrinsic::dbg_label: {
-    if (UseNewDbgInfoFormat) {
+    if (CI->getModule()->IsNewDbgInfoFormat) {
       DPLabel *DPL =
           new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
       CI->getParent()->insertDPValueBefore(DPL, CI->getIterator());
@@ -4436,7 +4436,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
   }
 
   case Intrinsic::dbg_assign: {
-    if (UseNewDbgInfoFormat) {
+    if (CI->getModule()->IsNewDbgInfoFormat) {
       DPValue *DPV = new DPValue(
           unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
           unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
@@ -4472,7 +4472,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     if (Name.starts_with("addr")) {
       DIExpression *Expr = unwrapMAVOp<DIExpression>(CI, 2);
       Expr = DIExpression::append(Expr, dwarf::DW_OP_deref);
-      if (UseNewDbgInfoFormat) {
+      if (CI->getModule()->IsNewDbgInfoFormat) {
         DPValue *DPV = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
                                    unwrapMAVOp<DILocalVariable>(CI, 1), Expr,
                                    CI->getDebugLoc());
@@ -4492,7 +4492,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
       // Drop nonzero offsets instead of attempting to upgrade them.
       if (auto *Offset = dyn_cast_or_null<Constant>(CI->getArgOperand(1))) {
         if (Offset->isZeroValue()) {
-          if (UseNewDbgInfoFormat) {
+          if (CI->getModule()->IsNewDbgInfoFormat) {
             DPValue *DPV = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
                                        unwrapMAVOp<DILocalVariable>(CI, 2),
                                        unwrapMAVOp<DIExpression>(CI, 3),
