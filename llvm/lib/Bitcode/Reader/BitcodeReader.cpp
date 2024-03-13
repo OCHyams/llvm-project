@@ -6762,12 +6762,11 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
   if (Error JumpFailed = Stream.JumpToBit(DFII->second))
     return JumpFailed;
 
-  // Set the debug info mode to "new", forcing a mismatch between
+  // Set the debug info mode to "new", possibly creating a mismatch between
   // module and function debug modes. This is okay because we'll convert
-  // everything back to the old mode after parsing.
+  // everything back to the old mode after parsing if needed.
   // FIXME: Remove this once all tools support RemoveDIs.
-  if (!F->getParent()->IsNewDbgInfoFormat)
-    F->IsNewDbgInfoFormat = true;
+  F->IsNewDbgInfoFormat = true;
 
   if (Error Err = parseFunctionBody(F))
     return Err;
