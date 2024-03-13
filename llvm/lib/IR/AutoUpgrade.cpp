@@ -1067,9 +1067,9 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         return true;
       }
       // FIXME: Is this check "enough"?
-      if (UseNewDbgInfoFormat) {
-        if (Name == "value" || Name == "assign" || Name == "label") {
-          rename(F);
+      if (F->getParent()->IsNewDbgInfoFormat) {
+        if (Name == "value" || Name == "assign" || Name == "declare" ||
+            Name == "label") {
           NewFn = nullptr; // Nothing to replace these functions with.
           return true;
         }
@@ -4218,7 +4218,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
         DR = new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
       else if (Name == "assign")
         DR = new DPValue(
-            unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
+            unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 1),
             unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
             unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
             CI->getDebugLoc());
