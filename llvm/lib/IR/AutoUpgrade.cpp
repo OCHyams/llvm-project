@@ -979,6 +979,13 @@ static Intrinsic::ID shouldUpgradeNVPTXBF16Intrinsic(StringRef Name) {
   return Intrinsic::not_intrinsic;
 }
 
+/// Helper to unwrap intrinsic call MetadataAsValue operands.
+template <typename MDType>
+static MDType *unwrapMAVOp(CallBase *CI, unsigned Op) {
+  return cast<MDType>(
+      cast<MetadataAsValue>(CI->getArgOperand(Op))->getMetadata());
+}
+
 static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   assert(F && "Illegal to upgrade a non-existent Function.");
 
@@ -4416,21 +4423,33 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0)});
     break;
 
+  case Intrinsic::dbg_assign: {
+    if (UseNewDbgInfoFormat) {
+      DPValue *DPV = new DPValue(
+          unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 2),
+          unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
+          unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
+          CI->getDebugLoc());
+      CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
+      // Do not break - the only thing left to do for new debug mode
+      // is to delete CI.
+      CI->eraseFromParent();
+    }
+    return;
+  }
+
   case Intrinsic::dbg_value: {
     StringRef Name = F->getName();
     Name = Name.substr(9); // Strip llvm.dbg.
-    auto unwrapMAVOp = [](CallBase *CI, unsigned Op) -> Metadata * {
-      return cast<MetadataAsValue>(CI->getArgOperand(Op))->getMetadata();
-    };
 
     // Upgrade `dbg.addr` to `dbg.value` with `DW_OP_deref`.
     if (Name.starts_with("addr")) {
-      DIExpression *Expr = cast<DIExpression>(unwrapMAVOp(CI, 2));
+      DIExpression *Expr = unwrapMAVOp<DIExpression>(CI, 2);
       Expr = DIExpression::append(Expr, dwarf::DW_OP_deref);
       if (UseNewDbgInfoFormat) {
-        DPValue *DPV = new DPValue(unwrapMAVOp(CI, 0),
-                                   cast<DILocalVariable>(unwrapMAVOp(CI, 1)),
-                                   Expr, CI->getDebugLoc());
+        DPValue *DPV = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                                   unwrapMAVOp<DILocalVariable>(CI, 1), Expr,
+                                   CI->getDebugLoc());
         CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
         // Do not break - the only thing left to do for new debug mode
         // is to delete CI.
@@ -4448,9 +4467,10 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
       if (auto *Offset = dyn_cast_or_null<Constant>(CI->getArgOperand(1))) {
         if (Offset->isZeroValue()) {
           if (UseNewDbgInfoFormat) {
-            DPValue *DPV = new DPValue(
-                unwrapMAVOp(CI, 0), cast<DILocalVariable>(unwrapMAVOp(CI, 2)),
-                cast<DIExpression>(unwrapMAVOp(CI, 3)), CI->getDebugLoc());
+            DPValue *DPV = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                                       unwrapMAVOp<DILocalVariable>(CI, 2),
+                                       unwrapMAVOp<DIExpression>(CI, 3),
+                                       CI->getDebugLoc());
             CI->getParent()->insertDPValueBefore(DPV, CI->getIterator());
             // Do not break - the only thing left to do for new debug mode
             // is to delete CI.
