@@ -100,6 +100,10 @@ static cl::opt<bool> ExpandConstantExprs(
     cl::desc(
         "Expand constant expressions to instructions for testing purposes"));
 
+cl::opt<bool> LoadBitcodeIntoNewDbgInforFormat(
+    "load-bitcode-into-experimental-debuginfo-iterators", cl::Hidden,
+    cl::init(false));
+
 namespace {
 
 enum {
@@ -4276,9 +4280,8 @@ Error BitcodeReader::parseGlobalIndirectSymbolRecord(
 Error BitcodeReader::parseModule(uint64_t ResumeBit,
                                  bool ShouldLazyLoadMetadata,
                                  ParserCallbacks Callbacks) {
-  // Force the debug-info mode into the old format for now.
-  // FIXME: Remove this once all tools support RemoveDIs.
-  TheModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
+  TheModule->IsNewDbgInfoFormat =
+      UseNewDbgInfoFormat && LoadBitcodeIntoNewDbgInforFormat;
 
   this->ValueTypeCallback = std::move(Callbacks.ValueType);
   if (ResumeBit) {
