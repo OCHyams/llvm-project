@@ -982,8 +982,9 @@ static Intrinsic::ID shouldUpgradeNVPTXBF16Intrinsic(StringRef Name) {
 /// Helper to unwrap intrinsic call MetadataAsValue operands.
 template <typename MDType>
 static MDType *unwrapMAVOp(CallBase *CI, unsigned Op) {
-  return cast<MDType>(
-      cast<MetadataAsValue>(CI->getArgOperand(Op))->getMetadata());
+  if (MetadataAsValue *MAV = dyn_cast<MetadataAsValue>(CI->getArgOperand(Op)))
+    return dyn_cast<MDType>(MAV->getMetadata());
+  return nullptr;
 }
 
 static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
@@ -2477,7 +2478,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
       return;
     }
 
-    Value *Rep;
+    Value *Rep = nullptr;
     // Upgrade packed integer vector compare intrinsics to compare instructions.
     if (IsX86 && (Name.starts_with("sse2.pcmp") ||
                   Name.starts_with("avx2.pcmp"))) {
