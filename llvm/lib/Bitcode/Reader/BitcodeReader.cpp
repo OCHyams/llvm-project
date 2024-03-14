@@ -100,9 +100,10 @@ static cl::opt<bool> ExpandConstantExprs(
     cl::desc(
         "Expand constant expressions to instructions for testing purposes"));
 
-cl::opt<bool> LoadBitcodeIntoNewDbgInforFormat(
-    "load-bitcode-into-experimental-debuginfo-iterators", cl::Hidden,
-    cl::init(false));
+// Default option is false, but individual tools can override this
+// to incrementally add support.
+cl::opt<cl::boolOrDefault> LoadBitcodeIntoNewDbgInforFormat(
+    "load-bitcode-into-experimental-debuginfo-iterators", cl::Hidden);
 
 namespace {
 
@@ -4281,7 +4282,8 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
                                  bool ShouldLazyLoadMetadata,
                                  ParserCallbacks Callbacks) {
   TheModule->IsNewDbgInfoFormat =
-      UseNewDbgInfoFormat && LoadBitcodeIntoNewDbgInforFormat;
+      UseNewDbgInfoFormat &&
+      LoadBitcodeIntoNewDbgInforFormat == cl::boolOrDefault::BOU_TRUE;
 
   this->ValueTypeCallback = std::move(Callbacks.ValueType);
   if (ResumeBit) {
