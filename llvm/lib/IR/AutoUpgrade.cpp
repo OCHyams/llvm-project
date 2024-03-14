@@ -1059,6 +1059,16 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   }
   case 'd':
     if (Name.consume_front("dbg.")) {
+      // Mark debug intrinsics for upgrade to new debug format.
+      if (F->getParent()->IsNewDbgInfoFormat) {
+        if (Name == "addr" || Name == "value" || Name == "assign" ||
+            Name == "declare" || Name == "label") {
+          // There's no function to replace these with.
+          NewFn = nullptr;
+          // But we do want these to get upgraded.
+          return true;
+        }
+      }
       // Update llvm.dbg.addr intrinsics even in "new debug mode"; they'll get
       // converted to DPValues later.
       if (Name == "addr" || (Name == "value" && F->arg_size() == 4)) {
@@ -1066,15 +1076,6 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::dbg_value);
         return true;
       }
-      // FIXME: Is this check "enough"?
-      if (F->getParent()->IsNewDbgInfoFormat) {
-        if (Name == "value" || Name == "assign" || Name == "declare" ||
-            Name == "label") {
-          NewFn = nullptr; // Nothing to replace these functions with.
-          return true;
-        }
-      }
-
       break; // No other 'dbg.*'.
     }
     break;
@@ -4214,23 +4215,45 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     } else if (IsDbg && CI->getModule()->IsNewDbgInfoFormat) {
       // Handle intrinsics that are upgraded to non-instruction DbgRecords.
       DbgRecord *DR = nullptr;
-      if (Name == "label")
+      if (Name == "label") {
         DR = new DPLabel(unwrapMAVOp<DILabel>(CI, 0), CI->getDebugLoc());
-      else if (Name == "assign")
+      } else if (Name == "assign") {
         DR = new DPValue(
             unwrapMAVOp<Metadata>(CI, 0), unwrapMAVOp<DILocalVariable>(CI, 1),
             unwrapMAVOp<DIExpression>(CI, 2), unwrapMAVOp<DIAssignID>(CI, 3),
             unwrapMAVOp<Metadata>(CI, 4), unwrapMAVOp<DIExpression>(CI, 5),
             CI->getDebugLoc());
-      else if (Name == "declare")
+      } else if (Name == "declare") {
         DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
                          unwrapMAVOp<DILocalVariable>(CI, 1),
                          unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc(),
                          DPValue::LocationType::Declare);
-      else if (Name == "value")
+      } else if (Name == "addr") {
+        // Upgrade dbg.addr to dbg.value with DW_OP_deref.
+        DIExpression *Expr = unwrapMAVOp<DIExpression>(CI, 2);
+        Expr = DIExpression::append(Expr, dwarf::DW_OP_deref);
         DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
-                         unwrapMAVOp<DILocalVariable>(CI, 1),
-                         unwrapMAVOp<DIExpression>(CI, 2), CI->getDebugLoc());
+                         unwrapMAVOp<DILocalVariable>(CI, 1), Expr,
+                         CI->getDebugLoc());
+      } else if (Name == "value") {
+        // An old version of dbg.value had an extra offset argument. Nonzero
+        // offset dbg.values get dropped.
+        unsigned VarOp = 1;
+        unsigned ExprOp = 2;
+        if (CI->arg_size() == 4) {
+          auto *Offset = dyn_cast_or_null<Constant>(CI->getArgOperand(1));
+          if (!Offset || !Offset->isZeroValue()) {
+            CI->eraseFromParent();
+            return;
+          }
+          VarOp = 2;
+          ExprOp = 3;
+        }
+        DR = new DPValue(unwrapMAVOp<Metadata>(CI, 0),
+                         unwrapMAVOp<DILocalVariable>(CI, VarOp),
+                         unwrapMAVOp<DIExpression>(CI, ExprOp),
+                         CI->getDebugLoc());
+      }
       assert(DR && "Unhandled intrinsic kind in upgrade to DbgRecord");
       CI->getParent()->insertDPValueBefore(DR, CI->getIterator());
     } else {
