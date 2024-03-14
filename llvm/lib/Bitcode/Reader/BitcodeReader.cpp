@@ -4283,7 +4283,7 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
                                  ParserCallbacks Callbacks) {
   TheModule->IsNewDbgInfoFormat =
       UseNewDbgInfoFormat &&
-      LoadBitcodeIntoNewDbgInforFormat == cl::boolOrDefault::BOU_TRUE;
+      LoadBitcodeIntoNewDbgInforFormat != cl::boolOrDefault::BOU_FALSE;
 
   this->ValueTypeCallback = std::move(Callbacks.ValueType);
   if (ResumeBit) {

@@ -68,6 +68,7 @@ static cl::opt<unsigned>
                 cl::desc("Number of times to shuffle and verify use-lists"),
                 cl::init(1), cl::cat(Cat));
 
+extern cl::opt<cl::boolOrDefault> LoadBitcodeIntoNewDbgInforFormat;
 namespace {
 
 struct TempFile {
@@ -542,6 +543,9 @@ int main(int argc, char **argv) {
   cl::HideUnrelatedOptions(Cat);
   cl::ParseCommandLineOptions(argc, argv,
                               "llvm tool to verify use-list order\n");
+  // Do not load bitcode into the new debug info format by default.
+  if (LoadBitcodeIntoNewDbgInforFormat == cl::boolOrDefault::BOU_UNSET)
+    LoadBitcodeIntoNewDbgInforFormat = cl::boolOrDefault::BOU_FALSE;
 
   LLVMContext Context;
   SMDiagnostic Err;
