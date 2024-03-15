@@ -621,7 +621,7 @@ class MetadataLoader::MetadataLoaderImpl {
 
     for (auto &BB : F)
       for (auto &I : BB) {
-        for (DPValue &DPV : DPValue::filter(I.getDbgValueRange())) {
+        for (DPValue &DPV : filterDbgVars(I.getDbgRecordRange())) {
           if (DPV.isDbgDeclare())
             UpdateDeclareIfNeeded(&DPV);
         }
