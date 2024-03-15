@@ -4256,7 +4256,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
                          CI->getDebugLoc());
       }
       assert(DR && "Unhandled intrinsic kind in upgrade to DbgRecord");
-      CI->getParent()->insertDPValueBefore(DR, CI->getIterator());
+      CI->getParent()->insertDbgRecordBefore(DR, CI->getIterator());
     } else {
       llvm_unreachable("Unknown function for CallBase upgrade.");
     }
