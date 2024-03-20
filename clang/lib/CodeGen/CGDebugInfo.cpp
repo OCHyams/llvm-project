@@ -1335,12 +1335,12 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
   SourceLocation Loc = AliasDecl->getLocation();
 
   // IF IS SUPPORTED...
+  // TODO: AlignInBits?
   TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
   auto TParams = CollectTemplateParams(Args, Unit);
   llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
       Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
-      getDeclContextDescriptor(AliasDecl), 0, llvm::DINode::DIFlags(),
-      TParams);
+      getDeclContextDescriptor(AliasDecl), TParams, 0, llvm::DINode::DIFlags());
   return AliasTy;
   // ... ELSE ...
 
