@@ -302,6 +302,13 @@ namespace llvm {
                                  DINode::DIFlags Flags = DINode::FlagZero,
                                  DINodeArray Annotations = nullptr);
 
+    /// OCH
+    DIDerivedType *createTemplateAlias(DIType *Ty, StringRef Name, DIFile *File,
+                                       unsigned LineNo, DIScope *Context,
+                                       uint32_t AlignInBits,
+                                       DINode::DIFlags Flags,
+                                       DINodeArray Annotations);
+
     /// Create debugging information entry for a 'friend'.
     DIDerivedType *createFriend(DIType *Ty, DIType *FriendTy);
 

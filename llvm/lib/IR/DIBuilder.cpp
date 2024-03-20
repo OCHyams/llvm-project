@@ -342,6 +342,32 @@ DIDerivedType *DIBuilder::createTypedef(DIType *Ty, StringRef Name,
                             Annotations);
 }
 
+DIDerivedType *DIBuilder::createTemplateAlias(
+    DIType *Ty, StringRef Name, DIFile *File, unsigned LineNo, DIScope *Context,
+    uint32_t AlignInBits, DINode::DIFlags Flags, DINodeArray TemplateParams) {
+#define DUMP(X) errs() << " - " #X "  " << X << "\n";
+  //errs() << "createTemplateAlias\n";
+  //DUMP(Name);
+  //DUMP(*Ty);
+  //DUMP(*File);
+  //DUMP(LineNo);
+  //DUMP(*Context);
+  //DUMP(AlignInBits);
+  //DUMP(Flags);
+  //for (auto *Thing : Annotations) {
+  //  DUMP(*Thing);
+  //}
+  /// OCH
+  /*? :)*/
+  // return DIDerivedType::get(VMContext, dwarf::DW_TAG_typedef, Name, File,
+  //                           LineNo, getNonCompileUnitScope(Context), Ty, 0,
+  //                           AlignInBits, 0, std::nullopt, Flags, nullptr,
+  //                           Annotations);
+    return DIDerivedType::get(VMContext, dwarf::DW_TAG_template_alias, Name, File,
+                            LineNo, getNonCompileUnitScope(Context), Ty, 0,
+                            AlignInBits, 0, std::nullopt, Flags, TemplateParams.get());
+}
+
 DIDerivedType *DIBuilder::createFriend(DIType *Ty, DIType *FriendTy) {
   assert(Ty && "Invalid type!");
   assert(FriendTy && "Invalid friend type!");

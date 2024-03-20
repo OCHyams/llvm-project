@@ -1332,6 +1332,30 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
   auto PP = getPrintingPolicy();
   Ty->getTemplateName().print(OS, PP, TemplateName::Qualified::None);
 
+  /// OCH
+  SourceLocation Loc = AliasDecl->getLocation();
+
+  TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
+  auto Thing = CollectTemplateParams(Args, Unit);
+    // if (const auto *TSpecial = dyn_cast<ClassTemplateSpecializationDecl>(RD))
+  // DBuilder.replaceArrays(RealDecl, llvm::DINodeArray(),
+  //                      CollectCXXTemplateParams(TSpecial, DefUnit));
+
+  llvm::DINodeArray Children = Thing;
+
+  // llvm::DICompositeType *AliasTy = DBuilder.createReplaceableCompositeType(
+  //     llvm::dwarf::DW_TAG_template_alias, OS.str(), Ctx, Unit,
+  //     getOrCreateFile(Loc));
+  // llvm::errs() << *AliasTy << " AliasTy before resolving anything\n";
+  llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
+      Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
+      getDeclContextDescriptor(AliasDecl), 0, llvm::DINode::DIFlags(),
+      Children);
+  if (AliasTy) {
+    llvm::errs() << *AliasTy << "\n\n\n";
+    return AliasTy;
+  }
+
   // Disable PrintCanonicalTypes here because we want
   // the DW_AT_name to benefit from the TypePrinter's ability
   // to skip defaulted template arguments.
@@ -1343,8 +1367,6 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
   PP.PrintCanonicalTypes = false;
   printTemplateArgumentList(OS, Ty->template_arguments(), PP,
                             TD->getTemplateParameters());
-
-  SourceLocation Loc = AliasDecl->getLocation();
   return DBuilder.createTypedef(Src, OS.str(), getOrCreateFile(Loc),
                                 getLineNumber(Loc),
                                 getDeclContextDescriptor(AliasDecl));
