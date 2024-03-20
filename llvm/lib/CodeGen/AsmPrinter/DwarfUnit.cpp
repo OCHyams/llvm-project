@@ -805,19 +805,9 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
     addUInt(Buffer, dwarf::DW_AT_address_class, dwarf::DW_FORM_data4,
             *DTy->getDWARFAddressSpace());
 
-  if (Tag == dwarf::DW_TAG_template_alias) {
-    // OCHOCH XXX
-    errs() << "Template alias template args:\n";
-    for (Metadata *TemplateArg : cast<MDTuple>(DTy->getExtraData())->operands()) {
-      errs() << " " << *TemplateArg << "\n";
-      // what about dwarf::DW_TAG_template_value_parameters?
-      //createAndAddDIE(dwarf::DW_TAG_template_type_parameter, Buffer, )
-      DITemplateParameter *TemplateArg2 = cast<DITemplateParameter>(TemplateArg);
-      //createAndAddDIE(TemplateArg2->getTag(), Buffer, TemplateArg2);
-      
-    }
+  // Add template alias template parameters.
+  if (Tag == dwarf::DW_TAG_template_alias)
     addTemplateParams(Buffer, cast<MDTuple>(DTy->getExtraData()));
-  }
 }
 
 void DwarfUnit::constructSubprogramArguments(DIE &Buffer, DITypeRefArray Args) {
