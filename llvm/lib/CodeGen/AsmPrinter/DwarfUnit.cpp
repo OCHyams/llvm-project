@@ -773,6 +773,7 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
 
   // If alignment is specified for a typedef , create and insert DW_AT_alignment
   // attribute in DW_TAG_typedef DIE.
+  // dwarf::DW_TAG_template_alias OCH?
   if (Tag == dwarf::DW_TAG_typedef && DD->getDwarfVersion() >= 5) {
     uint32_t AlignInBytes = DTy->getAlignInBytes();
     if (AlignInBytes > 0)
@@ -803,6 +804,20 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
   if (DTy->getDWARFAddressSpace())
     addUInt(Buffer, dwarf::DW_AT_address_class, dwarf::DW_FORM_data4,
             *DTy->getDWARFAddressSpace());
+
+  if (Tag == dwarf::DW_TAG_template_alias) {
+    // OCHOCH XXX
+    errs() << "Template alias template args:\n";
+    for (Metadata *TemplateArg : cast<MDTuple>(DTy->getExtraData())->operands()) {
+      errs() << " " << *TemplateArg << "\n";
+      // what about dwarf::DW_TAG_template_value_parameters?
+      //createAndAddDIE(dwarf::DW_TAG_template_type_parameter, Buffer, )
+      DITemplateParameter *TemplateArg2 = cast<DITemplateParameter>(TemplateArg);
+      //createAndAddDIE(TemplateArg2->getTag(), Buffer, TemplateArg2);
+      
+    }
+    addTemplateParams(Buffer, cast<MDTuple>(DTy->getExtraData()));
+  }
 }
 
 void DwarfUnit::constructSubprogramArguments(DIE &Buffer, DITypeRefArray Args) {

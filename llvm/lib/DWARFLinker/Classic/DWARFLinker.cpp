@@ -116,6 +116,7 @@ static bool isTypeTag(uint16_t Tag) {
   case dwarf::DW_TAG_string_type:
   case dwarf::DW_TAG_structure_type:
   case dwarf::DW_TAG_subroutine_type:
+  case dwarf::DW_TAG_template_alias
   case dwarf::DW_TAG_typedef:
   case dwarf::DW_TAG_union_type:
   case dwarf::DW_TAG_ptr_to_member_type:
@@ -656,7 +657,7 @@ static void updateChildIncompleteness(const DWARFDie &Die, CompileUnit &CU,
 /// the referenced DIE already being computed.
 static void updateRefIncompleteness(const DWARFDie &Die, CompileUnit &CU,
                                     CompileUnit::DIEInfo &RefInfo) {
-  switch (Die.getTag()) {
+  switch (Die.getTag()) { // OCH?
   case dwarf::DW_TAG_typedef:
   case dwarf::DW_TAG_member:
   case dwarf::DW_TAG_reference_type:
