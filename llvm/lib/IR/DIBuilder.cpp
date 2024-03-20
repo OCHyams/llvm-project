@@ -346,7 +346,7 @@ DIDerivedType *
 DIBuilder::createTemplateAlias(DIType *Ty, StringRef Name, DIFile *File,
                                unsigned LineNo, DIScope *Context,
                                DINodeArray TParams, uint32_t AlignInBits,
-                               DINode::DIFlags Flags, DINodeArray TParams) {
+                               DINode::DIFlags Flags, DINodeArray Annotations) {
   return DIDerivedType::get(VMContext, dwarf::DW_TAG_template_alias, Name, File,
                             LineNo, getNonCompileUnitScope(Context), Ty, 0,
                             AlignInBits, 0, std::nullopt, Flags, TParams.get(),
