@@ -35,14 +35,11 @@ int main() {
     Foo<char> varChar;
 
 // COMMON: !DILocalVariable(name: "varChar", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[BAR_CHAR_TY:[0-9]+]])
-// LLDB:   ![[BAR_CHAR_TY]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "Bar", file: ![[#]], line: [[#]], baseType: ![[BAR_CHAR_TMP:[0-9]+]], extraData: ![[BAR_CHAR_TPARAMS:[0-9]+]])
-// LLDB:   ![[BAR_CHAR_TMP]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "BarTmp", file: ![[#]], line: [[#]], baseType: ![[BAR_CHAR_BASE:[0-9]+]], extraData: ![[BAR_CHAR_TPARAMS]])
-// LLDB:   ![[BAR_CHAR_BASE]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "BarBase", file: ![[#]], line: [[#]], baseType: ![[FOO_CHAR:[0-9]+]], extraData: ![[BAR_CHAR_TPARAMS]])
+// LLDB:   ![[BAR_CHAR_TY]] = !DIDerivedType(tag: DW_TAG_typedef, name: "Bar<char>", file: ![[#]], line: [[#]], baseType: ![[BAR_CHAR_TMP:[0-9]+]])
+// LLDB:   ![[BAR_CHAR_TMP]] = !DIDerivedType(tag: DW_TAG_typedef, name: "BarTmp<char>", file: ![[#]], line: [[#]], baseType: ![[BAR_CHAR_BASE:[0-9]+]])
+// LLDB:   ![[BAR_CHAR_BASE]] = !DIDerivedType(tag: DW_TAG_typedef, name: "BarBase<char>", file: ![[#]], line: [[#]], baseType: ![[FOO_CHAR:[0-9]+]])
 // LLDB:   ![[FOO_CHAR]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "Foo<char>"
 // GDB:    ![[BAR_CHAR_TY]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "Foo<char>"
-// LLDB:   ![[BAR_CHAR_TPARAMS]] = !{![[T:[0-9]+]]}
-// LLDB:   ![[T]] = !DITemplateTypeParameter(name: "T", type: ![[TYPE:[0-9]+]])
-// LLDB:   ![[TYPE]] = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
 
     Foo<Foo<int>> varFooInt;
 
