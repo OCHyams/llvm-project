@@ -11,8 +11,5 @@
 
 #include "gmodules-preferred-name-alias.h"
 
-// CHECK: ![[#]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "Bar", scope: ![[#]], file: ![[#]], line: [[#]], baseType: ![[PREF_BASE:[0-9]+]], extraData: ![[TPARAM:[0-9]+]])
+// CHECK: ![[#]] = !DIDerivedType(tag: DW_TAG_typedef, name: "Bar<char>", scope: ![[#]], file: ![[#]], line: [[#]], baseType: ![[PREF_BASE:[0-9]+]])
 // CHECK: ![[PREF_BASE]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "Foo<char>"
-// CHECK: ![[TPARAM]] = !{![[TPARAM_CHAR:[0-9]+]]}
-// CHECK: ![[TPARAM_CHAR]] = !DITemplateTypeParameter(name: "T", type: ![[CHAR:[0-9]+]])
-// CHECK: ![[CHAR]] = !DIBasicType(name: "char",
