@@ -1334,16 +1334,16 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
 
   SourceLocation Loc = AliasDecl->getLocation();
 
-  // IF IS SUPPORTED...
-  if (true) {
-  TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
-  auto TParams = CollectTemplateParams(Args, Unit);
-  llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
-      Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
-      getDeclContextDescriptor(AliasDecl), TParams);
-  return AliasTy;
+  if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::SCE) {
+    // FIXME: Need to add template params if not using simplified template
+    // names?
+    TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
+    auto TParams = CollectTemplateParams(Args, Unit);
+    llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
+        Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
+        getDeclContextDescriptor(AliasDecl), TParams);
+    return AliasTy;
   }
-  // ... ELSE ...
 
   // Disable PrintCanonicalTypes here because we want
   // the DW_AT_name to benefit from the TypePrinter's ability
