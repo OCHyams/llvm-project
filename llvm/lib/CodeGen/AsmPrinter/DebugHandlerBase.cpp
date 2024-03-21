@@ -155,7 +155,7 @@ uint64_t DebugHandlerBase::getBaseTypeSize(const DIType *Ty) {
       Tag != dwarf::DW_TAG_template_alias && Tag != dwarf::DW_TAG_const_type &&
       Tag != dwarf::DW_TAG_volatile_type &&
       Tag != dwarf::DW_TAG_restrict_type && Tag != dwarf::DW_TAG_atomic_type &&
-      Tag != dwarf::DW_TAG_immutable_type)
+      Tag != dwarf::DW_TAG_immutable_type && Tag != dwarf::DW_TAG_template_alias)
     return DDTy->getSizeInBits();
 
   DIType *BaseType = DDTy->getBaseType();
