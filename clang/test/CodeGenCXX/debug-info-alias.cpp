@@ -21,10 +21,10 @@ bar
 // CHECK: !DIGlobalVariable(name: "bi",{{.*}} type: [[BINT:![0-9]+]]
 x::bar<int> bi;
 // CHECK: !DIGlobalVariable(name: "bf",{{.*}} type: [[BFLOAT:![0-9]+]]
-// CHECK: [[BFLOAT]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "bar"
+// CHECK: [[BFLOAT]] = !DIDerivedType(tag: DW_TAG_typedef, name: "bar<float>"
 x::bar<float> bf;
 // CHECK: !DIGlobalVariable(name: "bz",{{.*}} type: [[BBAZ:![0-9]+]]
-// CHECK: [[BBAZ]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "bar"
+// CHECK: [[BBAZ]] = !DIDerivedType(tag: DW_TAG_typedef, name: "bar<baz<int> >"
 x::bar<baz<int>> bz;
 
 using
@@ -37,12 +37,12 @@ narf n;
 
 template <typename T>
 using tv = void;
-// CHECK: !DIDerivedType(tag: DW_TAG_template_alias, name: "tv"
+// CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "tv<int>"
 tv<int> *tvp;
 
 using v = void;
 // CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "v"
 v *vp;
 
-// CHECK: [[BINT]] = !DIDerivedType(tag: DW_TAG_template_alias, name: "bar"
+// CHECK: [[BINT]] = !DIDerivedType(tag: DW_TAG_typedef, name: "bar<int>"
 // CHECK-SAME:                      line: 42,

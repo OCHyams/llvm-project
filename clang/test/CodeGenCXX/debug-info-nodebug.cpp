@@ -63,5 +63,5 @@ void func5() {
 }
 // YESINFO-DAG: !DIDerivedType(tag: DW_TAG_typedef, name: "x"
 // NOINFO-NOT:  !DIDerivedType(tag: DW_TAG_typedef, name: "x"
-// YESINFO-DAG: !DIDerivedType(tag: DW_TAG_template_alias, name: "y"
-// NOINFO-NOT:  !DIDerivedType(tag: DW_TAG_template_alias, name: "y"
+// YESINFO-DAG: !DIDerivedType(tag: DW_TAG_typedef, name: "y<int>"
+// NOINFO-NOT:  !DIDerivedType(tag: DW_TAG_typedef, name: "y<int>"
