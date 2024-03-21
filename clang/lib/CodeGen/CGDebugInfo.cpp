@@ -1336,12 +1336,11 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
 
   // IF IS SUPPORTED...
   if (true) {
-  // TODO: AlignInBits?
   TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
   auto TParams = CollectTemplateParams(Args, Unit);
   llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
       Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
-      getDeclContextDescriptor(AliasDecl), TParams, 0, llvm::DINode::DIFlags());
+      getDeclContextDescriptor(AliasDecl), TParams);
   return AliasTy;
   }
   // ... ELSE ...
