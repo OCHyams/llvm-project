@@ -1,4 +1,15 @@
-; RUN: llc %s -o - --filetype=obj | llvm-dwarfdump - --name A --show-children | FileCheck %s
+; RUN: llc %s -o - --filetype=obj | llvm-dwarfdump - --name A --show-children | FileCheck %s --check-prefix=TREE
+
+;; -ggnu-pubnames (nameTableKind: GNU).
+; RUN: llc %s -o - --filetype=obj \
+; RUN: | llvm-dwarfdump - --debug-gnu-pubtypes \
+; RUN: | FileCheck %s --check-prefix=GNU-TYPES
+
+;; -gpubnames (remove nameTableKind field from DICompileUnit).
+; RUN: sed 's/, nameTableKind: GNU//g' < %s \
+; RUN: | llc - -o - --filetype=obj \
+; RUN: | llvm-dwarfdump - --debug-pubtypes \
+; RUN: | FileCheck %s --check-prefix=PUB-TYPES
 
 ;; C++ source from clang/test/CodeGenCXX/template-alias.cpp, compiled with -gsce:
 ;; template<typename Y, int Z>
@@ -13,17 +24,21 @@
 
 ;; Test emission of DIDerivedType with tag: DW_TAG_template_alias.
 
-; CHECK: DW_TAG_template_alias
-; CHECK: DW_AT_type (0x{{[0-9a-f]+}} "X<int, 5>")
-; CHECK: DW_AT_name ("A")
-; CHECK:   DW_TAG_template_type_parameter
-; CHECK:     DW_AT_type        (0x{{[0-9a-f]+}} "int")
-; CHECK:     DW_AT_name        ("B")
-; CHECK:   DW_TAG_template_value_parameter
-; CHECK:     DW_AT_type        (0x{{[0-9a-f]+}} "int")
-; CHECK:     DW_AT_name        ("C")
-; CHECK:     DW_AT_const_value (5)
-; CHECK:   NULL
+; TREE: DW_TAG_template_alias
+; TREE: DW_AT_type (0x{{[0-9a-f]+}} "X<int, 5>")
+; TREE: DW_AT_name ("A")
+; TREE:   DW_TAG_template_type_parameter
+; TREE:     DW_AT_type        (0x{{[0-9a-f]+}} "int")
+; TREE:     DW_AT_name        ("B")
+; TREE:   DW_TAG_template_value_parameter
+; TREE:     DW_AT_type        (0x{{[0-9a-f]+}} "int")
+; TREE:     DW_AT_name        ("C")
+; TREE:     DW_AT_const_value (5)
+; TREE:   NULL
+
+; GNU-TYPES: STATIC   TYPE     "A"
+; PUB-TYPES: "A"
+
 
 target triple = "x86_64-unk-unk"
 
@@ -37,7 +52,7 @@ target triple = "x86_64-unk-unk"
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !5, line: 14, type: !6, isLocal: false, isDefinition: true)
-!2 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !3, producer: "clang version 19.0.0git", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, globals: !4, splitDebugInlining: false, nameTableKind: None)
+!2 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !3, producer: "clang version 19.0.0git", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, globals: !4, splitDebugInlining: false, nameTableKind: GNU)
 !3 = !DIFile(filename: "<stdin>", directory: "/")
 !4 = !{!0}
 !5 = !DIFile(filename: "clang/test/CodeGenCXX/template-alias.cpp", directory: "/")
