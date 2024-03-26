@@ -1335,8 +1335,12 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
   SourceLocation Loc = AliasDecl->getLocation();
 
   if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::SCE) {
-    // FIXME: Need to add template params if not using simplified template
-    // names?
+    // FIXME: Use GetName here instead?
+    if (CGM.getCodeGenOpts().getDebugSimpleTemplateNames() !=
+        llvm::codegenoptions::DebugTemplateNamesKind::Simple) {
+      printTemplateArgumentList(OS, Ty->template_arguments(), PP,
+                                TD->getTemplateParameters());
+    }
     TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
     auto TParams = CollectTemplateParams(Args, Unit);
     llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
