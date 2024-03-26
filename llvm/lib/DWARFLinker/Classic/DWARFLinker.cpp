@@ -657,7 +657,7 @@ static void updateChildIncompleteness(const DWARFDie &Die, CompileUnit &CU,
 /// the referenced DIE already being computed.
 static void updateRefIncompleteness(const DWARFDie &Die, CompileUnit &CU,
                                     CompileUnit::DIEInfo &RefInfo) {
-  switch (Die.getTag()) { // OCH?
+  switch (Die.getTag()) {
   case dwarf::DW_TAG_typedef:
   case dwarf::DW_TAG_member:
   case dwarf::DW_TAG_reference_type:
