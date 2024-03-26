@@ -65,7 +65,7 @@
 // };
 // template<typename A>
 // using Alias = Base<A>;
-// 
+//
 // void f() {
 //   char a;
 //   char *b;

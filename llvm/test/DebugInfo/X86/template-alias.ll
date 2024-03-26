@@ -16,10 +16,10 @@
 ;; struct X {
 ;;   Y m1 = Z;
 ;; };
-;; 
+;;
 ;; template<typename B, int C>
 ;; using A = X<B, C>;
-;; 
+;;
 ;; A<int, 5> a;
 
 ;; Test emission of DIDerivedType with tag: DW_TAG_template_alias.
