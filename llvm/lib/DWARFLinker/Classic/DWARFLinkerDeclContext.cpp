@@ -74,7 +74,7 @@ DeclContextTree::getChildDeclContext(DeclContext &Context, const DWARFDie &DIE,
   case dwarf::DW_TAG_class_type:
   case dwarf::DW_TAG_union_type:
   case dwarf::DW_TAG_enumeration_type:
-  case dwarf::DW_TAG_typedef: // OCH?
+  case dwarf::DW_TAG_typedef:
     // Artificial things might be ambiguous, because they might be created on
     // demand. For example implicitly defined constructors are ambiguous
     // because of the way we identify contexts, and they won't be generated
