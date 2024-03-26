@@ -773,7 +773,6 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
 
   // If alignment is specified for a typedef , create and insert DW_AT_alignment
   // attribute in DW_TAG_typedef DIE.
-  // dwarf::DW_TAG_template_alias OCH?
   if (Tag == dwarf::DW_TAG_typedef && DD->getDwarfVersion() >= 5) {
     uint32_t AlignInBytes = DTy->getAlignInBytes();
     if (AlignInBytes > 0)
