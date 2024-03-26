@@ -259,7 +259,6 @@ PrintingPolicy CGDebugInfo::getPrintingPolicy() const {
 }
 
 StringRef CGDebugInfo::getFunctionName(const FunctionDecl *FD) {
-  llvm::errs() << "getFunctionName\n";
   return internString(GetName(FD));
 }
 
@@ -294,7 +293,6 @@ StringRef CGDebugInfo::getSelectorName(Selector S) {
 StringRef CGDebugInfo::getClassName(const RecordDecl *RD) {
   if (isa<ClassTemplateSpecializationDecl>(RD)) {
     // Copy this name on the side and use its reference.
-    llvm::errs() << "getClassName\n";
     return internString(GetName(RD));
   }
 
@@ -1339,14 +1337,10 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
   if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::SCE) {
     // FIXME: Need to add template params if not using simplified template
     // names?
-    //printTemplateArgumentList(OS, Ty->template_arguments(), PP,
-     //                       TD->getTemplateParameters());
-    llvm::errs() << "me!\n";
-    std::string S = GetName(TD);
     TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
     auto TParams = CollectTemplateParams(Args, Unit);
     llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
-        Src, S, getOrCreateFile(Loc), getLineNumber(Loc),
+        Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
         getDeclContextDescriptor(AliasDecl), TParams);
     return AliasTy;
   }
@@ -5385,7 +5379,7 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
 
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     TemplateNamesKind = llvm::codegenoptions::DebugTemplateNamesKind::Full;
-  llvm::errs() << (int)TemplateNamesKind << " TemplateNamesKind\n";
+
   std::optional<TemplateArgs> Args;
 
   bool IsOperatorOverload = false; // isa<CXXConversionDecl>(ND);
@@ -5399,45 +5393,10 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
         NameKind == DeclarationName::CXXConversionFunctionName;
   } else if (auto *VD = dyn_cast<VarDecl>(ND)) {
     Args = GetTemplateArgs(VD);
-  } else if (auto *TD = dyn_cast<TypeAliasTemplateDecl>(ND)) {   
-    llvm::errs() << "- TypeAliasTemplateDecl\n";
-    llvm::errs() << "isa thingy " << (bool)isa<ClassTemplateSpecializationDecl>(TD) << "\n";
-    llvm::errs() << "isa thingy " << (bool)isa<VarTemplateSpecializationDecl>(TD) << "\n";
-    //llvm::errs() << " - " << (bool)IsReconstitutableType(TD->getType()) << " is reconstitutable\n";
-    //  TD->VarTemplateSpecialization; // what's that
-    // TD->getTemplateArgs(); // no
-    //TD->getDescribedTemplate(); works but probs wrong?
-    //TD->getTemplateSpecializationArgs(); no
-    // getTemplateArgs no
-    //TD->getDescribedTemplate()->getTemplateArgs(); ?
-    // crashes with unreachable below...
-    //TD->getUnderlyingType(); nope
-    //TD->getTemplateSpecializationInfo(); no
-    //TD->getSpecializedTemplate();
-    // VVV good.. actually no good :( 
-    //if (auto Ty = dyn_cast<TemplateSpecializationType>(TD->getTemplatedDecl()->getUnderlyingType())) {
-    //  llvm::errs() << "good stuff\n";
-    //  Args = {{TD->getTemplateParameters(), Ty->template_arguments()}};
-   // }
-  TD->getTemplatedDecl()->getUnderlyingType().dump();
-  cast<ElaboratedType>(TD->getTemplatedDecl()->getUnderlyingType())->desugar().dump();
-  // was TD->getTemplatedDecl()->getTemplateArgs one? or something similar? or justtemplate_arguments on that?
-  if (auto Ty = dyn_cast<TemplateSpecializationType>(cast<ElaboratedType>(TD->getTemplatedDecl()->getUnderlyingType())->desugar())) {
-    llvm::errs() << "good stuff\n";
-    Args = {{TD->getTemplateParameters(), Ty->template_arguments()}};
-   }
-   // also no good :()
-   //if (auto Ty = dyn_cast<TemplateSpecializationType>(TD->getUnderlyingDecl()->getUnderlyingType()) {
-   // llvm::errs() << "good stuff\n";
-  // }
   }
   std::function<bool(ArrayRef<TemplateArgument>)> HasReconstitutableArgs =
       [&](ArrayRef<TemplateArgument> Args) {
         return llvm::all_of(Args, [&](const TemplateArgument &TA) {
-          TA.dump(); llvm::errs() << "\n";
-          llvm::errs() << TA.getKind() << " ArgKind\n";
-          // the args we give it here contain Expression (for the int?)
-          // is that a problem? seems like a  pain 
           switch (TA.getKind()) {
           case TemplateArgument::Template:
             // Easy to reconstitute - the value of the parameter in the debug
@@ -5501,8 +5460,7 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
   // difference between these different operators during that rebuilding.
   bool Reconstitutable =
       Args && HasReconstitutableArgs(Args->Args) && !IsOperatorOverload;
-  llvm::errs() << Reconstitutable<< " Reconstitutable\n";
-  llvm::errs() << (bool)Args<< " (bool)Args\n";
+
   PrintingPolicy PP = getPrintingPolicy();
 
   if (TemplateNamesKind == llvm::codegenoptions::DebugTemplateNamesKind::Full ||
