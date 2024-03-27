@@ -626,7 +626,8 @@ private:
     llvm::DIType *WrappedType;
   };
 
-  std::string GetName(const Decl*, bool Qualified = false) const;
+  std::string GetName(const Decl *, bool Qualified = false,
+                      const Type *Ty = nullptr) const;
 
   /// Build up structure info for the byref.  See \a BuildByRefType.
   BlockByRefType EmitTypeForVarWithBlocksAttr(const VarDecl *VD,

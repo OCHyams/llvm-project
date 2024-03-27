@@ -1336,15 +1336,16 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
 
   if (CGM.getCodeGenOpts().DebugTemplateAlias) {
     // FIXME: Use GetName here instead?
-    if (CGM.getCodeGenOpts().getDebugSimpleTemplateNames() !=
-        llvm::codegenoptions::DebugTemplateNamesKind::Simple) {
-      printTemplateArgumentList(OS, Ty->template_arguments(), PP,
-                                TD->getTemplateParameters());
-    }
+    // if (CGM.getCodeGenOpts().getDebugSimpleTemplateNames() !=
+    //    llvm::codegenoptions::DebugTemplateNamesKind::Simple) {
+    //  printTemplateArgumentList(OS, Ty->template_arguments(), PP,
+    //                            TD->getTemplateParameters());
+    //}
+    auto Name = GetName(TD, false, Ty);
     TemplateArgs Args = {TD->getTemplateParameters(), Ty->template_arguments()};
     auto TParams = CollectTemplateParams(Args, Unit);
     llvm::DIDerivedType *AliasTy = DBuilder.createTemplateAlias(
-        Src, OS.str(), getOrCreateFile(Loc), getLineNumber(Loc),
+        Src, Name, getOrCreateFile(Loc), getLineNumber(Loc),
         getDeclContextDescriptor(AliasDecl), TParams);
     return AliasTy;
   }
@@ -5372,7 +5373,8 @@ static bool IsReconstitutableType(QualType QT) {
   return T.Reconstitutable;
 }
 
-std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
+std::string CGDebugInfo::GetName(const Decl *D, bool Qualified,
+                                 const Type *Ty) const {
   std::string Name;
   llvm::raw_string_ostream OS(Name);
   const NamedDecl *ND = dyn_cast<NamedDecl>(D);
@@ -5397,6 +5399,9 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
         NameKind == DeclarationName::CXXConversionFunctionName;
   } else if (auto *VD = dyn_cast<VarDecl>(ND)) {
     Args = GetTemplateArgs(VD);
+  } else if (auto *TD = dyn_cast<TypeAliasTemplateDecl>(ND)) {
+    if (auto TemplateTy = dyn_cast<TemplateSpecializationType>(Ty))
+      Args = {{TD->getTemplateParameters(), TemplateTy->template_arguments()}};
   }
   std::function<bool(ArrayRef<TemplateArgument>)> HasReconstitutableArgs =
       [&](ArrayRef<TemplateArgument> Args) {
