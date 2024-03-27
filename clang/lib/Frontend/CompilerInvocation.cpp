@@ -1556,6 +1556,9 @@ void CompilerInvocationBase::GenerateCodeGenArgs(const CodeGenOptions &Opts,
                llvm::DICompileUnit::DebugNameTableKind::Default))
     GenerateArg(Consumer, OPT_gpubnames);
 
+  if (Opts.DebugTemplateAlias)
+    GenerateArg(Consumer, OPT_gtemplate_alias);
+
   auto TNK = Opts.getDebugSimpleTemplateNames();
   if (TNK != llvm::codegenoptions::DebugTemplateNamesKind::Full) {
     if (TNK == llvm::codegenoptions::DebugTemplateNamesKind::Simple)
