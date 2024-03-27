@@ -1,13 +1,13 @@
-// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -debugger-tuning=sce %s -gsimple-template-names=simple \
+// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -gtemplate-alias %s -gsimple-template-names=simple \
 // RUN: | FileCheck %s --check-prefixes=ALIAS-SIMPLE,ALIAS-ALL
 
-// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -debugger-tuning=sce %s -gsimple-template-names=mangled \
+// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -gtemplate-alias %s -gsimple-template-names=mangled \
 // RUN: | FileCheck %s --check-prefixes=ALIAS-MANGLED,ALIAS-ALL
 
-// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -debugger-tuning=sce %s  \
+// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -gtemplate-alias %s  \
 // RUN: | FileCheck %s --check-prefixes=ALIAS-FULL,ALIAS-ALL
 
-// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -debugger-tuning=gdb %s \
+// RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone  %s \
 // RUN: | FileCheck %s --check-prefixes=TYPEDEF
 
 // FXIME: don't rely on sce debugger tuning.

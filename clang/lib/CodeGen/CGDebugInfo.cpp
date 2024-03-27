@@ -1334,7 +1334,7 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
 
   SourceLocation Loc = AliasDecl->getLocation();
 
-  if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::SCE) {
+  if (CGM.getCodeGenOpts().DebugTemplateAlias) {
     // FIXME: Use GetName here instead?
     if (CGM.getCodeGenOpts().getDebugSimpleTemplateNames() !=
         llvm::codegenoptions::DebugTemplateNamesKind::Simple) {
