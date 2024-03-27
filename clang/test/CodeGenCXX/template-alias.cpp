@@ -10,8 +10,12 @@
 // RUN: %clang_cc1 -triple x86_64-unk-unk -o - -emit-llvm -debug-info-kind=standalone -debugger-tuning=gdb %s \
 // RUN: | FileCheck %s --check-prefixes=TYPEDEF
 
+// FXIME: don't rely on sce debugger tuning.
 //// Check that -gsce debugger tuning causes DW_TAG_template_alias emission
-//// for template aliases. Test type and value template parameters.
+//// for template aliases, and that respects gsimple-template-names.
+////
+//// Test type and value template parameters.
+
 template<typename Y, int Z>
 struct X {
   Y m1 = Z;
