@@ -4522,6 +4522,18 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
     }
   }
 
+  // Emit DW_TAG_template_alias for template aliases? True by default for SCE.
+  const auto *DebugTemplateAlias = Args.getLastArg(
+      options::OPT_gtemplate_alias, options::OPT_gno_template_alias);
+  bool UseDebugTemplateAlias = DebuggerTuning == llvm::DebuggerKind::SCE;
+  if (DebugTemplateAlias &&
+      checkDebugInfoOption(DebugTemplateAlias, Args, D, TC)) {
+    const auto &Opt = DebugTemplateAlias->getOption();
+    UseDebugTemplateAlias = Opt.matches(options::OPT_gtemplate_alias);
+  }
+  if (UseDebugTemplateAlias)
+    CmdArgs.push_back("-gtemplate-alias");
+
   if (const Arg *A = Args.getLastArg(options::OPT_gsrc_hash_EQ)) {
     StringRef v = A->getValue();
     CmdArgs.push_back(Args.MakeArgString("-gsrc-hash=" + v));
