@@ -465,3 +465,12 @@
 // MANGLED_TEMP_NAMES: error: unknown argument '-gsimple-template-names=mangled'; did you mean '-Xclang -gsimple-template-names=mangled'
 // RUN: %clang -### -target x86_64 -c -g %s 2>&1 | FileCheck --check-prefix=FULL_TEMP_NAMES --implicit-check-not=debug-forward-template-params %s
 // FULL_TEMP_NAMES-NOT: -gsimple-template-names
+
+//// Test -g[no-]template-alias (enabled by default with SCE debugger tuning).
+// RUN: %clang -### -target x86_64 -c -gsce %s 2>&1 | FileCheck %s --check-prefixes=TEMPLATE-ALIAS
+// RUN: %clang -### -target x86_64 -c -gsce -gtemplate-alias %s 2>&1 | FileCheck %s --check-prefixes=TEMPLATE-ALIAS
+// RUN: %clang -### -target x86_64 -c -gsce -gno-template-alias %s 2>&1 | FileCheck %s --check-prefixes=NO-TEMPLATE-ALIAS
+// RUN: %clang -### -target x86_64 -c -g -gtemplate-alias %s 2>&1 | FileCheck %s --check-prefixes=TEMPLATE-ALIAS
+// RUN: %clang -### -target x86_64 -c -g -gtemplate-alias -gno-template-alias %s 2>&1 | FileCheck %s --check-prefixes=NO-TEMPLATE-ALIAS
+// TEMPLATE-ALIAS: "-gtemplate-alias"
+// NO-TEMPLATE-ALIAS-NOT: "-gtemplate-alias"
