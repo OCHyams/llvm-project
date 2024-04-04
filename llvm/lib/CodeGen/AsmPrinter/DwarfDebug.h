@@ -746,7 +746,7 @@ public:
 
   /// Returns whether we should emit all DW_AT_[MIPS_]linkage_name.
   /// If not, we still might emit certain cases.
-  bool useAllLinkageNames() const { return UseAllLinkageNames; }
+  bool useAllLinkageNames() const { return false; UseAllLinkageNames; }
 
   /// Returns whether to use DW_OP_GNU_push_tls_address, instead of the
   /// standard DW_OP_form_tls_address opcode
