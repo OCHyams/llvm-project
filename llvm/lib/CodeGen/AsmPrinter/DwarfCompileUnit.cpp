@@ -27,6 +27,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
@@ -1260,6 +1261,24 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
   } else {
     DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP);
     assert(CalleeDIE && "Could not create DIE for call site entry origin");
+
+    if (/*AddLowPCToCallOriginDecls*/ true && !CalleeSP->isDefinition() &&
+        !CalleeDIE->findAttribute(dwarf::DW_AT_low_pc) &&
+        !CalleeSP->isLocalToUnit()) {
+      StringRef Name = !CalleeSP->getLinkageName().empty()
+                           ? CalleeSP->getLinkageName()
+                           : CalleeSP->getName();
+      if (!Name.empty() && Asm->OutContext.lookupSymbol(Name)) {
+        // This should never introduce new symbol names: the call instruction
+        // has already been processed, which will have resulted in creating a
+        // symbol for the callee.
+        assert(Asm->OutContext.lookupSymbol(Name) &&
+               "Symbol does not exist already?");
+        MCSymbol *Symbol = Asm->OutContext.getOrCreateSymbol(Name);
+        addLabelAddress(*CalleeDIE, dwarf::DW_AT_low_pc, Symbol);
+      }
+    }
+
     addDIEEntry(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_origin),
                 *CalleeDIE);
   }
