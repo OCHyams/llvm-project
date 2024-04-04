@@ -1261,13 +1261,14 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
   } else {
     DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP);
     assert(CalleeDIE && "Could not create DIE for call site entry origin");
-
+#if 0
     if (/*AddLowPCToCallOriginDecls*/ true && !CalleeSP->isDefinition() &&
         !CalleeDIE->findAttribute(dwarf::DW_AT_low_pc) &&
         !CalleeSP->isLocalToUnit()) {
       StringRef Name = !CalleeSP->getLinkageName().empty()
                            ? CalleeSP->getLinkageName()
                            : CalleeSP->getName();
+
       if (!Name.empty() && Asm->OutContext.lookupSymbol(Name)) {
         // This should never introduce new symbol names: the call instruction
         // has already been processed, which will have resulted in creating a
@@ -1277,6 +1278,16 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
         MCSymbol *Symbol = Asm->OutContext.getOrCreateSymbol(Name);
         addLabelAddress(*CalleeDIE, dwarf::DW_AT_low_pc, Symbol);
       }
+    }
+#endif
+    if (/*AddLowPCToCallOriginDecls*/ true && !CalleeSP->isDefinition() &&
+        !CalleeDIE->findAttribute(dwarf::DW_AT_linkage_name) &&
+        !CalleeSP->isLocalToUnit()) {
+      StringRef Name = !CalleeSP->getLinkageName().empty()
+                           ? CalleeSP->getLinkageName()
+                           : CalleeSP->getName();
+      if (!Name.empty())
+        addLinkageName(*CalleeDIE, Name);
     }
 
     addDIEEntry(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_origin),
