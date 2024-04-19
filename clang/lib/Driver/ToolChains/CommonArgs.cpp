@@ -894,9 +894,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
         Twine(PluginOptPrefix) + "-global-isel=" +
         (A->getOption().matches(options::OPT_fglobal_isel) ? "1" : "0")));
   }
-  // Pretend we're SCE.
-  CmdArgs.push_back(
-      Args.MakeArgString(Twine(PluginOptPrefix) + "-debugger-tune=sce"));
+
   // If an explicit debugger tuning argument appeared, pass it along.
   if (Arg *A =
           Args.getLastArg(options::OPT_gTune_Group, options::OPT_ggdbN_Group)) {
