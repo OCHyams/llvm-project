@@ -43,6 +43,21 @@
 
 using namespace llvm;
 
+/// Query value using AddLinkageNamesToCallOriginsForTuning.
+cl::opt<cl::boolOrDefault>
+    AddLinkageNamesToCallOrigins("add-linkage-names-to-external-call-origins",
+                                 cl::Hidden),
+    cl::desc("Add DW_AT_linkage_name to external function declaration DIEs "
+             "referenced by DW_AT_call_origin attributes. Enabled by default "
+             "for -gsce debugger tuning.");
+
+static bool AddLinkageNamesToCallOriginsForTuning(const DwarfDebug *DD) {
+  bool EnabledByDefault = DD->tuneForSCE();
+  if (EnabledByDefault)
+    return AddLinkageNamesToCallOrigins != cl::boolOrDefault::BOU_FALSE;
+  return AddLinkageNamesToCallOrigins == cl::boolOrDefault::BOU_TRUE;
+}
+
 static dwarf::Tag GetCompileUnitType(UnitKind Kind, DwarfDebug *DW) {
 
   //  According to DWARF Debugging Information Format Version 5,
@@ -1261,33 +1276,10 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
   } else {
     DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP);
     assert(CalleeDIE && "Could not create DIE for call site entry origin");
-#if 0
-    if (/*AddLowPCToCallOriginDecls*/ true && !CalleeSP->isDefinition() &&
-        !CalleeDIE->findAttribute(dwarf::DW_AT_low_pc) &&
-        !CalleeSP->isLocalToUnit()) {
-      StringRef Name = !CalleeSP->getLinkageName().empty()
-                           ? CalleeSP->getLinkageName()
-                           : CalleeSP->getName();
-
-      if (!Name.empty() && Asm->OutContext.lookupSymbol(Name)) {
-        // This should never introduce new symbol names: the call instruction
-        // has already been processed, which will have resulted in creating a
-        // symbol for the callee.
-        assert(Asm->OutContext.lookupSymbol(Name) &&
-               "Symbol does not exist already?");
-        MCSymbol *Symbol = Asm->OutContext.getOrCreateSymbol(Name);
-        addLabelAddress(*CalleeDIE, dwarf::DW_AT_low_pc, Symbol);
-      }
-    }
-#endif
-    if (/*AddLowPCToCallOriginDecls*/ true && !CalleeSP->isDefinition() &&
-        !CalleeDIE->findAttribute(dwarf::DW_AT_linkage_name) &&
-        !CalleeSP->isLocalToUnit()) {
-      StringRef Name = !CalleeSP->getLinkageName().empty()
-                           ? CalleeSP->getLinkageName()
-                           : CalleeSP->getName();
-      if (!Name.empty())
-        addLinkageName(*CalleeDIE, Name);
+    if (AddLinkageNamesToCallOriginsForTuning(DD) &&
+        !CalleeSP->isDefinition() && !CalleeSP->isLocalToUnit() &&
+        !CalleeDIE->findAttribute(dwarf::DW_AT_linkage_name)) {
+      addLinkageName(*CalleeDIE, CalleeSP->getLinkageName());
     }
 
     addDIEEntry(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_origin),
