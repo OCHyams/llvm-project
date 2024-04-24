@@ -734,6 +734,13 @@ static void interpretValues(const MachineInstr *CurMI,
         return TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP(RegLoc);
       };
 
+      if (!all_of(ArrayRef(ParamValue->first).drop_front(),
+                  [&](const MachineOperand &Op) {
+                    return Op.isImm() ||
+                           (Op.isReg() && ValidRegForCallValue(Op.getReg()));
+                  }))
+        continue;
+
       auto &Op = ParamValue->first[0];
       if (Op.isImm()) {
         int64_t Val = Op.getImm();
