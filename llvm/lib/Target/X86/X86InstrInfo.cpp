@@ -9951,6 +9951,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     int64_t Coef = MI.getOperand(2).getImm();
     int64_t Offset = MI.getOperand(4).getImm();
     SmallVector<uint64_t, 8> Ops;
+    SmallVector<MachineOperand> UsedMops;
 
     if ((Op1.isReg() && Op1.getReg() != X86::NoRegister)) {
       Op = &Op1;
@@ -9961,6 +9962,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
       Ops.push_back(dwarf::DW_OP_constu);
       Ops.push_back(Coef + 1);
       Ops.push_back(dwarf::DW_OP_mul);
+      UsedMops.push_back(Op1); // Op2 is unused.
     } else {
       if (Op && Op2.getReg() != X86::NoRegister) {
         int dwarfReg = TRI->getDwarfRegNum(Op2.getReg(), false);
@@ -9978,6 +9980,9 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
         assert(Op2.getReg() != X86::NoRegister);
         Op = &Op2;
       }
+      UsedMops.push_back(*Op);
+      if (Op != &Op2)
+        UsedMops.push_back(Op2);
 
       if (Coef > 1) {
         assert(Op2.getReg() != X86::NoRegister);
@@ -9995,7 +10000,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     DIExpression::appendOffset(Ops, Offset);
     Expr = DIExpression::get(MI.getMF()->getFunction().getContext(), Ops);
 
-    return ParamLoadedValue({*Op}, Expr);
+    return ParamLoadedValue(std::move(UsedMops), Expr);
   }
   case X86::MOV8ri:
   case X86::MOV16ri:
