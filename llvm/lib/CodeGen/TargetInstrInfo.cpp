@@ -1510,7 +1510,7 @@ TargetInstrInfo::describeLoadedValue(const MachineInstr &MI,
     //   x0 = MOV x7
     //   call callee(x0)      ; x0 described as x7
     if (Reg == DestReg)
-      return ParamLoadedValue(*DestSrc->Source, Expr);
+      return ParamLoadedValue({*DestSrc->Source}, Expr);
 
     // If the target's hook couldn't describe this copy, give up.
     return std::nullopt;
@@ -1518,7 +1518,7 @@ TargetInstrInfo::describeLoadedValue(const MachineInstr &MI,
     Register SrcReg = RegImm->Reg;
     Offset = RegImm->Imm;
     Expr = DIExpression::prepend(Expr, DIExpression::ApplyOffset, Offset);
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcReg, false)}, Expr);
   } else if (MI.hasOneMemOperand()) {
     // Only describe memory which provably does not escape the function. As
     // described in llvm.org/PR43343, escaped memory may be clobbered by the
@@ -1559,7 +1559,7 @@ TargetInstrInfo::describeLoadedValue(const MachineInstr &MI,
     Ops.push_back(MMO->getSize().hasValue() ? MMO->getSize().getValue()
                                             : ~UINT64_C(0));
     Expr = DIExpression::prependOpcodes(Expr, Ops);
-    return ParamLoadedValue(*BaseOp, Expr);
+    return ParamLoadedValue({*BaseOp}, Expr);
   }
 
   return std::nullopt;

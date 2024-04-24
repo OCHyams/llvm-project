@@ -945,10 +945,10 @@ MipsInstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     // When SrcReg is $zero, treat loaded value as immediate only.
     // Ex. $a2 = ADDiu $zero, 10
     if (SrcReg == Mips::ZERO || SrcReg == Mips::ZERO_64) {
-      return ParamLoadedValue(MI.getOperand(2), Expr);
+      return ParamLoadedValue({MI.getOperand(2)}, Expr);
     }
     Expr = DIExpression::prepend(Expr, DIExpression::ApplyOffset, Offset);
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcReg, false)}, Expr);
   } else if (auto DestSrc = isCopyInstr(MI)) {
     const MachineFunction *MF = MI.getMF();
     const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();

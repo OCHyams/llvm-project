@@ -66,7 +66,7 @@ enum class MachineTraceStrategy;
 
 template <class T> class SmallVectorImpl;
 
-using ParamLoadedValue = std::pair<MachineOperand, DIExpression*>;
+using ParamLoadedValue = std::pair<SmallVector<MachineOperand>, DIExpression *>;
 
 struct DestSourcePair {
   const MachineOperand *Destination;

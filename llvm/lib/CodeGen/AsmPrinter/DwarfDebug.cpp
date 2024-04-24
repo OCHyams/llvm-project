@@ -723,29 +723,31 @@ static void interpretValues(const MachineInstr *CurMI,
 
   for (auto ParamFwdReg : FwdRegDefs) {
     if (auto ParamValue = TII.describeLoadedValue(*CurMI, ParamFwdReg)) {
-      if (ParamValue->first.isImm()) {
-        int64_t Val = ParamValue->first.getImm();
-        finishCallSiteParams(Val, ParamValue->second,
-                             ForwardedRegWorklist[ParamFwdReg], Params);
-      } else if (ParamValue->first.isReg()) {
-        Register RegLoc = ParamValue->first.getReg();
-        Register SP = TLI.getStackPointerRegisterToSaveRestore();
-        Register FP = TRI.getFrameRegister(*MF);
-        bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
-        if (!IsRegClobberedInMeantime(RegLoc) &&
-            (TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP)) {
-          MachineLocation MLoc(RegLoc, /*Indirect=*/IsSPorFP);
-          finishCallSiteParams(MLoc, ParamValue->second,
+      for (auto &Op : ParamValue->first) {
+        if (Op.isImm()) {
+          int64_t Val = Op.getImm();
+          finishCallSiteParams(Val, ParamValue->second,
                                ForwardedRegWorklist[ParamFwdReg], Params);
-        } else {
-          // ParamFwdReg was described by the non-callee saved register
-          // RegLoc. Mark that the call site values for the parameters are
-          // dependent on that register instead of ParamFwdReg. Since RegLoc
-          // may be a register that will be handled in this iteration, we
-          // postpone adding the items to the worklist, and instead keep them
-          // in a temporary container.
-          addToFwdRegWorklist(TmpWorklistItems, RegLoc, ParamValue->second,
-                              ForwardedRegWorklist[ParamFwdReg]);
+        } else if (Op.isReg()) {
+          Register RegLoc = Op.getReg();
+          Register SP = TLI.getStackPointerRegisterToSaveRestore();
+          Register FP = TRI.getFrameRegister(*MF);
+          bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
+          if (!IsRegClobberedInMeantime(RegLoc) &&
+              (TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP)) {
+            MachineLocation MLoc(RegLoc, /*Indirect=*/IsSPorFP);
+            finishCallSiteParams(MLoc, ParamValue->second,
+                                 ForwardedRegWorklist[ParamFwdReg], Params);
+          } else {
+            // ParamFwdReg was described by the non-callee saved register
+            // RegLoc. Mark that the call site values for the parameters are
+            // dependent on that register instead of ParamFwdReg. Since RegLoc
+            // may be a register that will be handled in this iteration, we
+            // postpone adding the items to the worklist, and instead keep them
+            // in a temporary container.
+            addToFwdRegWorklist(TmpWorklistItems, RegLoc, ParamValue->second,
+                                ForwardedRegWorklist[ParamFwdReg]);
+          }
         }
       }
     }

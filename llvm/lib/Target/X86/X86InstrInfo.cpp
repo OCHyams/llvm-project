@@ -9888,13 +9888,14 @@ describeMOVrrLoadedValue(const MachineInstr &MI, Register DescribedReg,
 
   // If the described register is the destination, just return the source.
   if (DestReg == DescribedReg)
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcReg, false)}, Expr);
 
   // If the described register is a sub-register of the destination register,
   // then pick out the source register's corresponding sub-register.
   if (unsigned SubRegIdx = TRI->getSubRegIndex(DestReg, DescribedReg)) {
     Register SrcSubReg = TRI->getSubReg(SrcReg, SubRegIdx);
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcSubReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcSubReg, false)},
+                            Expr);
   }
 
   // The remaining case to consider is when the described register is a
@@ -9908,7 +9909,7 @@ describeMOVrrLoadedValue(const MachineInstr &MI, Register DescribedReg,
     return std::nullopt;
 
   assert(MI.getOpcode() == X86::MOV32rr && "Unexpected super-register case");
-  return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+  return ParamLoadedValue({MachineOperand::CreateReg(SrcReg, false)}, Expr);
 }
 
 std::optional<ParamLoadedValue>
@@ -9994,7 +9995,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     DIExpression::appendOffset(Ops, Offset);
     Expr = DIExpression::get(MI.getMF()->getFunction().getContext(), Ops);
 
-    return ParamLoadedValue(*Op, Expr);
+    return ParamLoadedValue({*Op}, Expr);
   }
   case X86::MOV8ri:
   case X86::MOV16ri:
@@ -10007,7 +10008,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     // 64-bit parameters, so we need to consider super-registers.
     if (!TRI->isSuperRegisterEq(MI.getOperand(0).getReg(), Reg))
       return std::nullopt;
-    return ParamLoadedValue(MI.getOperand(1), Expr);
+    return ParamLoadedValue({MI.getOperand(1)}, Expr);
   case X86::MOV8rr:
   case X86::MOV16rr:
   case X86::MOV32rr:
@@ -10019,7 +10020,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     if (!TRI->isSuperRegisterEq(MI.getOperand(0).getReg(), Reg))
       return std::nullopt;
     if (MI.getOperand(1).getReg() == MI.getOperand(2).getReg())
-      return ParamLoadedValue(MachineOperand::CreateImm(0), Expr);
+      return ParamLoadedValue({MachineOperand::CreateImm(0)}, Expr);
     return std::nullopt;
   }
   case X86::MOVSX64rr32: {
@@ -10045,7 +10046,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
       assert(X86MCRegisterClasses[X86::GR32RegClassID].contains(Reg) &&
              "Unhandled sub-register case for MOVSX64rr32");
 
-    return ParamLoadedValue(MI.getOperand(1), Expr);
+    return ParamLoadedValue({MI.getOperand(1)}, Expr);
   }
   default:
     assert(!MI.isMoveImmediate() && "Unexpected MoveImm instruction");

@@ -9312,18 +9312,19 @@ describeORRLoadedValue(const MachineInstr &MI, Register DescribedReg,
 
   // If the described register is the destination, just return the source.
   if (DestReg == DescribedReg)
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcReg, false)}, Expr);
 
   // ORRWrs zero-extends to 64-bits, so we need to consider such cases.
   if (MI.getOpcode() == AArch64::ORRWrs &&
       TRI->isSuperRegister(DestReg, DescribedReg))
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcReg, false)}, Expr);
 
   // We may need to describe the lower part of a ORRXrs move.
   if (MI.getOpcode() == AArch64::ORRXrs &&
       TRI->isSubRegister(DestReg, DescribedReg)) {
     Register SrcSubReg = TRI->getSubReg(SrcReg, AArch64::sub_32);
-    return ParamLoadedValue(MachineOperand::CreateReg(SrcSubReg, false), Expr);
+    return ParamLoadedValue({MachineOperand::CreateReg(SrcSubReg, false)},
+                            Expr);
   }
 
   assert(!TRI->isSuperOrSubRegisterEq(DestReg, DescribedReg) &&
@@ -9398,7 +9399,7 @@ AArch64InstrInfo::describeLoadedValue(const MachineInstr &MI,
       return std::nullopt;
     int64_t Immediate = MI.getOperand(1).getImm();
     int Shift = MI.getOperand(2).getImm();
-    return ParamLoadedValue(MachineOperand::CreateImm(Immediate << Shift),
+    return ParamLoadedValue({MachineOperand::CreateImm(Immediate << Shift)},
                             nullptr);
   }
   case AArch64::ORRWrs:
