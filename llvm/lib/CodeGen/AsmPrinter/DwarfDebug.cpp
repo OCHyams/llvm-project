@@ -602,8 +602,9 @@ static const DIExpression *combineDIExpressions(const DIExpression *Original,
 
 /// Emit call site parameter entries that are described by the given value and
 /// debug expression.
-template <typename ValT>
-static void finishCallSiteParams(ValT Val, const DIExpression *Expr,
+// template <typename ValT>
+static void finishCallSiteParams(ArrayRef<MachineOperand> Vals,
+                                 const DIExpression *Expr, bool IsIndirect,
                                  ArrayRef<FwdRegParamInfo> DescribedParams,
                                  ParamSet &Params) {
   for (auto Param : DescribedParams) {
@@ -624,7 +625,9 @@ static void finishCallSiteParams(ValT Val, const DIExpression *Expr,
     assert((!CombinedExpr || CombinedExpr->isValid()) &&
            "Combined debug expression is invalid");
 
-    DbgValueLoc DbgLocVal(CombinedExpr, DbgValueLocEntry(Val));
+    DbgValueLoc DbgLocVal =
+        getDebugLocValueFromOperands(CombinedExpr, Vals, IsIndirect,
+                                     /*IsVariadic=*/Vals.size() > 1);
     DbgCallSiteParam CSParm(Param.ParamReg, DbgLocVal);
     Params.push_back(CSParm);
     ++NumCSParams;
@@ -753,6 +756,16 @@ static void interpretValues(const MachineInstr *CurMI,
         return TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP(RegLoc);
       };
 
+      // The back-tracking of reg values only works for the 1st register
+      // in the DIExpression. If there are multiple registers here which
+      // are not valid (are volatile) then skip this parameter. We can't
+      // describe it.
+      // If there's multiple registers, but only the 1st is invalid,
+      // we might be able to recover that with further back tracking,
+      // so continue.
+      // This is due to historic implementation details. We could possibly
+      // improve it, OTOH, maybe limiting the backtracking is reasonable for
+      // compile time safety.
       if (!all_of(ArrayRef(Operands).drop_front(),
                   [&](const MachineOperand &Op) {
                     return Op.isImm() ||
@@ -762,14 +775,13 @@ static void interpretValues(const MachineInstr *CurMI,
 
       auto &Op = Operands[0];
       if (Op.isImm()) {
-        int64_t Val = Op.getImm();
-        finishCallSiteParams(Val, Expr, ForwardedRegWorklist[ParamFwdReg],
-                             Params);
+        finishCallSiteParams(Operands, Expr, false,
+                             ForwardedRegWorklist[ParamFwdReg], Params);
       } else if (Op.isReg()) {
         if (ValidRegForCallValue(Op.getReg())) {
-          MachineLocation MLoc(Op.getReg(), /*Indirect=*/IsSPorFP(Op.getReg()));
-          finishCallSiteParams(MLoc, Expr, ForwardedRegWorklist[ParamFwdReg],
-                               Params);
+          finishCallSiteParams(Operands, Expr,
+                               Operands.size() == 1 && IsSPorFP(Op.getReg()),
+                               ForwardedRegWorklist[ParamFwdReg], Params);
         } else {
           // ParamFwdReg was described by the non-callee saved register
           // RegLoc. Mark that the call site values for the parameters are
@@ -898,8 +910,10 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     DIExpression *EntryExpr = DIExpression::get(
         MF->getFunction().getContext(), {dwarf::DW_OP_LLVM_entry_value, 1});
     for (auto &RegEntry : ForwardedRegWorklist) {
-      MachineLocation MLoc(RegEntry.first);
-      finishCallSiteParams(MLoc, EntryExpr, RegEntry.second, Params);
+      // borko for this one:
+      // fixme, fix it
+      // MachineLocation MLoc(RegEntry.first);
+      // finishCallSiteParams(MLoc, EntryExpr, false, RegEntry.second, Params);
     }
   }
 }
