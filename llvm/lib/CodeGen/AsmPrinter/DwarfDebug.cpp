@@ -231,24 +231,14 @@ const DIType *DbgVariable::getType() const {
   return getVariable()->getType();
 }
 
-/// Get .debug_loc entry for the instruction range starting at MI.
-static DbgValueLoc getDebugLocValue(const MachineInstr *MI) {
-  const DIExpression *Expr = MI->getDebugExpression();
-  auto SingleLocExprOpt = DIExpression::convertToNonVariadicExpression(Expr);
-  const bool IsVariadic = !SingleLocExprOpt;
-  // If we have a variadic debug value instruction that is equivalent to a
-  // non-variadic instruction, then convert it to non-variadic form here.
-  if (!IsVariadic && !MI->isNonListDebugValue()) {
-    assert(MI->getNumDebugOperands() == 1 &&
-           "Mismatched DIExpression and debug operands for debug instruction.");
-    Expr = *SingleLocExprOpt;
-  }
-  assert(MI->getNumOperands() >= 3);
+static DbgValueLoc
+getDebugLocValueFromOperands(const DIExpression *Expr,
+                             ArrayRef<MachineOperand> Operands, bool IsIndirect,
+                             bool IsVariadic) {
   SmallVector<DbgValueLocEntry, 4> DbgValueLocEntries;
-  for (const MachineOperand &Op : MI->debug_operands()) {
+  for (const MachineOperand &Op : Operands) {
     if (Op.isReg()) {
-      MachineLocation MLoc(Op.getReg(),
-                           MI->isNonListDebugValue() && MI->isDebugOffsetImm());
+      MachineLocation MLoc(Op.getReg(), IsIndirect);
       DbgValueLocEntries.push_back(DbgValueLocEntry(MLoc));
     } else if (Op.isTargetIndex()) {
       DbgValueLocEntries.push_back(
@@ -263,6 +253,24 @@ static DbgValueLoc getDebugLocValue(const MachineInstr *MI) {
       llvm_unreachable("Unexpected debug operand in DBG_VALUE* instruction!");
   }
   return DbgValueLoc(Expr, DbgValueLocEntries, IsVariadic);
+}
+
+/// Get .debug_loc entry for the instruction range starting at MI.
+static DbgValueLoc getDebugLocValue(const MachineInstr *MI) {
+  const DIExpression *Expr = MI->getDebugExpression();
+  auto SingleLocExprOpt = DIExpression::convertToNonVariadicExpression(Expr);
+  const bool IsVariadic = !SingleLocExprOpt;
+  // If we have a variadic debug value instruction that is equivalent to a
+  // non-variadic instruction, then convert it to non-variadic form here.
+  if (!IsVariadic && !MI->isNonListDebugValue()) {
+    assert(MI->getNumDebugOperands() == 1 &&
+           "Mismatched DIExpression and debug operands for debug instruction.");
+    Expr = *SingleLocExprOpt;
+  }
+  assert(MI->getNumOperands() >= 3);
+  return getDebugLocValueFromOperands(
+      Expr, ArrayRef(MI->debug_operands().begin(), MI->debug_operands().end()),
+      MI->isNonListDebugValue() && MI->isDebugOffsetImm(), IsVariadic);
 }
 
 static uint64_t getFragmentOffsetInBits(const DIExpression &Expr) {
