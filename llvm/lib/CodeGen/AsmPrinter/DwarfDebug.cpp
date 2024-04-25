@@ -773,6 +773,8 @@ static void interpretValues(const MachineInstr *CurMI,
                   }))
         continue;
 
+      // FIXME: fixing combineExpressions to work with DW_OP_LLVM_rag might be hard :-(
+
       auto &Op = Operands[0];
       if (Op.isImm()) {
         finishCallSiteParams(Operands, Expr, false,
