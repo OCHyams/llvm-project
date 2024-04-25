@@ -9965,24 +9965,17 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
       UsedMops.push_back(Op1); // Op2 is unused.
     } else {
       if (Op && Op2.getReg() != X86::NoRegister) {
-        int dwarfReg = TRI->getDwarfRegNum(Op2.getReg(), false);
-        if (dwarfReg < 0)
-          return std::nullopt;
-        else if (dwarfReg < 32) {
-          Ops.push_back(dwarf::DW_OP_breg0 + dwarfReg);
-          Ops.push_back(0);
-        } else {
-          Ops.push_back(dwarf::DW_OP_bregx);
-          Ops.push_back(dwarfReg);
-          Ops.push_back(0);
-        }
+        Ops.push_back(dwarf::DW_OP_LLVM_arg);
+        Ops.push_back(0);
+        Ops.push_back(dwarf::DW_OP_LLVM_arg);
+        Ops.push_back(1);
+        UsedMops.push_back(Op1);
+        UsedMops.push_back(Op2);
       } else if (!Op) {
         assert(Op2.getReg() != X86::NoRegister);
         Op = &Op2;
+        UsedMops.push_back(Op2); // Op1 is unused.
       }
-      UsedMops.push_back(*Op);
-      if (Op != &Op2)
-        UsedMops.push_back(Op2);
 
       if (Coef > 1) {
         assert(Op2.getReg() != X86::NoRegister);
