@@ -723,6 +723,18 @@ static void interpretValues(const MachineInstr *CurMI,
 
   for (auto ParamFwdReg : FwdRegDefs) {
     if (auto ParamValue = TII.describeLoadedValue(*CurMI, ParamFwdReg)) {
+      assert(!ParamValue->first.empty() &&
+             "Expected at least one input operand");
+      assert(
+          (ParamValue->first.size() == 1 ||
+           ParamValue->second->hasAllLocationOps(ParamValue->first.size())) &&
+          "Expected variadic expression to use all inputs");
+      assert((ParamValue->first.size() > 1 ||
+              llvm::none_of(ParamValue->second->expr_ops(),
+                            [](const DIExpression::ExprOperand &Op) {
+                              return Op.getOp() == dwarf::DW_OP_LLVM_arg;
+                            })) &&
+             "Expected more inputs for a variadic expression");
       auto IsSPorFP = [&](Register RegLoc) {
         Register SP = TLI.getStackPointerRegisterToSaveRestore();
         Register FP = TRI.getFrameRegister(*MF);
