@@ -66,6 +66,11 @@ enum class MachineTraceStrategy;
 
 template <class T> class SmallVectorImpl;
 
+/// If the location can be described using only one MachineOperand the
+/// expression is applied to it implicitly. If multiple inputs are
+/// required then the expression must explicitly refer to each operand
+/// using DW_OP_LLVM_arg, <N>, where N is an index into the vector of
+/// MachineOperands.
 using ParamLoadedValue = std::pair<SmallVector<MachineOperand>, DIExpression *>;
 
 struct DestSourcePair {
