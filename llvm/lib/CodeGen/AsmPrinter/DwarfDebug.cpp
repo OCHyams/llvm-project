@@ -723,14 +723,13 @@ static void interpretValues(const MachineInstr *CurMI,
 
   for (auto ParamFwdReg : FwdRegDefs) {
     if (auto ParamValue = TII.describeLoadedValue(*CurMI, ParamFwdReg)) {
-      assert(!ParamValue->first.empty() &&
-             "Expected at least one input operand");
+      auto &[Operands, Expr] = *ParamValue;
+      assert(!Operands.empty() && "Expected at least one input operand");
       assert(
-          (ParamValue->first.size() == 1 ||
-           ParamValue->second->hasAllLocationOps(ParamValue->first.size())) &&
+          (Operands.size() == 1 || Expr->hasAllLocationOps(Operands.size())) &&
           "Expected variadic expression to use all inputs");
-      assert((ParamValue->first.size() > 1 ||
-              llvm::none_of(ParamValue->second->expr_ops(),
+      assert((Operands.size() > 1 ||
+              llvm::none_of(Expr->expr_ops(),
                             [](const DIExpression::ExprOperand &Op) {
                               return Op.getOp() == dwarf::DW_OP_LLVM_arg;
                             })) &&
@@ -746,23 +745,23 @@ static void interpretValues(const MachineInstr *CurMI,
         return TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP(RegLoc);
       };
 
-      if (!all_of(ArrayRef(ParamValue->first).drop_front(),
+      if (!all_of(ArrayRef(Operands).drop_front(),
                   [&](const MachineOperand &Op) {
                     return Op.isImm() ||
                            (Op.isReg() && ValidRegForCallValue(Op.getReg()));
                   }))
         continue;
 
-      auto &Op = ParamValue->first[0];
+      auto &Op = Operands[0];
       if (Op.isImm()) {
         int64_t Val = Op.getImm();
-        finishCallSiteParams(Val, ParamValue->second,
-                             ForwardedRegWorklist[ParamFwdReg], Params);
+        finishCallSiteParams(Val, Expr, ForwardedRegWorklist[ParamFwdReg],
+                             Params);
       } else if (Op.isReg()) {
         if (ValidRegForCallValue(Op.getReg())) {
           MachineLocation MLoc(Op.getReg(), /*Indirect=*/IsSPorFP(Op.getReg()));
-          finishCallSiteParams(MLoc, ParamValue->second,
-                               ForwardedRegWorklist[ParamFwdReg], Params);
+          finishCallSiteParams(MLoc, Expr, ForwardedRegWorklist[ParamFwdReg],
+                               Params);
         } else {
           // ParamFwdReg was described by the non-callee saved register
           // RegLoc. Mark that the call site values for the parameters are
@@ -770,7 +769,7 @@ static void interpretValues(const MachineInstr *CurMI,
           // may be a register that will be handled in this iteration, we
           // postpone adding the items to the worklist, and instead keep them
           // in a temporary container.
-          addToFwdRegWorklist(TmpWorklistItems, Op.getReg(), ParamValue->second,
+          addToFwdRegWorklist(TmpWorklistItems, Op.getReg(), Expr,
                               ForwardedRegWorklist[ParamFwdReg]);
         }
       }
