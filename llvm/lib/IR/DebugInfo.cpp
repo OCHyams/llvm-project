@@ -2467,4 +2467,37 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
   return PA;
 }
 
+bool KeyInstructionsPass::runOnFunction(Function &F) {
+  errs() << "hello running KeyInstructionsPass on " << F.getName() << "\n";
+  return false;
+}
+
+PreservedAnalyses KeyInstructionsPass::run(Function &F,
+                                           FunctionAnalysisManager &AM) {
+  if (!runOnFunction(F))
+    return PreservedAnalyses::all();
+
+  // Q: Can we return a less conservative set than just CFGAnalyses? Can we
+  // return PreservedAnalyses::all()?
+  PreservedAnalyses PA;
+  PA.preserveSet<CFGAnalyses>();
+  return PA;
+}
+
+PreservedAnalyses KeyInstructionsPass::run(Module &M,
+                                           ModuleAnalysisManager &AM) {
+  bool Changed = false;
+  for (auto &F : M)
+    Changed |= runOnFunction(F);
+
+  if (!Changed)
+    return PreservedAnalyses::all();
+
+  // Q: Can we return a less conservative set than just CFGAnalyses? Can we
+  // return PreservedAnalyses::all()?
+  PreservedAnalyses PA;
+  PA.preserveSet<CFGAnalyses>();
+  return PA;
+}
+
 #undef DEBUG_TYPE
