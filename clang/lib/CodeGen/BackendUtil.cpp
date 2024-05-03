@@ -871,6 +871,14 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   SI.registerCallbacks(PIC, &MAM);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
+  // Handle the Key Instructions source locations feature.
+  if (CodeGenOpts.EnableKeyInstructions) {
+    PB.registerPipelineStartEPCallback(
+        [&](ModulePassManager &MPM, OptimizationLevel Level) {
+          MPM.addPass(KeyInstructionsPass());
+        });
+  }
+
   // Handle the assignment tracking feature options.
   switch (CodeGenOpts.getAssignmentTrackingMode()) {
   case CodeGenOptions::AssignmentTrackingOpts::Forced:
