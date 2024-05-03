@@ -2468,7 +2468,24 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
 }
 
 bool KeyInstructionsPass::runOnFunction(Function &F) {
-  errs() << "hello running KeyInstructionsPass on " << F.getName() << "\n";
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        errs() << "atom store {\n";
+        errs() << *SI << " : key rank 1\n";
+        if (isa<Instruction>(SI->getValueOperand()))
+          errs() << *SI->getValueOperand() << " : key rank 2\n}\n";
+      } else if (auto *CI = dyn_cast<CallBase>(&I)) {
+        // TODO skip if (isa<LifetimeIntrinsic>())
+        errs() << "atom call {\n";
+        errs() << *CI << " : key rank 1\n}\n";
+      } else if (auto *BI = dyn_cast<BranchInst>(&I);
+                 BI && BI->isConditional()) {
+        errs() << "atom condbr {\n";
+        errs() << *BI << " : key rank 1\n}\n";
+      }
+    }
+  }
   return false;
 }
 
