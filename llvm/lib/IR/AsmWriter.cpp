@@ -1983,7 +1983,7 @@ static void writeDILocation(raw_ostream &Out, const DILocation *DL,
   Printer.printBool("isImplicitCode", DL->isImplicitCode(),
                     /* Default */ false);
   Printer.printInt("atomGroup", DL->getAtomGroup());
-  Printer.printInt("atomRank", DL->getAtomRank());
+  Printer.printInt<unsigned>("atomRank", DL->getAtomRank());
   Out << ")";
 }
 

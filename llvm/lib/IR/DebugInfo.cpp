@@ -2468,22 +2468,63 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
 }
 
 bool KeyInstructionsPass::runOnFunction(Function &F) {
+  if (!F.getSubprogram())
+    return false;
+
+  uint32_t Group = 1;
+  auto AddRank = [&](Instruction *I, uint16_t Rank) {
+    unsigned Line = 0;
+    unsigned Column = 0;
+    MDNode *Scope = F.getSubprogram();
+    DILocation *InlinedAt = nullptr;
+    bool ImplicitCode = false;
+    uint32_t AtomGroup = Group;
+    uint16_t AtomRank = Rank;
+    if (DebugLoc Cur = I->getDebugLoc()) {
+      Line = Cur.getLine();
+      Column = Cur.getCol();
+      Scope = Cur.getScope();
+      InlinedAt = Cur.getInlinedAt();
+      ImplicitCode = Cur.isImplicitCode();
+      // If the AtomGroup is already set, merge to 0.
+      AtomGroup = Cur.get()->getAtomGroup() ? 0 : AtomGroup;
+      AtomRank = Cur.get()->getAtomRank() ? 0 : AtomRank;
+    }
+    DILocation *New =
+        DILocation::get(I->getContext(), Line, Column, Scope, InlinedAt,
+                        ImplicitCode, AtomGroup, AtomRank);
+    I->setDebugLoc(New);
+  };
+
   for (auto &BB : F) {
     for (auto &I : BB) {
+      DebugLoc CurLoc = I.getDebugLoc();
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
         errs() << "atom store {\n";
         errs() << *SI << " : key rank 1\n";
-        if (isa<Instruction>(SI->getValueOperand()))
+        AddRank(SI, 1);
+        if (isa<Instruction>(SI->getValueOperand())) {
           errs() << *SI->getValueOperand() << " : key rank 2\n}\n";
+          AddRank(cast<Instruction>(SI->getValueOperand()), 2);
+        }
       } else if (auto *CI = dyn_cast<CallBase>(&I)) {
         // TODO skip if (isa<LifetimeIntrinsic>())
         errs() << "atom call {\n";
         errs() << *CI << " : key rank 1\n}\n";
+        AddRank(CI, 1);
       } else if (auto *BI = dyn_cast<BranchInst>(&I);
                  BI && BI->isConditional()) {
         errs() << "atom condbr {\n";
         errs() << *BI << " : key rank 1\n}\n";
+        AddRank(BI, 1);
+      } else if (auto *RI = dyn_cast<ReturnInst>(&I)) {
+        errs() << "atom ret {\n";
+        errs() << *RI << " : key rank 1\n}\n";
+        AddRank(RI, 1);
+      } else {
+        continue; // don't in Group.
       }
+      Group++;
     }
   }
   return false;
