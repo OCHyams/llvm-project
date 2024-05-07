@@ -80,6 +80,9 @@ static cl::opt<bool>
                            cl::desc("Generate DWARF4 type units."),
                            cl::init(false));
 
+static cl::opt<bool> KeyInstructionsAreStmts("dwarf-use-key-instructions",
+                                             cl::Hidden, cl::init(false));
+
 static cl::opt<bool> SplitDwarfCrossCuReferences(
     "split-dwarf-cross-cu-references", cl::Hidden,
     cl::desc("Enable cross-cu references in DWO files"), cl::init(false));
@@ -2121,10 +2124,14 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   }
   // If the line changed, we call that a new statement; unless we went to
   // line 0 and came back, in which case it is not a new statement.
-  unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
-  if (DL.getLine() && DL.getLine() != OldLine)
-    Flags |= DWARF2_FLAG_IS_STMT;
-
+  if (!KeyInstructionsAreStmts) {
+    unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
+    if (DL.getLine() && DL.getLine() != OldLine)
+      Flags |= DWARF2_FLAG_IS_STMT;
+  } else {
+    if (DL.getLine() && KeyInstructions.contains(MI))
+      Flags |= DWARF2_FLAG_IS_STMT;
+  }
   const MDNode *Scope = DL.getScope();
   recordSourceLine(DL.getLine(), DL.getCol(), Scope, Flags);
 
@@ -2230,6 +2237,46 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   // Record beginning of function.
   PrologEndLoc = emitInitialLocDirective(
       *MF, Asm->OutStreamer->getContext().getDwarfCompileUnitID());
+
+  // Find is_stmts!
+  KeyInstructions.clear();
+  {
+    DenseMap<std::tuple<DISubprogram *, uint32_t>,
+             std::pair<uint8_t, SmallVector<const MachineInstr *>>>
+        LastAtomMap;
+    for (auto &MBB : *MF) {
+      for (auto &MI : MBB) {
+        // Is part of an atom?
+        if (!MI.getDebugLoc())
+          continue;
+        auto [Scope, Group, Rank] = MI.getDebugLoc().get()->getAtomInfo();
+        if (!Scope || !Group || !Rank)
+          continue;
+        // See if we've already got an entry for this group?
+        // auto R =
+        //    LastAtomMap.insert(std::make_pair({Scope, Group}, {Rank, {&MI}}));
+        auto &[PrevRank, PrevInsts] = LastAtomMap[{Scope, Group}];
+        if (PrevRank == 0) {
+          assert(PrevInsts.empty());
+          PrevRank = Rank;
+          PrevInsts.push_back(&MI);
+        } else if (PrevRank == Rank) {
+          assert(!PrevInsts.empty());
+          PrevInsts.push_back(&MI);
+        } else if (PrevRank < Rank) {
+          assert(!PrevInsts.empty());
+          PrevRank = Rank;
+          for (auto *Supplanted : PrevInsts)
+            KeyInstructions.erase(Supplanted);
+          PrevInsts = {&MI};
+        } else {
+          assert(PrevRank > Rank);
+          continue;
+        }
+        KeyInstructions.insert(&MI);
+      }
+    }
+  }
 }
 
 unsigned
