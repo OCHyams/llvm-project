@@ -56,9 +56,10 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
 DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-                       unsigned Column, ArrayRef<Metadata *> MDs,
-                       bool ImplicitCode)
-    : MDNode(C, DILocationKind, Storage, MDs) {
+                       unsigned Column, uint32_t AtomGroup, uint16_t AtomRank,
+                       ArrayRef<Metadata *> MDs, bool ImplicitCode)
+    : MDNode(C, DILocationKind, Storage, MDs), AtomGroup(AtomGroup),
+      AtomRank(AtomRank) {
   assert((MDs.size() == 1 || MDs.size() == 2) &&
          "Expected a scope and optional inlined-at");
 
@@ -80,6 +81,7 @@ static void adjustColumn(unsigned &Column) {
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
                                 unsigned Column, Metadata *Scope,
                                 Metadata *InlinedAt, bool ImplicitCode,
+                                uint32_t AtomGroup, uint16_t AtomRank,
                                 StorageType Storage, bool ShouldCreate) {
   // Fixup column.
   adjustColumn(Column);
@@ -99,8 +101,9 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   Ops.push_back(Scope);
   if (InlinedAt)
     Ops.push_back(InlinedAt);
-  return storeImpl(new (Ops.size(), Storage) DILocation(
-                       Context, Storage, Line, Column, Ops, ImplicitCode),
+  return storeImpl(new (Ops.size(), Storage)
+                       DILocation(Context, Storage, Line, Column, AtomGroup,
+                                  AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
 
@@ -990,6 +993,14 @@ DICompileUnit::getNameTableKind(StringRef Str) {
       .Case("Apple", DebugNameTableKind::Apple)
       .Case("None", DebugNameTableKind::None)
       .Default(std::nullopt);
+}
+
+std::tuple<DISubprogram *, uint32_t, uint8_t> DILocation::getAtomInfo() const {
+  if (DILocalScope *Scope = getScope()) {
+    if (DISubprogram *Fn = Scope->getSubprogram())
+      return {Fn, getAtomGroup(), getAtomRank()};
+  }
+  return {nullptr, getAtomGroup(), getAtomRank()};
 }
 
 const char *DICompileUnit::emissionKindString(DebugEmissionKind EK) {
