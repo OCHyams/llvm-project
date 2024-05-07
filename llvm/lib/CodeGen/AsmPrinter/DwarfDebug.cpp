@@ -2263,14 +2263,16 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
         } else if (PrevRank == Rank) {
           assert(!PrevInsts.empty());
           PrevInsts.push_back(&MI);
-        } else if (PrevRank < Rank) {
+        } else if (PrevRank > Rank) {
           assert(!PrevInsts.empty());
           PrevRank = Rank;
           for (auto *Supplanted : PrevInsts)
             KeyInstructions.erase(Supplanted);
           PrevInsts = {&MI};
         } else {
-          assert(PrevRank > Rank);
+          // PrevRank outranks (nonzero and smaller) this one,
+          // so ignore this instruction.
+          assert(Rank != 0 && PrevRank < Rank && PrevRank != 0);
           continue;
         }
         KeyInstructions.insert(&MI);
