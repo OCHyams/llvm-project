@@ -1950,44 +1950,59 @@ public:
 class DILocation : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
+  uint32_t AtomGroup = 0;
+  uint8_t AtomRank = 0;
 
   DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-             unsigned Column, ArrayRef<Metadata *> MDs, bool ImplicitCode);
+             unsigned Column, uint32_t AtomGroup, uint16_t AtomRank,
+             ArrayRef<Metadata *> MDs, bool ImplicitCode);
   ~DILocation() { dropAllReferences(); }
 
   static DILocation *getImpl(LLVMContext &Context, unsigned Line,
                              unsigned Column, Metadata *Scope,
                              Metadata *InlinedAt, bool ImplicitCode,
+                             uint32_t AtomGroup, uint16_t AtomRank,
                              StorageType Storage, bool ShouldCreate = true);
   static DILocation *getImpl(LLVMContext &Context, unsigned Line,
                              unsigned Column, DILocalScope *Scope,
                              DILocation *InlinedAt, bool ImplicitCode,
+                             uint32_t AtomGroup, uint16_t AtomRank,
                              StorageType Storage, bool ShouldCreate = true) {
     return getImpl(Context, Line, Column, static_cast<Metadata *>(Scope),
-                   static_cast<Metadata *>(InlinedAt), ImplicitCode, Storage,
-                   ShouldCreate);
+                   static_cast<Metadata *>(InlinedAt), ImplicitCode, AtomGroup,
+                   AtomRank, Storage, ShouldCreate);
   }
 
   TempDILocation cloneImpl() const {
     // Get the raw scope/inlinedAt since it is possible to invoke this on
     // a DILocation containing temporary metadata.
     return getTemporary(getContext(), getLine(), getColumn(), getRawScope(),
-                        getRawInlinedAt(), isImplicitCode());
+                        getRawInlinedAt(), isImplicitCode(), getAtomGroup(),
+                        getAtomRank());
   }
-
 public:
+  // Function scoped AtomGroup.
+  // AtomGroup 0 if none or unknown.
+  // AtomRank 0 if none or unknown.
+  std::tuple<DISubprogram *, uint32_t, uint8_t> getAtomInfo() const;
+  uint32_t getAtomGroup() const { return AtomGroup; }
+  uint8_t getAtomRank() const { return AtomRank; }
+
   // Disallow replacing operands.
   void replaceOperandWith(unsigned I, Metadata *New) = delete;
 
   DEFINE_MDNODE_GET(DILocation,
                     (unsigned Line, unsigned Column, Metadata *Scope,
-                     Metadata *InlinedAt = nullptr, bool ImplicitCode = false),
-                    (Line, Column, Scope, InlinedAt, ImplicitCode))
+                     Metadata *InlinedAt = nullptr, bool ImplicitCode = false,
+                     uint32_t AtomGroup = 0, uint16_t AtomRank = 0),
+                    (Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
+                     AtomRank))
   DEFINE_MDNODE_GET(DILocation,
                     (unsigned Line, unsigned Column, DILocalScope *Scope,
-                     DILocation *InlinedAt = nullptr,
-                     bool ImplicitCode = false),
-                    (Line, Column, Scope, InlinedAt, ImplicitCode))
+                     DILocation *InlinedAt = nullptr, bool ImplicitCode = false,
+                     uint32_t AtomGroup = 0, uint16_t AtomRank = 0),
+                    (Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
+                     AtomRank))
 
   /// Return a (temporary) clone of this.
   TempDILocation clone() const { return cloneImpl(); }

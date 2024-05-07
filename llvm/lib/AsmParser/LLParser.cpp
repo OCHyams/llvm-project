@@ -5069,7 +5069,9 @@ bool LLParser::parseDILocation(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(column, ColumnField, );                                             \
   REQUIRED(scope, MDField, (/* AllowNull */ false));                           \
   OPTIONAL(inlinedAt, MDField, );                                              \
-  OPTIONAL(isImplicitCode, MDBoolField, (false));
+  OPTIONAL(isImplicitCode, MDBoolField, (false));                              \
+  OPTIONAL(atomGroup, LineField, );                                            \
+  OPTIONAL(atomRank, ColumnField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
