@@ -2239,8 +2239,8 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
       *MF, Asm->OutStreamer->getContext().getDwarfCompileUnitID());
 
   // Find is_stmts!
-  KeyInstructions.clear();
-  {
+  if (KeyInstructionsAreStmts) {
+    KeyInstructions.clear();
     DenseMap<std::tuple<DISubprogram *, uint32_t>,
              std::pair<uint8_t, SmallVector<const MachineInstr *>>>
         LastAtomMap;
