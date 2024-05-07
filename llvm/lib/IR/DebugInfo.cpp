@@ -2515,8 +2515,13 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
       } else if (auto *BI = dyn_cast<BranchInst>(&I);
                  BI && BI->isConditional()) {
         errs() << "atom condbr {\n";
-        errs() << *BI << " : key rank 1\n}\n";
+        errs() << *BI << " : key rank 1\n";
         AddRank(BI, 1);
+        if (auto *Cond = dyn_cast<Instruction>(BI->getCondition())) {
+          AddRank(Cond, 2);
+          errs() << *Cond << " : key rank 2\n";
+        }
+        errs() << "}\n";
       } else if (auto *RI = dyn_cast<ReturnInst>(&I)) {
         errs() << "atom ret {\n";
         errs() << *RI << " : key rank 1\n}\n";

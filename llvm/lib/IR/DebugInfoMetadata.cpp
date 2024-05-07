@@ -217,8 +217,10 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
     bool SameCol = L1->getColumn() == L2->getColumn();
     unsigned Line = SameLine ? L1->getLine() : 0;
     unsigned Col = SameLine && SameCol ? L1->getColumn() : 0;
-
-    return DILocation::get(C, Line, Col, Scope, InlinedAt);
+    bool ImplicitCode = 0;
+    uint32_t Group = L1->getAtomGroup() == L2->getAtomGroup()? L2->getAtomGroup() : 0;
+    uint32_t Rank = L1->getAtomRank() == L2->getAtomRank()? L2->getAtomRank() : 0;
+    return DILocation::get(C, Line, Col, Scope, InlinedAt, ImplicitCode, Group, Rank);
   };
 
   DILocation *Result = ARIt != ALocs.rend() ? (*ARIt)->getInlinedAt() : nullptr;
