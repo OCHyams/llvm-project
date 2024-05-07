@@ -89,7 +89,8 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   if (Storage == Uniqued) {
     if (auto *N = getUniqued(Context.pImpl->DILocations,
                              DILocationInfo::KeyTy(Line, Column, Scope,
-                                                   InlinedAt, ImplicitCode)))
+                                                   InlinedAt, ImplicitCode,
+                                                   AtomGroup, AtomRank)))
       return N;
     if (!ShouldCreate)
       return nullptr;
