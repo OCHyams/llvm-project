@@ -2503,10 +2503,24 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
         errs() << "atom store {\n";
         errs() << *SI << " : key rank 1\n";
         AddRank(SI, 1);
-        if (isa<Instruction>(SI->getValueOperand())) {
-          errs() << *SI->getValueOperand() << " : key rank 2\n}\n";
-          AddRank(cast<Instruction>(SI->getValueOperand()), 2);
+        if (auto *Op = dyn_cast<Instruction>(SI->getValueOperand())) {
+          errs() << *Op << " : key rank 2\n";
+          AddRank(Op, 2);
+
+          // Add chains of casts too, as they're probably going to evaporate.
+          uint16_t Rank = 3;
+          while (auto *Cast = dyn_cast<CastInst>(Op)) {
+            Op = cast<Instruction>(Cast->getOperand(0));
+            if (!Op)
+              break;
+            /* FIXME: Should this only be no-ops?
+                      Cast->isNoopCast(F.getParent()->getDataLayout())
+                      */
+            errs() << *Op << " : key rank " << Rank << "\n";
+            AddRank(cast<Instruction>(Op), Rank++);
+          }
         }
+        errs() << "}\n";
       } else if (auto *CI = dyn_cast<CallBase>(&I)) {
         // TODO skip if (isa<LifetimeIntrinsic>())
         errs() << "atom call {\n";
