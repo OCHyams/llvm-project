@@ -2467,12 +2467,15 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
   return PA;
 }
 
+#undef DEBUG_TYPE // Silence redefinition warning (AssignmentTrackingPass).
+#define DEBUG_TYPE "key-instructions"
 bool KeyInstructionsPass::runOnFunction(Function &F) {
   if (!F.getSubprogram())
     return false;
 
   uint32_t Group = 1;
   auto AddRank = [&](Instruction *I, uint16_t Rank) {
+    LLVM_DEBUG(dbgs() << "   " << *I << " # group: " << Group << " rank: " << Rank << "\n");
     unsigned Line = 0;
     unsigned Column = 0;
     MDNode *Scope = F.getSubprogram();
@@ -2500,11 +2503,9 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
     for (auto &I : BB) {
       DebugLoc CurLoc = I.getDebugLoc();
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
-        errs() << "atom store {\n";
-        errs() << *SI << " : key rank 1\n";
+        LLVM_DEBUG(dbgs() << "atom store\n");
         AddRank(SI, 1);
         if (auto *Op = dyn_cast<Instruction>(SI->getValueOperand())) {
-          errs() << *Op << " : key rank 2\n";
           AddRank(Op, 2);
 
           // Add chains of casts too, as they're probably going to evaporate.
@@ -2516,32 +2517,24 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
             /* FIXME: Should this only be no-ops?
                       Cast->isNoopCast(F.getParent()->getDataLayout())
                       */
-            errs() << *Op << " : key rank " << Rank << "\n";
             AddRank(cast<Instruction>(Op), Rank++);
           }
         }
-        errs() << "}\n";
       } else if (auto *CI = dyn_cast<CallBase>(&I)) {
         // TODO skip if (isa<LifetimeIntrinsic>())
-        errs() << "atom call {\n";
-        errs() << *CI << " : key rank 1\n}\n";
+        LLVM_DEBUG(dbgs() << "atom call\n");
         AddRank(CI, 1);
       } else if (auto *BI = dyn_cast<BranchInst>(&I);
                  BI && BI->isConditional()) {
-        errs() << "atom condbr {\n";
-        errs() << *BI << " : key rank 1\n";
+        LLVM_DEBUG(dbgs() << "atom condbr\n");
         AddRank(BI, 1);
-        if (auto *Cond = dyn_cast<Instruction>(BI->getCondition())) {
+        if (auto *Cond = dyn_cast<Instruction>(BI->getCondition()))
           AddRank(Cond, 2);
-          errs() << *Cond << " : key rank 2\n";
-        }
-        errs() << "}\n";
       } else if (auto *RI = dyn_cast<ReturnInst>(&I)) {
-        errs() << "atom ret {\n";
-        errs() << *RI << " : key rank 1\n}\n";
+        LLVM_DEBUG(dbgs() << "atom ret\n");
         AddRank(RI, 1);
       } else {
-        continue; // don't in Group.
+        continue; // Don't inc Group.
       }
       Group++;
     }
