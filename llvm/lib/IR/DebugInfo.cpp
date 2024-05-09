@@ -2489,9 +2489,24 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
       Scope = Cur.getScope();
       InlinedAt = Cur.getInlinedAt();
       ImplicitCode = Cur.isImplicitCode();
-      // If the AtomGroup is already set, merge to 0.
-      AtomGroup = Cur.get()->getAtomGroup() ? 0 : AtomGroup;
-      AtomRank = Cur.get()->getAtomRank() ? 0 : AtomRank;
+      // If the AtomGroup is already set, choose the one with the lowest
+      // nonzero rank (most important).
+      // e.g.
+      //   %call = call i32 ...
+      //   store %call, ...
+      // AddRank(call, 1)  -> 1, 1
+      // AddRank(store, 1) -> 2, 1
+      // Add the stored value as part of the atom...
+      // ... but keep its existing group/rank.
+      // AddRank(call, 2)  -> 1, 1
+      //
+      // TODO: Is there a better way to handle merging? Ideally
+      // we'd like to be able to have it attributed to both atoms.
+      if (Cur.get()->getAtomGroup() && Cur.get()->getAtomRank() &&
+          Cur.get()->getAtomRank() < Rank) {
+        AtomGroup = Cur.get()->getAtomGroup();
+        AtomRank = Cur.get()->getAtomRank();
+      }
     }
     DILocation *New =
         DILocation::get(I->getContext(), Line, Column, Scope, InlinedAt,
@@ -2501,7 +2516,6 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
 
   for (auto &BB : F) {
     for (auto &I : BB) {
-      DebugLoc CurLoc = I.getDebugLoc();
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
         LLVM_DEBUG(dbgs() << "atom store\n");
         AddRank(SI, 1);
