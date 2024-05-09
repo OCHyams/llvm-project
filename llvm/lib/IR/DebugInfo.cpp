@@ -2511,13 +2511,13 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
           // Add chains of casts too, as they're probably going to evaporate.
           uint16_t Rank = 3;
           while (auto *Cast = dyn_cast<CastInst>(Op)) {
-            Op = cast<Instruction>(Cast->getOperand(0));
+            Op = dyn_cast<Instruction>(Cast->getOperand(0));
             if (!Op)
               break;
             /* FIXME: Should this only be no-ops?
                       Cast->isNoopCast(F.getParent()->getDataLayout())
                       */
-            AddRank(cast<Instruction>(Op), Rank++);
+            AddRank(Op, Rank++);
           }
         }
       } else if (auto *CI = dyn_cast<CallBase>(&I)) {
