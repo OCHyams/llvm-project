@@ -2544,6 +2544,11 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
         AddRank(BI, 1);
         if (auto *Cond = dyn_cast<Instruction>(BI->getCondition()))
           AddRank(Cond, 2);
+      } else if (auto *SwI = dyn_cast<SwitchInst>(&I)) {
+        LLVM_DEBUG(dbgs() << "atom switch\n");
+        AddRank(SwI, 1);
+        if (auto *Cond = dyn_cast<Instruction>(SwI->getCondition()))
+          AddRank(Cond, 2);
       } else if (auto *RI = dyn_cast<ReturnInst>(&I)) {
         LLVM_DEBUG(dbgs() << "atom ret\n");
         AddRank(RI, 1);
