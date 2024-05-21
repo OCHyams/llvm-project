@@ -2558,10 +2558,24 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
             AddRank(Op, Rank++);
           }
         }
-      } else if (auto *CI = dyn_cast<CallBase>(&I)) {
-        // TODO skip if (isa<LifetimeIntrinsic>())
-        LLVM_DEBUG(dbgs() << "atom call\n");
-        AddRank(CI, 1);
+        // This causes a spreading-out of key instructions when SelectionDAG
+        // lowers a call (creating a bunch of param reg copies that later
+        // might get scheduled around, all of which inherit the group/rank
+        // from the call). For now the back end will just mark calls as
+        // is_stmt. That more or less lines up with Tice's paper, though
+        // it feels a little incomplete (ideally there's only one source
+        // of truth).
+        //} else if (auto *CI = dyn_cast<CallBase>(&I)) {
+        //  // TODO skip if (isa<LifetimeIntrinsic>())
+        //  LLVM_DEBUG(dbgs() << "atom call\n");
+        //  AddRank(CI, 1);
+      } else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
+        AddRank(MI, 1);
+        if (auto *MS = dyn_cast<MemSetInst>(&I)) {
+          if (auto *Op = dyn_cast<Instruction>(MS->getValue()))
+            AddRank(Op, 2);
+        }
+
       } else if (auto *BI = dyn_cast<BranchInst>(&I);
                  BI && BI->isConditional()) {
         LLVM_DEBUG(dbgs() << "atom condbr\n");
