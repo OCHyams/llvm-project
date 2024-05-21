@@ -2134,11 +2134,6 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     // See comment in DebugInfo.cpp about calls.
     const auto &TII =
         *MI->getParent()->getParent()->getSubtarget().getInstrInfo();
-    errs() << *MI << "\n";
-    errs() << "(KeyInstructions.contains(MI) || MI->isCall() || "
-              "TII.isTailCall(*MI))"
-           << (KeyInstructions.contains(MI)) << " || " << MI->isCall() << " || "
-           << TII.isTailCall(*MI) << "\n";
     if (DL.getLine() &&
         (KeyInstructions.contains(MI) || MI->isCall() || TII.isTailCall(*MI)))
       Flags |= DWARF2_FLAG_IS_STMT;
