@@ -2072,14 +2072,16 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     // If we have an ongoing unspecified location, nothing to do here.
     if (!DL)
       return;
-    // We have an explicit location, same as the previous location.
-    // But we might be coming back to it after a line 0 record.
-    if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
-      // Reinstate the source location but not marked as a statement.
-      const MDNode *Scope = DL.getScope();
-      recordSourceLine(DL.getLine(), DL.getCol(), Scope, Flags);
+    if (!KeyInstructionsAreStmts) {
+      // We have an explicit location, same as the previous location.
+      // But we might be coming back to it after a line 0 record.
+      if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
+        // Reinstate the source location but not marked as a statement.
+        const MDNode *Scope = DL.getScope();
+        recordSourceLine(DL.getLine(), DL.getCol(), Scope, Flags);
+      }
+      return;
     }
-    return;
   }
 
   if (!DL) {
@@ -2129,7 +2131,16 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     if (DL.getLine() && DL.getLine() != OldLine)
       Flags |= DWARF2_FLAG_IS_STMT;
   } else {
-    if (DL.getLine() && KeyInstructions.contains(MI))
+    // See comment in DebugInfo.cpp about calls.
+    const auto &TII =
+        *MI->getParent()->getParent()->getSubtarget().getInstrInfo();
+    errs() << *MI << "\n";
+    errs() << "(KeyInstructions.contains(MI) || MI->isCall() || "
+              "TII.isTailCall(*MI))"
+           << (KeyInstructions.contains(MI)) << " || " << MI->isCall() << " || "
+           << TII.isTailCall(*MI) << "\n";
+    if (DL.getLine() &&
+        (KeyInstructions.contains(MI) || MI->isCall() || TII.isTailCall(*MI)))
       Flags |= DWARF2_FLAG_IS_STMT;
   }
   const MDNode *Scope = DL.getScope();
