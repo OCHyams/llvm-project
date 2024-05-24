@@ -1239,7 +1239,7 @@ Instruction *InstCombinerImpl::SliceUpIllegalIntegerPHI(PHINode &FirstPhi) {
         }
 
         // Otherwise, do an extract in the predecessor.
-        Builder.SetInsertPoint(Pred->getTerminator());
+        Builder.SetInsertPoint(Pred->getTerminator()); //<OCH: doesn't want to propagte keyness!
         Value *Res = InVal;
         if (Offset)
           Res = Builder.CreateLShr(

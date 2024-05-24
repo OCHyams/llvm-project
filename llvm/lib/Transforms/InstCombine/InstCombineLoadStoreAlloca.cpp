@@ -1575,7 +1575,7 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
     PHINode *PN =
         PHINode::Create(SI.getValueOperand()->getType(), 2, "storemerge");
     PN->addIncoming(SI.getValueOperand(), SI.getParent());
-    Builder.SetInsertPoint(OtherStore);
+    Builder.SetInsertPoint(OtherStore); //<OCH: doesn't want to propagte keyness!
     PN->addIncoming(Builder.CreateBitOrPointerCast(MergedVal, PN->getType()),
                     OtherBB);
     MergedVal = InsertNewInstBefore(PN, DestBB->begin());
