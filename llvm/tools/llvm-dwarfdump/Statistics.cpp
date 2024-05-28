@@ -196,6 +196,7 @@ struct LineStats {
   SaturatingUINT64 NumLineZeroBytes = 0;
   SaturatingUINT64 NumEntries = 0;
   SaturatingUINT64 NumIsStmtEntries = 0;
+  SaturatingUINT64 NumUniqueIsStmtEntries = 0;
   SaturatingUINT64 NumUniqueEntries = 0;
   SaturatingUINT64 NumUniqueNonZeroEntries = 0;
 };
@@ -875,6 +876,7 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   SmallVector<std::string> Files;
   DenseSet<LineTuple> UniqueLines;
   DenseSet<LineTuple> UniqueNonZeroLines;
+  DenseSet<LineTuple> UniqueIsStmtLines;
 
   for (const auto &CU : static_cast<DWARFContext *>(&DICtx)->compile_units()) {
     if (DWARFDie CUDie = CU->getNonSkeletonUnitDIE(false)) {
@@ -933,11 +935,13 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
         for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
              ++RowIdx) {
           auto Entry = LineTable->Rows[RowIdx];
-          if (Entry.IsStmt)
-            LnStats.NumIsStmtEntries += 1;
+          uint16_t MappedFile = CUFileMapping[Entry.File];
           assert(CUFileMapping.contains(Entry.File) &&
                  "Should have been collected earlier!");
-          uint16_t MappedFile = CUFileMapping[Entry.File];
+          if (Entry.IsStmt) {
+            LnStats.NumIsStmtEntries += 1;
+            UniqueIsStmtLines.insert({Entry.Line, Entry.Column, MappedFile});
+          }
           UniqueLines.insert({Entry.Line, Entry.Column, MappedFile});
           if (Entry.Line != 0) {
             UniqueNonZeroLines.insert({Entry.Line, Entry.Column, MappedFile});
@@ -953,6 +957,7 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
 
   LnStats.NumUniqueEntries = UniqueLines.size();
   LnStats.NumUniqueNonZeroEntries = UniqueNonZeroLines.size();
+  LnStats.NumUniqueIsStmtEntries = UniqueIsStmtLines.size();
 
   /// Resolve CrossCU references.
   collectZeroLocCovForVarsWithCrossCUReferencingAbstractOrigin(
@@ -1119,6 +1124,8 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   printDatum(J, "#bytes with line-0 locations", LnStats.NumLineZeroBytes.Value);
   printDatum(J, "#line entries", LnStats.NumEntries.Value);
   printDatum(J, "#line entries (is_stmt)", LnStats.NumIsStmtEntries.Value);
+  printDatum(J, "#line entries (unqiue is_stmt)",
+             LnStats.NumUniqueIsStmtEntries.Value);
   printDatum(J, "#line entries (unique)", LnStats.NumUniqueEntries.Value);
   printDatum(J, "#line entries (unique non-0)",
              LnStats.NumUniqueNonZeroEntries.Value);
