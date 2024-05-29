@@ -844,6 +844,112 @@ static void collectZeroLocCovForVarsWithCrossCUReferencingAbstractOrigin(
   }
 }
 
+// TODO: Something like this?
+enum InlineStepPolicy { StepToCallSite, StepToCallee, StepOver };
+enum LineZeroPolicy { CanStop, Ignore };
+struct DebuggerEmulation {
+  InlineStepPolicy InlineStep;
+};
+DebuggerEmulation SCE{StepOver};
+DebuggerEmulation GDB{StepToCallSite};
+
+struct StepInfo {
+  SaturatingUINT64 Steps = 0;
+  SaturatingUINT64 SameLineSteps = 0;
+  SaturatingUINT64 ForwardSteps = 0;
+  SaturatingUINT64 BackwardSteps = 0;
+  SaturatingUINT64 DirectionChanges = 0;
+
+  void dump(raw_ostream &OS) {
+    OS << "StepInfo\n";
+    OS << "  SameLineSteps " << SameLineSteps.Value << "\n";
+    OS << "  ForwardSteps " << ForwardSteps.Value << "\n";
+    OS << "  BackwardSteps " << BackwardSteps.Value << "\n";
+    OS << "  DirectionChanges " << DirectionChanges.Value << "\n";
+  }
+
+  void operator+=(const StepInfo &Other) {
+    Steps += Other.Steps.Value;
+    SameLineSteps += Other.SameLineSteps.Value;
+    ForwardSteps += Other.ForwardSteps.Value;
+    BackwardSteps += Other.BackwardSteps.Value;
+    DirectionChanges += Other.DirectionChanges.Value;
+  }
+};
+
+static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
+                                          DWARFUnit *CU) {
+  StepInfo Result;
+  // Cout the number of directional changes in line number while iterating
+  // insns.
+  const auto *LineTable = DICtx.getLineTableForUnit(CU);
+  if (!LineTable)
+    return Result;
+
+  DILineInfoSpecifier LineSpec = DILineInfoSpecifier(
+      DILineInfoSpecifier::FileLineInfoKind::RawValue, DINameKind::LinkageName);
+
+  DWARFDie Function;
+  uint64_t PreviousLine = 0;
+  bool PrevStepBackwards = false;
+
+  // TODO: Prologue end, epilogue end.
+  for (const DWARFDebugLine::Sequence &Seq : LineTable->Sequences) {
+    for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
+         ++RowIdx) {
+      const DWARFDebugLine::Row &Entry = LineTable->Rows[RowIdx];
+
+      auto ILI = DICtx.getInliningInfoForAddress(Entry.Address, LineSpec);
+
+      // Assume SCE behaviour for now. TODO: Check the behaviour is what
+      // happens. 1 frame = no inlining. Step over inlined instructions.
+      if (ILI.getNumberOfFrames() > 1)
+        continue;
+
+      // DILineInfo Info = DICtx.getLineInfoForAddress(Entry.Address, LineSpec);
+      // Info.Function
+      DWARFContext::DIEsForAddress AddrDIEs =
+          DICtx.getDIEsForAddress(Entry.Address.Address, true);
+      assert((bool)AddrDIEs && "??");
+
+      if (Function != AddrDIEs.FunctionDIE) {
+        Function = AddrDIEs.FunctionDIE;
+        continue;
+      }
+
+      // TODO: is_stmt policy.
+      // For now assume is_stmt = stop point.
+      if (!Entry.IsStmt)
+        continue;
+
+      // TODO: Line Zero policy.
+      // Assume line zeros are skipped.
+      if (Entry.Line == 0)
+        continue;
+
+      // TODO: Policy for same line numbers.
+      Result.Steps++;
+
+      if (PreviousLine == Entry.Line)
+        Result.SameLineSteps++;
+      else if (PreviousLine < Entry.Line)
+        Result.ForwardSteps++;
+      else
+        Result.BackwardSteps++;
+
+      if (PrevStepBackwards && PreviousLine < Entry.Line)
+        Result.DirectionChanges++;
+      else if (!PrevStepBackwards && PreviousLine > Entry.Line)
+        Result.DirectionChanges++;
+
+      PreviousLine = Entry.Line;
+      PrevStepBackwards = PreviousLine > Entry.Line;
+    }
+  }
+
+  return Result;
+}
+
 /// \}
 
 /// Collect debug info quality metrics for an entire DIContext.
@@ -861,6 +967,7 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   GlobalStats GlobalStats;
   LocationStats LocStats;
   LineStats LnStats;
+  StepInfo StepStats;
   StringMap<PerFunctionStats> Statistics;
   // This variable holds variable information for functions with
   // abstract_origin globally, across all CUs.
@@ -880,6 +987,9 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
 
   for (const auto &CU : static_cast<DWARFContext *>(&DICtx)->compile_units()) {
     if (DWARFDie CUDie = CU->getNonSkeletonUnitDIE(false)) {
+      auto Jumbledness = calculateJumblednessScore(DICtx, CUDie, CU.get());
+      StepStats += Jumbledness;
+
       // This variable holds variable information for functions with
       // abstract_origin, but just for the current CU.
       AbstractOriginVarsTyMap LocalAbstractOriginFnInfo;
@@ -1129,6 +1239,13 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   printDatum(J, "#line entries (unique)", LnStats.NumUniqueEntries.Value);
   printDatum(J, "#line entries (unique non-0)",
              LnStats.NumUniqueNonZeroEntries.Value);
+
+  // Print emulated stepping stats.
+  printDatum(J, "#step total", StepStats.Steps.Value);
+  printDatum(J, "#step same line ", StepStats.SameLineSteps.Value);
+  printDatum(J, "#step forwards", StepStats.ForwardSteps.Value);
+  printDatum(J, "#step backwards", StepStats.BackwardSteps.Value);
+  printDatum(J, "#step direction changes ", StepStats.DirectionChanges.Value);
 
   J.objectEnd();
   OS << '\n';
