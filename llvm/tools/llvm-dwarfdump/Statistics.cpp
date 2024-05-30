@@ -850,8 +850,9 @@ struct DebuggerEmulation {
   InlineStepPolicy Inline;
   StepPolicy LineZero;
   StepPolicy ProEpi;
+  StepPolicy RepeatedLine;
 };
-DebuggerEmulation SCE{InlineStepPolicy::StepOver, StepOver, StepOver};
+DebuggerEmulation SCE{InlineStepPolicy::StepOver, StepOver, StepOver, StepOver};
 
 struct StepInfo {
   SaturatingUINT64 Steps = 0;
@@ -891,7 +892,7 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       DILineInfoSpecifier::FileLineInfoKind::RawValue, DINameKind::LinkageName);
 
   DWARFDie Function;
-  uint64_t PreviousLine = 0;
+  uint64_t PrevBreakLine = 0;
   bool PrevStepBackwards = false;
   bool InEpilogue = false;
   StepInfo FunctionResults;
@@ -900,7 +901,7 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
     for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
          ++RowIdx) {
       const DWARFDebugLine::Row &Entry = LineTable->Rows[RowIdx];
-      Entry.dump(errs());
+      // Entry.dump(errs());
       auto ILI = DICtx.getInliningInfoForAddress(Entry.Address, LineSpec);
 
       // Assume SCE behaviour for now. TODO: Check the behaviour is what
@@ -927,7 +928,7 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         FunctionResults = StepInfo();
 
         InEpilogue = false;
-        PreviousLine = Entry.Line;
+        PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
 
         // errs() << "# @ Starting new function\n";
@@ -947,7 +948,7 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       if (Policy.ProEpi == StepOver && Entry.PrologueEnd) {
         // Throw away the function-level steps we've done so far.
         FunctionResults = StepInfo();
-        PreviousLine = Entry.Line;
+        PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
         // errs() << "# - Throwing away steps in prologue\n";
         continue;
@@ -962,24 +963,27 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       if (Policy.LineZero == StepOver && Entry.Line == 0)
         continue;
 
+      if (Policy.RepeatedLine == StepOver && PrevBreakLine == Entry.Line)
+        continue;
+
       // TODO: Policy for same line numbers.
       FunctionResults.Steps++;
       // errs() << "# + Step count now " << FunctionResults.Steps.Value << "\n";
 
-      if (PreviousLine == Entry.Line)
+      if (PrevBreakLine == Entry.Line)
         FunctionResults.SameLineSteps++;
-      else if (PreviousLine < Entry.Line)
+      else if (PrevBreakLine < Entry.Line)
         FunctionResults.ForwardSteps++;
       else
         FunctionResults.BackwardSteps++;
 
-      if (PrevStepBackwards && PreviousLine < Entry.Line)
+      if (PrevStepBackwards && PrevBreakLine < Entry.Line)
         FunctionResults.DirectionChanges++;
-      else if (!PrevStepBackwards && PreviousLine > Entry.Line)
+      else if (!PrevStepBackwards && PrevBreakLine > Entry.Line)
         FunctionResults.DirectionChanges++;
 
-      PreviousLine = Entry.Line;
-      PrevStepBackwards = PreviousLine > Entry.Line;
+      PrevBreakLine = Entry.Line;
+      PrevStepBackwards = PrevBreakLine > Entry.Line;
     }
   }
   Result += FunctionResults;
