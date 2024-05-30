@@ -892,8 +892,9 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
   DWARFDie Function;
   uint64_t PreviousLine = 0;
   bool PrevStepBackwards = false;
+  bool InEpilogue = false;
+  StepInfo FunctionResults;
 
-  // TODO: Prologue end, epilogue end.
   for (const DWARFDebugLine::Sequence &Seq : LineTable->Sequences) {
     for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
          ++RowIdx) {
@@ -912,8 +913,33 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
           DICtx.getDIEsForAddress(Entry.Address.Address, true);
       assert((bool)AddrDIEs && "??");
 
+      // Check if we've entered a new function.
       if (Function != AddrDIEs.FunctionDIE) {
         Function = AddrDIEs.FunctionDIE;
+
+        // Add function stats and reset function-level counters.
+        Result += FunctionResults;
+        FunctionResults = StepInfo();
+
+        InEpilogue = false;
+        PreviousLine = Entry.Line;
+        PrevStepBackwards = false;
+        continue;
+      }
+
+      if (Entry.EpilogueBegin)
+        InEpilogue = true;
+
+      // Don't count steps in the epilogue - continue until we find the next
+      // function.
+      if (InEpilogue)
+        continue;
+
+      if (Entry.PrologueEnd) {
+        // Throw away the function-level steps we've done so far.
+        FunctionResults = StepInfo();
+        PreviousLine = Entry.Line;
+        PrevStepBackwards = false;
         continue;
       }
 
@@ -928,25 +954,25 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         continue;
 
       // TODO: Policy for same line numbers.
-      Result.Steps++;
+      FunctionResults.Steps++;
 
       if (PreviousLine == Entry.Line)
-        Result.SameLineSteps++;
+        FunctionResults.SameLineSteps++;
       else if (PreviousLine < Entry.Line)
-        Result.ForwardSteps++;
+        FunctionResults.ForwardSteps++;
       else
-        Result.BackwardSteps++;
+        FunctionResults.BackwardSteps++;
 
       if (PrevStepBackwards && PreviousLine < Entry.Line)
-        Result.DirectionChanges++;
+        FunctionResults.DirectionChanges++;
       else if (!PrevStepBackwards && PreviousLine > Entry.Line)
-        Result.DirectionChanges++;
+        FunctionResults.DirectionChanges++;
 
       PreviousLine = Entry.Line;
       PrevStepBackwards = PreviousLine > Entry.Line;
     }
   }
-
+  Result += FunctionResults;
   return Result;
 }
 
