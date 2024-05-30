@@ -844,14 +844,14 @@ static void collectZeroLocCovForVarsWithCrossCUReferencingAbstractOrigin(
   }
 }
 
-// TODO: Something like this?
-enum InlineStepPolicy { StepToCallSite, StepToCallee, StepOver };
-enum LineZeroPolicy { CanStop, Ignore };
+enum class InlineStepPolicy { /*StepToCallSite, StepToCallee,*/ StepOver };
+enum StepPolicy { CanStep, StepOver };
 struct DebuggerEmulation {
-  InlineStepPolicy InlineStep;
+  InlineStepPolicy Inline;
+  StepPolicy LineZero;
+  StepPolicy ProEpi;
 };
-DebuggerEmulation SCE{StepOver};
-DebuggerEmulation GDB{StepToCallSite};
+DebuggerEmulation SCE{InlineStepPolicy::StepOver, StepOver, StepOver};
 
 struct StepInfo {
   SaturatingUINT64 Steps = 0;
@@ -878,7 +878,8 @@ struct StepInfo {
 };
 
 static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
-                                          DWARFUnit *CU) {
+                                          DWARFUnit *CU,
+                                          const DebuggerEmulation &Policy) {
   StepInfo Result;
   // Cout the number of directional changes in line number while iterating
   // insns.
@@ -906,6 +907,8 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       // happens. 1 frame = no inlining. Step over inlined instructions.
       if (ILI.getNumberOfFrames() > 1) {
         // errs() << "# - Ignoring inlined frame\n";
+        assert(Policy.Inline == InlineStepPolicy::StepOver &&
+               "TODO: implement other inline strategies");
         continue;
       }
 
@@ -929,19 +932,19 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
 
         // errs() << "# @ Starting new function\n";
         // Function.dump();
-
         continue;
       }
 
       if (Entry.EpilogueBegin)
         InEpilogue = true;
 
-      // Don't count steps in the epilogue - continue until we find the next
-      // function.
-      if (InEpilogue)
+      // Epilogue StepOver policy: don't count steps in the epilogue - continue
+      // until we find the next function.
+      if (Policy.ProEpi == StepOver && InEpilogue)
         continue;
 
-      if (Entry.PrologueEnd) {
+      // Prologue StepOver policy: Don't count steps in the prologue.
+      if (Policy.ProEpi == StepOver && Entry.PrologueEnd) {
         // Throw away the function-level steps we've done so far.
         FunctionResults = StepInfo();
         PreviousLine = Entry.Line;
@@ -955,9 +958,8 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       if (!Entry.IsStmt)
         continue;
 
-      // TODO: Line Zero policy.
-      // Assume line zeros are skipped.
-      if (Entry.Line == 0)
+      // Line zero StepOver policy: ignore them.
+      if (Policy.LineZero == StepOver && Entry.Line == 0)
         continue;
 
       // TODO: Policy for same line numbers.
@@ -1021,7 +1023,7 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
 
   for (const auto &CU : static_cast<DWARFContext *>(&DICtx)->compile_units()) {
     if (DWARFDie CUDie = CU->getNonSkeletonUnitDIE(false)) {
-      auto Jumbledness = calculateJumblednessScore(DICtx, CUDie, CU.get());
+      auto Jumbledness = calculateJumblednessScore(DICtx, CUDie, CU.get(), SCE);
       StepStats += Jumbledness;
 
       // This variable holds variable information for functions with
