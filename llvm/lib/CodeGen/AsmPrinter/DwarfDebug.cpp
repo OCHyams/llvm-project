@@ -83,6 +83,11 @@ static cl::opt<bool>
 static cl::opt<bool> KeyInstructionsAreStmts("dwarf-use-key-instructions",
                                              cl::Hidden, cl::init(false));
 
+// Hack key instruction metadata in order to opt-out of being stepable, rather
+// than opting in.
+cl::opt<bool> UnkeyInstructions("unkey-instructions", cl::Hidden,
+                                cl::init(false));
+
 static cl::opt<bool> SplitDwarfCrossCuReferences(
     "split-dwarf-cross-cu-references", cl::Hidden,
     cl::desc("Enable cross-cu references in DWO files"), cl::init(false));
@@ -2001,6 +2006,9 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
 
 // Process beginning of an instruction.
 void DwarfDebug::beginInstruction(const MachineInstr *MI) {
+  assert(
+      !(KeyInstructionsAreStmts && UnkeyInstructions) &&
+      "-dwarf-use-key-instructions and -unkey-instructions are incompatible ");
   const MachineFunction &MF = *MI->getMF();
   const auto *SP = MF.getFunction().getSubprogram();
   bool NoDebug =
@@ -2128,8 +2136,13 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // line 0 and came back, in which case it is not a new statement.
   if (!KeyInstructionsAreStmts) {
     unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
-    if (DL.getLine() && DL.getLine() != OldLine)
-      Flags |= DWARF2_FLAG_IS_STMT;
+    // In "unkeyed" mode, nonzero atom group means "don't make me key please".
+    bool PrevUnkeyed =
+        UnkeyInstructions && PrevInstLoc && PrevInstLoc.get()->getAtomGroup();
+    bool Unkeyed = UnkeyInstructions && DL.get()->getAtomGroup();
+    if (DL.getLine() && (DL.getLine() != OldLine || PrevUnkeyed))
+      if (!Unkeyed)
+        Flags |= DWARF2_FLAG_IS_STMT;
   } else {
     // See comment in DebugInfo.cpp about calls.
     const auto &TII =

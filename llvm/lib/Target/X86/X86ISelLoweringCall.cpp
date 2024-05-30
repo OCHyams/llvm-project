@@ -1985,12 +1985,33 @@ SDValue X86TargetLowering::getMOVL(SelectionDAG &DAG, const SDLoc &dl, MVT VT,
     Mask.push_back(i);
   return DAG.getVectorShuffle(VT, dl, V1, V2, Mask);
 }
+#include "llvm/IR/DebugInfoMetadata.h"
+extern cl::opt<bool> UnkeyInstructions;
 
 SDValue
 X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                              SmallVectorImpl<SDValue> &InVals) const {
   SelectionDAG &DAG                     = CLI.DAG;
-  SDLoc &dl                             = CLI.DL;
+  SDLoc dl = CLI.DL;
+  if (DebugLoc Cur = dl.getDebugLoc()) {
+    DILocation *New = nullptr;
+    if (UnkeyInstructions) {
+      // Unkeyed instructions: please don't make me is_stmt.
+      DILocation *New = DILocation::get(
+          *DAG.getContext(), Cur.getLine(), Cur.getCol(), Cur.getScope(),
+          Cur.getInlinedAt(), Cur.isImplicitCode(), 1, 0);
+    } else {
+      // Key instructions: please don't make me is_stmt too, but we're using
+      // a different mechanism.
+      DILocation *New = DILocation::get(
+          *DAG.getContext(), Cur.getLine(), Cur.getCol(), Cur.getScope(),
+          Cur.getInlinedAt(), Cur.isImplicitCode(), 0, 0);
+    }
+    assert(!New);
+    dl = SDLoc(New, dl.getIROrder());
+  }
+  SDLoc &CallDl = CLI.DL;
+  // @OCH: How far do we get if we have an argDL and callDL here?
   SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
   SmallVectorImpl<SDValue> &OutVals     = CLI.OutVals;
   SmallVectorImpl<ISD::InputArg> &Ins   = CLI.Ins;
@@ -2516,7 +2537,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   if (HasNoCfCheck && IsCFProtectionSupported && IsIndirectCall) {
-    Chain = DAG.getNode(X86ISD::NT_CALL, dl, NodeTys, Ops);
+    Chain = DAG.getNode(X86ISD::NT_CALL, CallDl, NodeTys, Ops);
   } else if (CLI.CB && objcarc::hasAttachedCallOpBundle(CLI.CB)) {
     // Calls with a "clang.arc.attachedcall" bundle are special. They should be
     // expanded to the call, directly followed by a special marker sequence and
@@ -2531,9 +2552,9 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     auto PtrVT = getPointerTy(DAG.getDataLayout());
     auto GA = DAG.getTargetGlobalAddress(ARCFn, dl, PtrVT);
     Ops.insert(Ops.begin() + 1, GA);
-    Chain = DAG.getNode(X86ISD::CALL_RVMARKER, dl, NodeTys, Ops);
+    Chain = DAG.getNode(X86ISD::CALL_RVMARKER, CallDl, NodeTys, Ops);
   } else {
-    Chain = DAG.getNode(X86ISD::CALL, dl, NodeTys, Ops);
+    Chain = DAG.getNode(X86ISD::CALL, CallDl, NodeTys, Ops);
   }
 
   if (IsCFICall)
