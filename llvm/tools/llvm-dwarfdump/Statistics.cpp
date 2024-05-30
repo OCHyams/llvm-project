@@ -899,13 +899,15 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
     for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
          ++RowIdx) {
       const DWARFDebugLine::Row &Entry = LineTable->Rows[RowIdx];
-
+      Entry.dump(errs());
       auto ILI = DICtx.getInliningInfoForAddress(Entry.Address, LineSpec);
 
       // Assume SCE behaviour for now. TODO: Check the behaviour is what
       // happens. 1 frame = no inlining. Step over inlined instructions.
-      if (ILI.getNumberOfFrames() > 1)
+      if (ILI.getNumberOfFrames() > 1) {
+        // errs() << "# - Ignoring inlined frame\n";
         continue;
+      }
 
       // DILineInfo Info = DICtx.getLineInfoForAddress(Entry.Address, LineSpec);
       // Info.Function
@@ -924,6 +926,10 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         InEpilogue = false;
         PreviousLine = Entry.Line;
         PrevStepBackwards = false;
+
+        // errs() << "# @ Starting new function\n";
+        // Function.dump();
+
         continue;
       }
 
@@ -940,6 +946,7 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         FunctionResults = StepInfo();
         PreviousLine = Entry.Line;
         PrevStepBackwards = false;
+        // errs() << "# - Throwing away steps in prologue\n";
         continue;
       }
 
@@ -955,6 +962,7 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
 
       // TODO: Policy for same line numbers.
       FunctionResults.Steps++;
+      // errs() << "# + Step count now " << FunctionResults.Steps.Value << "\n";
 
       if (PreviousLine == Entry.Line)
         FunctionResults.SameLineSteps++;
