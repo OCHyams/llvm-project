@@ -850,6 +850,8 @@ static void collectZeroLocCovForVarsWithCrossCUReferencingAbstractOrigin(
   }
 }
 
+// FIXME: Is this enough to emulate different debuggers, or do we just need
+// custom functions for each? That might be easier to read.
 enum class InlineStepPolicy { /*StepToCallSite, StepToCallee,*/ StepOver };
 enum StepPolicy { CanStep, StepOver };
 struct DebuggerEmulation {
