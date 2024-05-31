@@ -851,8 +851,10 @@ struct DebuggerEmulation {
   StepPolicy LineZero;
   StepPolicy ProEpi;
   StepPolicy RepeatedLine;
+  bool IsStmtIsStopPoint;
 };
-DebuggerEmulation SCE{InlineStepPolicy::StepOver, StepOver, StepOver, StepOver};
+DebuggerEmulation SCE{InlineStepPolicy::StepOver, StepOver, StepOver, StepOver,
+                      true};
 
 struct StepInfo {
   SaturatingUINT64 Steps = 0;
@@ -954,9 +956,8 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         continue;
       }
 
-      // TODO: is_stmt policy.
-      // For now assume is_stmt = stop point.
-      if (!Entry.IsStmt)
+      // IsStmtIsStopPoint policy: don't stop at non-is-stmt lines.
+      if (Policy.IsStmtIsStopPoint && !Entry.IsStmt)
         continue;
 
       // Line zero StepOver policy: ignore them.
