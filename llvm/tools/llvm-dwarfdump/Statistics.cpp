@@ -983,15 +983,15 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
         continue;
       }
 
-      if (Entry.EpilogueBegin) {
-        STEP_PRINTLN("  - Ignoring steps in epilogue");
-        InEpilogue = true;
-      }
-
       // Epilogue StepOver policy: don't count steps in the epilogue - continue
       // until we find the next function.
       if (Policy.ProEpi == StepOver && InEpilogue)
         continue;
+
+      if (Entry.EpilogueBegin) {
+        STEP_PRINTLN("  - Ignoring next steps in epilogue");
+        InEpilogue = true;
+      }
 
       // Prologue StepOver policy: Don't count steps in the prologue.
       if (Policy.ProEpi == StepOver && Entry.PrologueEnd) {
@@ -1005,8 +1005,9 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
         continue;
       }
 
-      // IsStmtIsStopPoint policy: don't stop at non-is-stmt lines.
-      if (Policy.IsStmtIsStopPoint && !Entry.IsStmt)
+      bool StopPoint =
+          Entry.EpilogueBegin || (Policy.IsStmtIsStopPoint && Entry.IsStmt);
+      if (!StopPoint)
         continue;
 
       // Line zero StepOver policy: ignore them.
