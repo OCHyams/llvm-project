@@ -23,9 +23,11 @@ using namespace llvm::dwarfdump;
 using namespace llvm::object;
 
 static cl::opt<bool>
-    PrintStepEmulation("print-steps",
+    DebugStepEmulation("debug-steps",
                        cl::desc("Print stepping emulation decisions"),
                        cl::init(false));
+static cl::opt<bool> PrintSteps("print-steps", cl::desc("Print each step"),
+                                cl::init(false));
 
 namespace {
 /// This represents the number of categories of debug location coverage being
@@ -890,7 +892,7 @@ struct StepInfo {
 
 #define STEP_DBG(x)                                                            \
   do {                                                                         \
-    if (PrintStepEmulation) {                                                  \
+    if (DebugStepEmulation) {                                                  \
       x;                                                                       \
     }                                                                          \
   } while (0)
@@ -914,6 +916,30 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
   bool PrevStepBackwards = false;
   bool InEpilogue = false;
   StepInfo FunctionResults;
+
+  std::vector<std::string> FnSteps;
+  auto AddFnStep = [&](const DWARFDebugLine::Row &Entry) {
+    if (!PrintSteps)
+      return;
+    // FIXME: Ignoring inline steps for now.
+    assert(Policy.Inline == InlineStepPolicy::StepOver);
+    std::string RelPath;
+    bool GotFile = LineTable->getFileNameByIndex(
+        Entry.File, CU->getCompilationDir(),
+        DILineInfoSpecifier::FileLineInfoKind::RelativeFilePath, RelPath);
+    (void)GotFile;
+    assert(GotFile);
+
+    std::string Step = "STEP: " + RelPath + ":" + std::to_string(Entry.Line) +
+                       std::to_string(Entry.Column);
+    FnSteps.emplace_back(Step);
+  };
+  auto DumpFnSteps = [&]() {
+    if (!PrintSteps)
+      return;
+    for (auto &Step : FnSteps)
+      errs() << Step << "\n";
+  };
 
   for (const DWARFDebugLine::Sequence &Seq : LineTable->Sequences) {
     for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
@@ -946,10 +972,14 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
         // Add function stats and reset function-level counters.
         Result += FunctionResults;
         FunctionResults = StepInfo();
+        DumpFnSteps();
+        FnSteps.clear();
 
         InEpilogue = false;
         PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
+
+        AddFnStep(Entry);
         continue;
       }
 
@@ -967,6 +997,7 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
       if (Policy.ProEpi == StepOver && Entry.PrologueEnd) {
         // Throw away the function-level steps we've done so far.
         FunctionResults = StepInfo();
+        FnSteps.clear();
         PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
         STEP_PRINTLN("  - Throwing away " << FunctionResults.Steps.Value
@@ -1005,11 +1036,13 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
 
       PrevBreakLine = Entry.Line;
       PrevStepBackwards = PrevBreakLine > Entry.Line;
+      AddFnStep(Entry);
     }
   }
   // Print final function summary.
   STEP_PRINTLN("  - End of function, step count "
                << FunctionResults.Steps.Value);
+  DumpFnSteps();
   Result += FunctionResults;
   return Result;
 }
