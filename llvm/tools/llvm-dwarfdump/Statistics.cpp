@@ -16,6 +16,7 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/JSON.h"
+#include <sstream>
 
 #define DEBUG_TYPE "dwarfdump"
 using namespace llvm;
@@ -929,7 +930,6 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
         DILineInfoSpecifier::FileLineInfoKind::RelativeFilePath, RelPath);
     (void)GotFile;
     assert(GotFile);
-
     std::string Step = "STEP: " + RelPath + ":" + std::to_string(Entry.Line) +
                        ":" + std::to_string(Entry.Column);
     FnSteps.emplace_back(Step);
@@ -979,6 +979,17 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
         PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
 
+        if (false && PrintSteps) {
+          std::string Name = Function.getName(DINameKind::LinkageName);
+          if (Name.empty()) {
+            std::stringstream Str;
+            Str << "0x" << Entry.Address.Address;
+            Name = Str.str();
+          }
+          errs() << "FUNCTION: " << Name << "\n";
+        }
+        // SCE debugger stops at function entry always.
+        // FIXME: This gets removed by the prologue handling code.
         AddFnStep(Entry);
         continue;
       }
