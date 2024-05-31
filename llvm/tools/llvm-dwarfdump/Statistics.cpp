@@ -931,7 +931,7 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
     assert(GotFile);
 
     std::string Step = "STEP: " + RelPath + ":" + std::to_string(Entry.Line) +
-                       std::to_string(Entry.Column);
+                       ":" + std::to_string(Entry.Column);
     FnSteps.emplace_back(Step);
   };
   auto DumpFnSteps = [&]() {
