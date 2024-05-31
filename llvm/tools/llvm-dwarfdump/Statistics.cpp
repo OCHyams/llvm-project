@@ -14,12 +14,18 @@
 #include "llvm/DebugInfo/DWARF/DWARFDebugLoc.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/JSON.h"
 
 #define DEBUG_TYPE "dwarfdump"
 using namespace llvm;
 using namespace llvm::dwarfdump;
 using namespace llvm::object;
+
+static cl::opt<bool>
+    PrintStepEmulation("print-steps",
+                       cl::desc("Print stepping emulation decisions"),
+                       cl::init(false));
 
 namespace {
 /// This represents the number of categories of debug location coverage being
@@ -880,9 +886,17 @@ struct StepInfo {
   }
 };
 
-static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
-                                          DWARFUnit *CU,
-                                          const DebuggerEmulation &Policy) {
+#define STEP_DBG(x)                                                            \
+  do {                                                                         \
+    if (PrintStepEmulation) {                                                  \
+      x;                                                                       \
+    }                                                                          \
+  } while (0)
+#define STEP_PRINTLN(msg) STEP_DBG(errs() << msg << "\n")
+
+static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
+                                     DWARFContext &DICtx, DWARFDie CUDie,
+                                     DWARFUnit *CU) {
   StepInfo Result;
   // Cout the number of directional changes in line number while iterating
   // insns.
@@ -903,20 +917,17 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
     for (size_t RowIdx = Seq.FirstRowIndex; RowIdx < Seq.LastRowIndex - 1;
          ++RowIdx) {
       const DWARFDebugLine::Row &Entry = LineTable->Rows[RowIdx];
-      // Entry.dump(errs());
+      STEP_DBG(Entry.dump(errs()));
       auto ILI = DICtx.getInliningInfoForAddress(Entry.Address, LineSpec);
 
-      // Assume SCE behaviour for now. TODO: Check the behaviour is what
-      // happens. 1 frame = no inlining. Step over inlined instructions.
+      // Is this instruction from an inlined frame?
       if (ILI.getNumberOfFrames() > 1) {
-        // errs() << "# - Ignoring inlined frame\n";
+        STEP_PRINTLN("  - Ignoring inlined frame");
         assert(Policy.Inline == InlineStepPolicy::StepOver &&
                "TODO: implement other inline strategies");
         continue;
       }
 
-      // DILineInfo Info = DICtx.getLineInfoForAddress(Entry.Address, LineSpec);
-      // Info.Function
       DWARFContext::DIEsForAddress AddrDIEs =
           DICtx.getDIEsForAddress(Entry.Address.Address, true);
       assert((bool)AddrDIEs && "??");
@@ -925,6 +936,11 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       if (Function != AddrDIEs.FunctionDIE) {
         Function = AddrDIEs.FunctionDIE;
 
+        STEP_PRINTLN("  - End of function, step count "
+                     << FunctionResults.Steps.Value);
+        STEP_PRINTLN("  - Starting new function");
+        STEP_DBG(Function.dump());
+
         // Add function stats and reset function-level counters.
         Result += FunctionResults;
         FunctionResults = StepInfo();
@@ -932,14 +948,13 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         InEpilogue = false;
         PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
-
-        // errs() << "# @ Starting new function\n";
-        // Function.dump();
         continue;
       }
 
-      if (Entry.EpilogueBegin)
+      if (Entry.EpilogueBegin) {
+        STEP_PRINTLN("  - Ignoring steps in epilogue");
         InEpilogue = true;
+      }
 
       // Epilogue StepOver policy: don't count steps in the epilogue - continue
       // until we find the next function.
@@ -952,7 +967,8 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
         FunctionResults = StepInfo();
         PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
-        // errs() << "# - Throwing away steps in prologue\n";
+        STEP_PRINTLN("  - Throwing away " << FunctionResults.Steps.Value
+                                          << " steps from prologue");
         continue;
       }
 
@@ -967,9 +983,11 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       if (Policy.RepeatedLine == StepOver && PrevBreakLine == Entry.Line)
         continue;
 
-      // TODO: Policy for same line numbers.
       FunctionResults.Steps++;
-      // errs() << "# + Step count now " << FunctionResults.Steps.Value << "\n";
+      STEP_PRINTLN("  - Function step count now "
+                   << FunctionResults.Steps.Value);
+      STEP_PRINTLN("  - Total step count now "
+                   << Result.Steps.Value + FunctionResults.Steps.Value);
 
       if (PrevBreakLine == Entry.Line)
         FunctionResults.SameLineSteps++;
@@ -987,6 +1005,9 @@ static StepInfo calculateJumblednessScore(DWARFContext &DICtx, DWARFDie CUDie,
       PrevStepBackwards = PrevBreakLine > Entry.Line;
     }
   }
+  // Print final function summary.
+  STEP_PRINTLN("  - End of function, step count "
+               << FunctionResults.Steps.Value);
   Result += FunctionResults;
   return Result;
 }
@@ -1028,8 +1049,8 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
 
   for (const auto &CU : static_cast<DWARFContext *>(&DICtx)->compile_units()) {
     if (DWARFDie CUDie = CU->getNonSkeletonUnitDIE(false)) {
-      auto Jumbledness = calculateJumblednessScore(DICtx, CUDie, CU.get(), SCE);
-      StepStats += Jumbledness;
+      auto CUSteps = emulateDebuggerSteps(SCE, DICtx, CUDie, CU.get());
+      StepStats += CUSteps;
 
       // This variable holds variable information for functions with
       // abstract_origin, but just for the current CU.
