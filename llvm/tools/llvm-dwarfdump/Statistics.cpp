@@ -979,9 +979,11 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
         PrevBreakLine = Entry.Line;
         PrevStepBackwards = false;
 
-        if (false && PrintSteps) {
-          std::string Name = Function.getName(DINameKind::LinkageName);
-          if (Name.empty()) {
+        if (PrintSteps) {
+          std::string Name;
+          if (const char *Attr = Function.getName(DINameKind::LinkageName)) {
+            Name = Attr;
+          } else {
             std::stringstream Str;
             Str << "0x" << Entry.Address.Address;
             Name = Str.str();
@@ -1046,8 +1048,8 @@ static StepInfo emulateDebuggerSteps(const DebuggerEmulation &Policy,
       else if (!PrevStepBackwards && PrevBreakLine > Entry.Line)
         FunctionResults.DirectionChanges++;
 
-      PrevBreakLine = Entry.Line;
       PrevStepBackwards = PrevBreakLine > Entry.Line;
+      PrevBreakLine = Entry.Line;
       AddFnStep(Entry);
     }
   }
