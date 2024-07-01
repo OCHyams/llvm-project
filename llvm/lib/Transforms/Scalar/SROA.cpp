@@ -4967,6 +4967,265 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
   return NewAI;
 }
 
+// begin XXX: XXX: fix structured binding debuginfo
+namespace xxx {
+/// Get the FragmentInfo for the variable.
+template <typename DbgTy>
+std::optional<DIExpression::FragmentInfo> getFragment(DbgTy *DV) {
+  return DV->getExpression()->getFragmentInfo();
+}
+/// Get the FragmentInfo for the variable if it exists, otherwise return a
+/// FragmentInfo that covers the entire variable if the variable size is
+/// known, otherwise return a zero-sized fragment.
+template <typename DbgTy>
+DIExpression::FragmentInfo getFragmentOrEntireVariable(DbgTy *DV) {
+  DIExpression::FragmentInfo VariableSlice(0, 0);
+  // Get the fragment or variable size, or zero.
+  if (auto Sz = DV->getFragmentSizeInBits())
+    VariableSlice.SizeInBits = *Sz;
+  if (auto Frag = DV->getExpression()->getFragmentInfo())
+    VariableSlice.OffsetInBits = Frag->OffsetInBits;
+  return VariableSlice;
+}
+
+static bool readExpressionOffset(const DIExpression *Expr, int64_t &Offset,
+                                 SmallVectorImpl<uint64_t> &RemainingOps) {
+  auto ExprOpIt = Expr->expr_op_begin();
+  while (ExprOpIt != Expr->expr_op_end()) {
+    uint64_t Op = ExprOpIt->getOp();
+    if (Op == dwarf::DW_OP_deref || Op == dwarf::DW_OP_deref_size ||
+        Op == dwarf::DW_OP_deref_type || Op == dwarf::DW_OP_LLVM_fragment) {
+      break; // End of offset part.
+    } else if (Op == dwarf::DW_OP_plus_uconst) {
+      Offset += ExprOpIt->getArg(0);
+    } else if (Op == dwarf::DW_OP_constu) {
+      uint64_t Value = ExprOpIt->getArg(0);
+      ++ExprOpIt;
+      if (ExprOpIt->getOp() == dwarf::DW_OP_plus)
+        Offset += Value;
+      else if (ExprOpIt->getOp() == dwarf::DW_OP_minus)
+        Offset -= Value;
+      else
+        return false;
+    } else {
+      return false;
+    }
+    ++ExprOpIt;
+  }
+  RemainingOps.append(ExprOpIt.getBase(), Expr->elements_end());
+  return true;
+}
+
+// There isn't a shared interface to get the "address" parts out of a
+// dbg.declare and dbg.assign, so provide some wrappers now.
+const Value *getAddress(const DbgVariableIntrinsic *DVI) {
+  if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
+    return DAI->getAddress();
+  return cast<DbgDeclareInst>(DVI)->getAddress();
+}
+
+const Value *getAddress(const DbgVariableRecord *DVR) {
+  assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
+         DVR->getType() == DbgVariableRecord::LocationType::Assign);
+  return DVR->getAddress();
+}
+
+bool isKillLocation(const DbgVariableIntrinsic *DVI) {
+  if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
+    return DAI->isKillAddress();
+  return cast<DbgDeclareInst>(DVI)->isKillLocation();
+}
+
+bool isKillLocation(const DbgVariableRecord *DVR) {
+  assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
+         DVR->getType() == DbgVariableRecord::LocationType::Assign);
+  // TODO: Fold this condition into DPValue::isKillLocation.
+  if (DVR->getType() == DbgVariableRecord::LocationType::Assign)
+    return DVR->isKillAddress();
+  return DVR->isKillLocation();
+}
+
+const DIExpression *getExpression(const DbgVariableIntrinsic *DVI) {
+  if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
+    return DAI->getAddressExpression();
+  return cast<DbgDeclareInst>(DVI)->getExpression();
+}
+
+const DIExpression *getExpression(const DbgVariableRecord *DVR) {
+  assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
+         DVR->getType() == DbgVariableRecord::LocationType::Assign);
+  // TODO: Fold this condition into DPValue::getAddressExpression.
+  if (DVR->getType() == DbgVariableRecord::LocationType::Assign)
+    return DVR->getAddressExpression();
+  return DVR->getExpression();
+}
+
+/// This is copy-modified from DebugInfo.cpp's at::calculateFragmentIntersect.
+/// Most of the changes are to accomodate dbg.declares as well as dbg.assigns.
+/// extractIfOffset has been hoisted out of this function and replaced with
+/// readExpressionOffset (above), the result now being passed into this
+/// function.
+///
+/// Calculate the fragment of the variable in \p DVI covered
+/// from (Dest + SliceOffsetInBits) to
+///   to (Dest + SliceOffsetInBits + SliceSizeInBits)
+///
+/// Return false if it can't be calculated for any reason.
+/// Result is set to nullopt if the intersect equals the variable fragment (or
+/// variable size) in DAI.
+///
+/// Result contains a zero-sized fragment if there's no intersect.
+/// \p DVI may be either a DbgDeclareInst or a DbgAssignIntrinsic.
+/// \p ExprOffsetInBits should be set to address offset encoded in the the
+///    current expression.
+/// \p NewExprOffsetInBits is set to the difference between the first bit of
+///    memory the fragment describes and the first bit of the slice.
+template <typename DbgTy>
+static bool calculateFragmentIntersect(
+    const DataLayout &DL, const Value *Dest, uint64_t SliceOffsetInBits,
+    uint64_t SliceSizeInBits, const DbgTy *DVI,
+    std::optional<DIExpression::FragmentInfo> &Result, int64_t ExprOffsetInBits,
+    int64_t &NewExprOffsetInBits) {
+  if (isKillLocation(DVI))
+    return false;
+
+  DIExpression::FragmentInfo VarFrag = getFragmentOrEntireVariable(DVI);
+  if (VarFrag.SizeInBits == 0)
+    return false; // Variable size is unknown.
+
+  // Calculate the difference between Dest and the dbg.assign address +
+  // address-modifying expression.
+  int64_t PointerOffsetInBits;
+  {
+    auto DestOffsetInBytes = getAddress(DVI)->getPointerOffsetFrom(Dest, DL);
+    if (!DestOffsetInBytes)
+      return false; // Can't calculate difference in addresses.
+
+    PointerOffsetInBits = *DestOffsetInBytes * 8 + ExprOffsetInBits;
+  }
+
+  // Adjust the slice offset so that we go from describing the a slice
+  // of memory to a slice of the variable.
+  int64_t AdjustedSliceOffsetInBits =
+      SliceOffsetInBits + VarFrag.OffsetInBits - PointerOffsetInBits;
+
+  NewExprOffsetInBits =
+      std::max(static_cast<int64_t>(0ll), -AdjustedSliceOffsetInBits);
+  AdjustedSliceOffsetInBits =
+      std::max(static_cast<int64_t>(0ll), AdjustedSliceOffsetInBits);
+  // Check if the variable fragment sits outside this memory slice (or
+  // if the new expression offset is less than zero - that should not
+  // be increadibly rare, if it ever happens).
+  if (static_cast<uint64_t>(NewExprOffsetInBits) >= SliceSizeInBits) {
+    Result = {0, 0};
+    return true;
+  }
+
+  DIExpression::FragmentInfo SliceOfVariable(
+      SliceSizeInBits - NewExprOffsetInBits, AdjustedSliceOffsetInBits);
+  // Intersect the variable slice with DAI's fragment to trim it down to size.
+  DIExpression::FragmentInfo TrimmedSliceOfVariable =
+      DIExpression::FragmentInfo::intersect(SliceOfVariable, VarFrag);
+  if (TrimmedSliceOfVariable == VarFrag)
+    Result = std::nullopt;
+  else
+    Result = TrimmedSliceOfVariable;
+  return true;
+}
+
+DIExpression *createOrReplaceFragment(const DIExpression *Expr,
+                                      DIExpression::FragmentInfo Frag) {
+  SmallVector<uint64_t, 8> Ops;
+  for (auto &Op : Expr->expr_ops()) {
+    if (Op.getOp() == dwarf::DW_OP_LLVM_fragment)
+      break;
+    Op.appendToVector(Ops);
+  }
+  Ops.push_back(dwarf::DW_OP_LLVM_fragment);
+  Ops.push_back(Frag.OffsetInBits);
+  Ops.push_back(Frag.SizeInBits);
+  return DIExpression::get(Expr->getContext(), Ops);
+}
+} // namespace xxx
+// end XXX: XXX
+
+// XXX: XXX: Add NewFragment param. See dbg.assign overload.
+static void
+insertNewDbgInstxxx(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
+                    DIExpression *NewFragmentExpr, Instruction *BeforeInst,
+                    std::optional<DIExpression::FragmentInfo> NewFragment) {
+  // XXX: XXX
+  if (NewFragment)
+    NewFragmentExpr =
+        ::xxx::createOrReplaceFragment(NewFragmentExpr, *NewFragment);
+  DIB.insertDeclare(NewAddr, Orig->getVariable(), NewFragmentExpr,
+                    Orig->getDebugLoc(), BeforeInst);
+}
+
+// XXX: XXX: Add NewFragment param. The fragment info
+// should be applied to the first dbg.assign expression (by convention,
+// that's the only expression with the fragment info for the variable), and
+// the NewFragmentExpr (which now contains no fragment, instead only a new
+// offset calculation) shoud be used as the destination-modifying expression
+// (the second one).
+static void
+insertNewDbgInstxxx(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
+                    AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
+                    Instruction *BeforeInst,
+                    std::optional<DIExpression::FragmentInfo> NewFragment) {
+  (void)BeforeInst;
+  if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
+    NewAddr->setMetadata(LLVMContext::MD_DIAssignID,
+                         DIAssignID::getDistinct(NewAddr->getContext()));
+  }
+
+  // XXX: XXX
+  // dbg.assign value expression receives the fragment update. The address
+  // expression has already been built: NewFragmentExpr (poor naming a result of
+  // merge conflict resolution).
+  DIExpression *ValueExpr = Orig->getExpression();
+  if (NewFragment)
+    ValueExpr = ::xxx::createOrReplaceFragment(ValueExpr, *NewFragment);
+
+  Instruction *NewAssign =
+      DIB.insertDbgAssign(NewAddr, Orig->getValue(), Orig->getVariable(),
+                          NewFragmentExpr, NewAddr,
+                          Orig->getAddressExpression(), Orig->getDebugLoc())
+          .get<Instruction *>();
+  LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign << "\n");
+  (void)NewAssign;
+}
+
+// XXX: XXX: Add NewFragment param. See dbg.assign overload.
+static void
+insertNewDbgInstxxx(DIBuilder &DIB, DbgVariableRecord *Orig,
+                    AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
+                    Instruction *BeforeInst,
+                    std::optional<DIExpression::FragmentInfo> NewFragment) {
+  // XXX: XXX
+  if (NewFragment)
+    NewFragmentExpr =
+        ::xxx::createOrReplaceFragment(NewFragmentExpr, *NewFragment);
+
+  (void)DIB;
+  if (Orig->isDbgDeclare()) {
+    DbgVariableRecord *DVR = DbgVariableRecord::createDVRDeclare(
+        NewAddr, Orig->getVariable(), NewFragmentExpr, Orig->getDebugLoc());
+    BeforeInst->getParent()->insertDbgRecordBefore(DVR,
+                                                   BeforeInst->getIterator());
+    return;
+  }
+  if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
+    NewAddr->setMetadata(LLVMContext::MD_DIAssignID,
+                         DIAssignID::getDistinct(NewAddr->getContext()));
+  }
+  DbgVariableRecord *NewAssign = DbgVariableRecord::createLinkedDVRAssign(
+      NewAddr, Orig->getValue(), Orig->getVariable(), NewFragmentExpr, NewAddr,
+      Orig->getAddressExpression(), Orig->getDebugLoc());
+  LLVM_DEBUG(dbgs() << "Created new DVRAssign: " << *NewAssign << "\n");
+  (void)NewAssign;
+}
+
 static void insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig,
                              AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
                              Instruction *BeforeInst) {
@@ -5019,7 +5278,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
   unsigned NumPartitions = 0;
   bool Changed = false;
-  const DataLayout &DL = AI.getDataLayout();
+  const DataLayout &DL = AI.getModule()->getDataLayout();
 
   // First try to pre-split loads and stores.
   Changed |= presplitLoadsAndStores(AI, AS);
@@ -5181,12 +5440,89 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
     }
   };
 
+  // begin XXX: XXX
+  auto MigrateOnexxx = [&](auto *DbgVariable) {
+    // Bitfield structured bindings now get correct debug info thanks to the
+    // new DW_OP_LLVM_extract_bits_[sz]ext operators. Call through to the
+    // upstream version of MigrateOne if we find one of those operations.
+    if (any_of(::xxx::getExpression(DbgVariable)->expr_ops(),
+               [](const DIExpression::ExprOperand &Op) {
+                 return Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext ||
+                        Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext;
+               })) {
+      MigrateOne(DbgVariable);
+      return;
+    }
+
+    DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
+    for (auto Fragment : Fragments) {
+      int64_t CurrentExprOffsetInBytes = 0;
+      SmallVector<uint64_t> PostOffsetOps;
+      if (!::xxx::readExpressionOffset(::xxx::getExpression(DbgVariable),
+                                       CurrentExprOffsetInBytes, PostOffsetOps))
+        continue; // Couldn't interpret this DIExpression - drop the var.
+
+      int64_t OffestFromNewAllocaInBits;
+      std::optional<DIExpression::FragmentInfo> NewDbgFragment;
+
+      // Drop debug info for this variable fragment if we can't compute an
+      // intersect between it and the alloca slice.
+      if (!::xxx::calculateFragmentIntersect(
+              DL, &AI, Fragment.Offset, Fragment.Size, DbgVariable,
+              NewDbgFragment, CurrentExprOffsetInBytes * 8,
+              OffestFromNewAllocaInBits))
+        continue; // Do not migrate this fragment to this slice.
+
+      // Zero sized fragment indicates there's no intersect between the variable
+      // fragment and the alloca slice. Skip this slice for this variable
+      // fragment.
+      if (NewDbgFragment && !NewDbgFragment->SizeInBits)
+        continue; // Do not migrate this fragment to this slice.
+
+      // No fragment indicates DbgVariable's variable or fragment exactly
+      // overlaps the slice; copy its fragment (or nullopt if there isn't one).
+      if (!NewDbgFragment)
+        NewDbgFragment = ::xxx::getFragment(DbgVariable);
+
+      // Rebuild the expression:
+      //    {Offset(OffestFromNewAllocaInBits), PostOffsetOps, NewDbgFragment}
+      // Add NewDbgFragment later, because dbg.assigns don't want it in the
+      // address expression.
+      DIExpression *NewExpr = DIExpression::get(AI.getContext(), PostOffsetOps);
+      if (OffestFromNewAllocaInBits > 0) {
+        int64_t OffsetInBytes = (OffestFromNewAllocaInBits + 7) / 8;
+        NewExpr = DIExpression::prepend(NewExpr, /*flags=*/0, OffsetInBytes);
+      }
+
+      // Remove any existing intrinsics on the new alloca describing
+      // the variable fragment.
+      auto RemoveOne = [DbgVariable](auto *OldDII) {
+        auto SameVariableFragment = [](const auto *LHS, const auto *RHS) {
+          return LHS->getVariable() == RHS->getVariable() &&
+                 LHS->getDebugLoc()->getInlinedAt() ==
+                     RHS->getDebugLoc()->getInlinedAt();
+        };
+        if (SameVariableFragment(OldDII, DbgVariable))
+          OldDII->eraseFromParent();
+      };
+      for_each(findDbgDeclares(Fragment.Alloca), RemoveOne);
+      for_each(findDVRDeclares(Fragment.Alloca), RemoveOne);
+
+      // XXX: XXX: Add NewDbgFragment arg. NewFragmentExpr
+      // has become NewExpr.
+      insertNewDbgInstxxx(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
+                          NewDbgFragment);
+    }
+  };
+  // end XXX: XXX
+
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
-  for_each(findDbgDeclares(&AI), MigrateOne);
-  for_each(findDVRDeclares(&AI), MigrateOne);
-  for_each(at::getAssignmentMarkers(&AI), MigrateOne);
-  for_each(at::getDVRAssignmentMarkers(&AI), MigrateOne);
+  // XXX: XXX call MigrateOnexxx
+  for_each(findDbgDeclares(&AI), MigrateOnexxx);
+  for_each(findDVRDeclares(&AI), MigrateOnexxx);
+  for_each(at::getAssignmentMarkers(&AI), MigrateOnexxx);
+  for_each(at::getDVRAssignmentMarkers(&AI), MigrateOnexxx);
 
   return Changed;
 }
