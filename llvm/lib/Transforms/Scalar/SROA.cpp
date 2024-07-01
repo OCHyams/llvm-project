@@ -4969,34 +4969,6 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
 
 // begin XXX: XXX: fix structured binding debuginfo
 namespace xxx {
-static bool readExpressionOffset(const DIExpression *Expr, int64_t &Offset,
-                                 SmallVectorImpl<uint64_t> &RemainingOps) {
-  auto ExprOpIt = Expr->expr_op_begin();
-  while (ExprOpIt != Expr->expr_op_end()) {
-    uint64_t Op = ExprOpIt->getOp();
-    if (Op == dwarf::DW_OP_deref || Op == dwarf::DW_OP_deref_size ||
-        Op == dwarf::DW_OP_deref_type || Op == dwarf::DW_OP_LLVM_fragment) {
-      break; // End of offset part.
-    } else if (Op == dwarf::DW_OP_plus_uconst) {
-      Offset += ExprOpIt->getArg(0);
-    } else if (Op == dwarf::DW_OP_constu) {
-      uint64_t Value = ExprOpIt->getArg(0);
-      ++ExprOpIt;
-      if (ExprOpIt->getOp() == dwarf::DW_OP_plus)
-        Offset += Value;
-      else if (ExprOpIt->getOp() == dwarf::DW_OP_minus)
-        Offset -= Value;
-      else
-        return false;
-    } else {
-      return false;
-    }
-    ++ExprOpIt;
-  }
-  RemainingOps.append(ExprOpIt.getBase(), Expr->elements_end());
-  return true;
-}
-
 // There isn't a shared interface to get the "address" parts out of a
 // dbg.declare and dbg.assign, so provide some wrappers now.
 const Value *getAddress(const DbgVariableIntrinsic *DVI) {
@@ -5439,8 +5411,9 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
     for (auto Fragment : Fragments) {
       int64_t CurrentExprOffsetInBytes = 0;
       SmallVector<uint64_t> PostOffsetOps;
-      if (!::xxx::readExpressionOffset(::xxx::getExpression(DbgVariable),
-                                       CurrentExprOffsetInBytes, PostOffsetOps))
+
+      if (!::xxx::getExpression(DbgVariable)
+               ->extractLeadingOffset(CurrentExprOffsetInBytes, PostOffsetOps))
         continue; // Couldn't interpret this DIExpression - drop the var.
 
       int64_t OffestFromNewAllocaInBits;
