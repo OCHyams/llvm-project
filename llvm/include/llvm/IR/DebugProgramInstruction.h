@@ -50,6 +50,7 @@
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/iterator.h"
+#include "llvm/IR/DbgVariableFragmentInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/SymbolTableListTraits.h"
@@ -438,6 +439,8 @@ public:
   void setExpression(DIExpression *NewExpr) { Expression = NewExpr; }
   DIExpression *getExpression() const { return Expression.get(); }
   MDNode *getRawExpression() const { return Expression.getAsMDNode(); }
+
+  std::optional<DbgVariableFragmentInfo> getFragment() const;
 
   /// Returns the metadata operand for the first location description. i.e.,
   /// dbg intrinsic dbg.value,declare operand and dbg.assign 1st location

@@ -4969,11 +4969,6 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
 
 // begin XXX: XXX: fix structured binding debuginfo
 namespace xxx {
-/// Get the FragmentInfo for the variable.
-template <typename DbgTy>
-std::optional<DIExpression::FragmentInfo> getFragment(DbgTy *DV) {
-  return DV->getExpression()->getFragmentInfo();
-}
 /// Get the FragmentInfo for the variable if it exists, otherwise return a
 /// FragmentInfo that covers the entire variable if the variable size is
 /// known, otherwise return a zero-sized fragment.
@@ -5482,7 +5477,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       // No fragment indicates DbgVariable's variable or fragment exactly
       // overlaps the slice; copy its fragment (or nullopt if there isn't one).
       if (!NewDbgFragment)
-        NewDbgFragment = ::xxx::getFragment(DbgVariable);
+        NewDbgFragment = DbgVariable->getFragment();
 
       // Rebuild the expression:
       //    {Offset(OffestFromNewAllocaInBits), PostOffsetOps, NewDbgFragment}
