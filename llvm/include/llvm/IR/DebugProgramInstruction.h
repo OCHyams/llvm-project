@@ -441,6 +441,18 @@ public:
   MDNode *getRawExpression() const { return Expression.getAsMDNode(); }
 
   std::optional<DbgVariableFragmentInfo> getFragment() const;
+  /// Get the FragmentInfo for the variable if it exists, otherwise return a
+  /// FragmentInfo that covers the entire variable if the variable size is
+  /// known, otherwise return a zero-sized fragment.
+  DbgVariableFragmentInfo getFragmentOrEntireVariable() const {
+    DbgVariableFragmentInfo VariableSlice(0, 0);
+    // Get the fragment or variable size, or zero.
+    if (auto Sz = getFragmentSizeInBits())
+      VariableSlice.SizeInBits = *Sz;
+    if (auto Frag = getFragment())
+      VariableSlice.OffsetInBits = Frag->OffsetInBits;
+    return VariableSlice;
+  }
 
   /// Returns the metadata operand for the first location description. i.e.,
   /// dbg intrinsic dbg.value,declare operand and dbg.assign 1st location

@@ -4969,20 +4969,6 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
 
 // begin XXX: XXX: fix structured binding debuginfo
 namespace xxx {
-/// Get the FragmentInfo for the variable if it exists, otherwise return a
-/// FragmentInfo that covers the entire variable if the variable size is
-/// known, otherwise return a zero-sized fragment.
-template <typename DbgTy>
-DIExpression::FragmentInfo getFragmentOrEntireVariable(DbgTy *DV) {
-  DIExpression::FragmentInfo VariableSlice(0, 0);
-  // Get the fragment or variable size, or zero.
-  if (auto Sz = DV->getFragmentSizeInBits())
-    VariableSlice.SizeInBits = *Sz;
-  if (auto Frag = DV->getExpression()->getFragmentInfo())
-    VariableSlice.OffsetInBits = Frag->OffsetInBits;
-  return VariableSlice;
-}
-
 static bool readExpressionOffset(const DIExpression *Expr, int64_t &Offset,
                                  SmallVectorImpl<uint64_t> &RemainingOps) {
   auto ExprOpIt = Expr->expr_op_begin();
@@ -5084,7 +5070,7 @@ static bool calculateFragmentIntersect(
   if (isKillLocation(DVI))
     return false;
 
-  DIExpression::FragmentInfo VarFrag = getFragmentOrEntireVariable(DVI);
+  DIExpression::FragmentInfo VarFrag = DVI->getFragmentOrEntireVariable();
   if (VarFrag.SizeInBits == 0)
     return false; // Variable size is unknown.
 
