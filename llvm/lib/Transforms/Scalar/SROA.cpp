@@ -5174,8 +5174,11 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
   SmallVector<uint64_t, 8> Ops;
   bool NeedFrag = true;
   for (auto &Op : Expr->expr_ops()) {
-    if (Op.getOp() == dwarf::DW_OP_LLVM_fragment)
+    if (Op.getOp() == dwarf::DW_OP_LLVM_fragment) {
+      if (!NeedFrag)
+        return nullptr; // bail like createFragmentExpr if we see both.
       break;
+    }
     if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
         Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
       NeedFrag = false;
@@ -5185,7 +5188,10 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
         int64_t AdjustedOffset = ExtractOffsetInBits + BitExtractAdjustment;
         Ops.push_back(std::max<int64_t>(0, AdjustedOffset));
         // shrink size if we've moved past the begining of the offset.
-        Ops.push_back(Op.getArg(1) + (std::min<int64_t>(0, AdjustedOffset)));
+        // cap to 0 again in case -(std::min<int64_t>(0, AdjustedOffset) is larger than size.
+        // adjustedoffset is the extract start after adjusting it, so can be negative - we want to
+        // add that negative offset to the size (off:0 sz:8) adjust -2 -> (off:-2, sz:6) -> off:0, sz:6
+        Ops.push_back(std::max<int64_t>(0, Op.getArg(1) + (std::min<int64_t>(0, AdjustedOffset))));
         // Zero-sized...
         if (Ops.back() == 0)
           return nullptr;
