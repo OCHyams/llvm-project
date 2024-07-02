@@ -5182,10 +5182,20 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
     if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
         Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
       NeedFrag = false;
+
+      int64_t ExtractOffsetInBits = Op.getArg(0);
+      int64_t ExtractSizeInBits = Op.getArg(1);
+
+      if (Frag.SizeInBits < ExtractSizeInBits)
+        return nullptr; // no no
+
       if (BitExtractAdjustment < 0) {
         Ops.push_back(Op.getOp());
-        int64_t ExtractOffsetInBits = Op.getArg(0);
+
         int64_t AdjustedOffset = ExtractOffsetInBits + BitExtractAdjustment;
+        if (AdjustedOffset < 0)
+          return nullptr; // bail if new extract is "outside" fragment
+
         Ops.push_back(std::max<int64_t>(0, AdjustedOffset));
         // shrink size if we've moved past the begining of the offset.
         // cap to 0 again in case -(std::min<int64_t>(0, AdjustedOffset) is larger than size.
@@ -5350,7 +5360,8 @@ static void insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
 /// Walks the slices of an alloca and form partitions based on them,
 /// rewriting each of their uses.
 bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
-  errs() << "splitAlloca " << AI.getName() << "\n";
+  errs() << "splitAlloca " << AI.getName() << " in "
+         << AI.getFunction()->getName() << " \n";
   if (AS.begin() == AS.end())
     return false;
 
