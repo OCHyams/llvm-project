@@ -5049,16 +5049,16 @@ static bool calculateFragmentIntersect(
   // Sneaky extra!
   int64_t ExtraExprOffset = 0;
   {
-    /*
+
     for (auto Op : getExpression(DVI)->expr_ops()) {
       if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
-          Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext) {
+          Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
         ExtraExprOffset = Op.getArg(0);
         break;
       }
     }
-    */
   }
+  errs() << " - | ExtraExprOffset: " << ExtraExprOffset << "\n";
 
   // Calculate the number of bits at add to (DVI + expr) to get to (Dest +
   // SliceOffsetInBits).
@@ -5169,7 +5169,8 @@ static bool _calculateFragmentIntersect(
 }
 
 DIExpression *createOrReplaceFragment(const DIExpression *Expr,
-                                      DIExpression::FragmentInfo Frag) {
+                                      DIExpression::FragmentInfo Frag,
+                                      int64_t BitExtractAdjustment) {
   SmallVector<uint64_t, 8> Ops;
   bool NeedFrag = true;
   for (auto &Op : Expr->expr_ops()) {
@@ -5178,6 +5179,18 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
     if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
         Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
       NeedFrag = false;
+      if (BitExtractAdjustment < 0) {
+        Ops.push_back(Op.getOp());
+        int64_t ExtractOffsetInBits = Op.getArg(0);
+        int64_t AdjustedOffset = ExtractOffsetInBits + BitExtractAdjustment;
+        Ops.push_back(std::max<int64_t>(0, AdjustedOffset));
+        // shrink size if we've moved past the begining of the offset.
+        Ops.push_back(Op.getArg(1) + (std::min<int64_t>(0, AdjustedOffset)));
+        // Zero-sized...
+        if (Ops.back() == 0)
+          return nullptr;
+        continue;
+      }
     }
     Op.appendToVector(Ops);
   }
@@ -5195,11 +5208,16 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
 static void
 insertNewDbgInstxxx(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
                     DIExpression *NewFragmentExpr, Instruction *BeforeInst,
-                    std::optional<DIExpression::FragmentInfo> NewFragment) {
+                    std::optional<DIExpression::FragmentInfo> NewFragment,
+                    int64_t BitExtractAdjustment) {
   // XXX: XXX
   if (NewFragment)
-    NewFragmentExpr =
-        ::xxx::createOrReplaceFragment(NewFragmentExpr, *NewFragment);
+    NewFragmentExpr = ::xxx::createOrReplaceFragment(
+        NewFragmentExpr, *NewFragment, BitExtractAdjustment);
+
+  if (!NewFragmentExpr) {
+    errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
+  }
   DIB.insertDeclare(NewAddr, Orig->getVariable(), NewFragmentExpr,
                     Orig->getDebugLoc(), BeforeInst);
 }
@@ -5214,7 +5232,8 @@ static void
 insertNewDbgInstxxx(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
                     AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
                     Instruction *BeforeInst,
-                    std::optional<DIExpression::FragmentInfo> NewFragment) {
+                    std::optional<DIExpression::FragmentInfo> NewFragment,
+                    int64_t BitExtractAdjustment) {
   (void)BeforeInst;
   if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
     NewAddr->setMetadata(LLVMContext::MD_DIAssignID,
@@ -5227,7 +5246,8 @@ insertNewDbgInstxxx(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
   // merge conflict resolution).
   DIExpression *ValueExpr = Orig->getExpression();
   if (NewFragment)
-    ValueExpr = ::xxx::createOrReplaceFragment(ValueExpr, *NewFragment);
+    ValueExpr = ::xxx::createOrReplaceFragment(ValueExpr, *NewFragment,
+                                               BitExtractAdjustment);
 
   Instruction *NewAssign =
       DIB.insertDbgAssign(NewAddr, Orig->getValue(), Orig->getVariable(),
@@ -5243,11 +5263,17 @@ static void
 insertNewDbgInstxxx(DIBuilder &DIB, DbgVariableRecord *Orig,
                     AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
                     Instruction *BeforeInst,
-                    std::optional<DIExpression::FragmentInfo> NewFragment) {
+                    std::optional<DIExpression::FragmentInfo> NewFragment,
+                    int64_t BitExtractAdjustment) {
   // XXX: XXX
   if (NewFragment)
-    NewFragmentExpr =
-        ::xxx::createOrReplaceFragment(NewFragmentExpr, *NewFragment);
+    NewFragmentExpr = ::xxx::createOrReplaceFragment(
+        NewFragmentExpr, *NewFragment, BitExtractAdjustment);
+
+  if (!NewFragmentExpr) {
+    errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
+    return;
+  }
 
   (void)DIB;
   if (Orig->isDbgDeclare()) {
@@ -5531,6 +5557,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       errs() << " - calculateFragmentIntersect\n";
 
       // XXX - FIXME: negative offset could indicate extract_bits fixup needed.
+      int64_t BitExtractAdjustment = OffestFromNewAllocaInBits;
       OffestFromNewAllocaInBits =
           std::max(int64_t(0), OffestFromNewAllocaInBits);
       errs() << "\tOffestFromNewAllocaInBits " << OffestFromNewAllocaInBits
@@ -5578,8 +5605,9 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
       // XXX: XXX: Add NewDbgFragment arg. NewFragmentExpr
       // has become NewExpr.
+      errs() << "- BitExtractAdjustment: " << BitExtractAdjustment << "\n";
       insertNewDbgInstxxx(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
-                          NewDbgFragment);
+                          NewDbgFragment, BitExtractAdjustment);
     }
   };
   // end XXX: XXX
