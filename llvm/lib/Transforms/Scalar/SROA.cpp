@@ -5058,7 +5058,6 @@ static bool calculateFragmentIntersect(
       }
     }
   }
-  errs() << " - | ExtraExprOffset: " << ExtraExprOffset << "\n";
 
   // Calculate the number of bits at add to (DVI + expr) to get to (Dest +
   // SliceOffsetInBits).
@@ -5097,14 +5096,6 @@ static bool calculateFragmentIntersect(
   int64_t MemFragSize = std::max<int64_t>(0, MemEndRelToFragInBits - MemFragStart);
 
   DIExpression::FragmentInfo SliceOfVariable(MemFragSize, MemFragStart);
-
-  errs() << " - | MemStartRelToDbgStartInBits:" << MemStartRelToDbgStartInBits
-         << "\n";
-  errs() << " - | NewExprOffsetInBits: " << NewExprOffsetInBits << "\n";
-  errs() << " - | MemStartRelToFragInBits: " << MemStartRelToFragInBits << "\n";
-  errs() << " - | MemEndRelToFragInBits: " << MemEndRelToFragInBits << "\n";
-  errs() << " - | - MemFrag(Off=" << SliceOfVariable.OffsetInBits
-         << " , Sz=" << SliceOfVariable.SizeInBits << ")\n";
 
   // Intersect the variable slice with DAI's fragment to trim it down to size.
   DIExpression::FragmentInfo TrimmedSliceOfVariable =
@@ -5179,9 +5170,10 @@ insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
     NewFragmentExpr = ::xxx::createOrReplaceFragment(
         NewFragmentExpr, *NewFragment, BitExtractAdjustment);
 
-  if (!NewFragmentExpr) {
-    errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
-  }
+  // TODO: improve createOrReplaceFragment mechansim.
+  if (!NewFragmentExpr)
+    return;
+
   DIB.insertDeclare(NewAddr, Orig->getVariable(), NewFragmentExpr,
                     Orig->getDebugLoc(), BeforeInst);
 }
@@ -5234,10 +5226,8 @@ insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
     NewFragmentExpr = ::xxx::createOrReplaceFragment(
         NewFragmentExpr, *NewFragment, BitExtractAdjustment);
 
-  if (!NewFragmentExpr) {
-    errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
+  if (!NewFragmentExpr)
     return;
-  }
 
   (void)DIB;
   if (Orig->isDbgDeclare()) {
@@ -5245,9 +5235,6 @@ insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
         NewAddr, Orig->getVariable(), NewFragmentExpr, Orig->getDebugLoc());
     BeforeInst->getParent()->insertDbgRecordBefore(DVR,
                                                    BeforeInst->getIterator());
-    errs() << "~~~\n";
-    errs() << "  ---[ inserted " << *DVR << "]---\n";
-    errs() << "~~~\n";
     return;
   }
   if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
@@ -5264,8 +5251,6 @@ insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
 /// Walks the slices of an alloca and form partitions based on them,
 /// rewriting each of their uses.
 bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
-  errs() << "splitAlloca " << AI.getName() << " in "
-         << AI.getFunction()->getName() << " \n";
   if (AS.begin() == AS.end())
     return false;
 
@@ -5364,22 +5349,15 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
   // begin XXX: XXX
   auto MigrateOne = [&](auto *DbgVariable) {
-    errs() << "MigrateOne " << *DbgVariable << "\n";
-    errs() << " - var " << DbgVariable->getVariable()->getName() << "\n";
 
     DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
     for (auto Fragment : Fragments) {
-      errs() << " -- next frag\n";
-      errs() << " - Mem Fragment Alloca " << Fragment.Alloca->getName() << "\n";
-      errs() << " - Mem Fragment Offset " << Fragment.Offset << "\n";
-      errs() << " - Mem Fragment Size   " << Fragment.Size << "\n";
       int64_t CurrentExprOffsetInBytes = 0;
       SmallVector<uint64_t> PostOffsetOps;
 
       if (!::xxx::getExpression(DbgVariable)
                ->extractLeadingOffset(CurrentExprOffsetInBytes, PostOffsetOps))
         continue; // Couldn't interpret this DIExpression - drop the var.
-      errs() << " - extractLeadingOffset " << CurrentExprOffsetInBytes << "\n";
 
       int64_t OffestFromNewAllocaInBits;
       std::optional<DIExpression::FragmentInfo> NewDbgFragment;
@@ -5391,24 +5369,17 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
               NewDbgFragment, CurrentExprOffsetInBytes * 8,
               OffestFromNewAllocaInBits))
         continue; // Do not migrate this fragment to this slice.
-      errs() << " - calculateFragmentIntersect\n";
 
       // XXX - FIXME: negative offset could indicate extract_bits fixup needed.
       int64_t BitExtractAdjustment = OffestFromNewAllocaInBits;
       OffestFromNewAllocaInBits =
           std::max(int64_t(0), OffestFromNewAllocaInBits);
-      errs() << "\tOffestFromNewAllocaInBits " << OffestFromNewAllocaInBits
-             << "\n";
-      errs() << "\tNewDbgFragmentFragment?" << (bool)NewDbgFragment << "\n";
 
       // Zero sized fragment indicates there's no intersect between the variable
       // fragment and the alloca slice. Skip this slice for this variable
       // fragment.
       if (NewDbgFragment && !NewDbgFragment->SizeInBits)
         continue; // Do not migrate this fragment to this slice.
-      if (NewDbgFragment)
-        errs() << "\tFrag Off " << NewDbgFragment->OffsetInBits
-               << "\n\tFrag Sz " << NewDbgFragment->SizeInBits << "\n";
 
       // No fragment indicates DbgVariable's variable or fragment exactly
       // overlaps the slice; copy its fragment (or nullopt if there isn't one).
@@ -5424,7 +5395,6 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
         int64_t OffsetInBytes = (OffestFromNewAllocaInBits + 7) / 8;
         NewExpr = DIExpression::prepend(NewExpr, /*flags=*/0, OffsetInBytes);
       }
-      errs() << " - NewExpr " << *NewExpr << "\n";
 
       // Remove any existing intrinsics on the new alloca describing
       // the variable fragment.
@@ -5442,7 +5412,6 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
       // XXX: XXX: Add NewDbgFragment arg. NewFragmentExpr
       // has become NewExpr.
-      errs() << "- BitExtractAdjustment: " << BitExtractAdjustment << "\n";
       insertNewDbgInst(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
                           NewDbgFragment, BitExtractAdjustment);
     }
@@ -5457,7 +5426,6 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   for_each(at::getAssignmentMarkers(&AI), MigrateOne);
   for_each(at::getDVRAssignmentMarkers(&AI), MigrateOne);
 
-  errs() << "end splitAlloca\n\n\n";
   return Changed;
 }
 
