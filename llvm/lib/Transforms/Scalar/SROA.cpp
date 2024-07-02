@@ -5186,7 +5186,7 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
       int64_t ExtractOffsetInBits = Op.getArg(0);
       int64_t ExtractSizeInBits = Op.getArg(1);
 
-      if (Frag.SizeInBits < ExtractSizeInBits)
+      if (Frag.SizeInBits < uint64_t(ExtractSizeInBits))
         return nullptr; // no no
 
       if (BitExtractAdjustment < 0) {
@@ -5222,7 +5222,7 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
 
 // XXX: XXX: Add NewFragment param. See dbg.assign overload.
 static void
-insertNewDbgInstxxx(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
+insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
                     DIExpression *NewFragmentExpr, Instruction *BeforeInst,
                     std::optional<DIExpression::FragmentInfo> NewFragment,
                     int64_t BitExtractAdjustment) {
@@ -5245,7 +5245,7 @@ insertNewDbgInstxxx(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
 // offset calculation) shoud be used as the destination-modifying expression
 // (the second one).
 static void
-insertNewDbgInstxxx(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
+insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
                     AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
                     Instruction *BeforeInst,
                     std::optional<DIExpression::FragmentInfo> NewFragment,
@@ -5276,7 +5276,7 @@ insertNewDbgInstxxx(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
 
 // XXX: XXX: Add NewFragment param. See dbg.assign overload.
 static void
-insertNewDbgInstxxx(DIBuilder &DIB, DbgVariableRecord *Orig,
+insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
                     AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
                     Instruction *BeforeInst,
                     std::optional<DIExpression::FragmentInfo> NewFragment,
@@ -5300,50 +5300,6 @@ insertNewDbgInstxxx(DIBuilder &DIB, DbgVariableRecord *Orig,
     errs() << "~~~\n";
     errs() << "  ---[ inserted " << *DVR << "]---\n";
     errs() << "~~~\n";
-    return;
-  }
-  if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
-    NewAddr->setMetadata(LLVMContext::MD_DIAssignID,
-                         DIAssignID::getDistinct(NewAddr->getContext()));
-  }
-  DbgVariableRecord *NewAssign = DbgVariableRecord::createLinkedDVRAssign(
-      NewAddr, Orig->getValue(), Orig->getVariable(), NewFragmentExpr, NewAddr,
-      Orig->getAddressExpression(), Orig->getDebugLoc());
-  LLVM_DEBUG(dbgs() << "Created new DVRAssign: " << *NewAssign << "\n");
-  (void)NewAssign;
-}
-
-static void insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig,
-                             AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
-                             Instruction *BeforeInst) {
-  DIB.insertDeclare(NewAddr, Orig->getVariable(), NewFragmentExpr,
-                    Orig->getDebugLoc(), BeforeInst);
-}
-static void insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
-                             AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
-                             Instruction *BeforeInst) {
-  (void)BeforeInst;
-  if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
-    NewAddr->setMetadata(LLVMContext::MD_DIAssignID,
-                         DIAssignID::getDistinct(NewAddr->getContext()));
-  }
-  Instruction *NewAssign =
-      DIB.insertDbgAssign(NewAddr, Orig->getValue(), Orig->getVariable(),
-                          NewFragmentExpr, NewAddr,
-                          Orig->getAddressExpression(), Orig->getDebugLoc())
-          .get<Instruction *>();
-  LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign << "\n");
-  (void)NewAssign;
-}
-static void insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
-                             AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
-                             Instruction *BeforeInst) {
-  (void)DIB;
-  if (Orig->isDbgDeclare()) {
-    DbgVariableRecord *DVR = DbgVariableRecord::createDVRDeclare(
-        NewAddr, Orig->getVariable(), NewFragmentExpr, Orig->getDebugLoc());
-    BeforeInst->getParent()->insertDbgRecordBefore(DVR,
-                                                   BeforeInst->getIterator());
     return;
   }
   if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
@@ -5458,93 +5414,9 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   NumAllocaPartitions += NumPartitions;
   MaxPartitionsPerAlloca.updateMax(NumPartitions);
 
-  // Migrate debug information from the old alloca to the new alloca(s)
-  // and the individual partitions.
-  auto MigrateOne = [&](auto *DbgVariable) {
-    auto *Expr = DbgVariable->getExpression();
-    DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
-    uint64_t AllocaSize =
-        DL.getTypeSizeInBits(AI.getAllocatedType()).getFixedValue();
-    for (auto Fragment : Fragments) {
-      // Create a fragment expression describing the new partition or reuse AI's
-      // expression if there is only one partition.
-      auto *FragmentExpr = Expr;
-      if (Fragment.Size < AllocaSize || Expr->isFragment()) {
-        // If this alloca is already a scalar replacement of a larger aggregate,
-        // Fragment.Offset describes the offset inside the scalar.
-        auto ExprFragment = Expr->getFragmentInfo();
-        uint64_t Offset = ExprFragment ? ExprFragment->OffsetInBits : 0;
-        uint64_t Start = Offset + Fragment.Offset;
-        uint64_t Size = Fragment.Size;
-        if (ExprFragment) {
-          uint64_t AbsEnd =
-              ExprFragment->OffsetInBits + ExprFragment->SizeInBits;
-          if (Start >= AbsEnd) {
-            // No need to describe a SROAed padding.
-            continue;
-          }
-          Size = std::min(Size, AbsEnd - Start);
-        }
-        // The new, smaller fragment is stenciled out from the old fragment.
-        if (auto OrigFragment = FragmentExpr->getFragmentInfo()) {
-          assert(Start >= OrigFragment->OffsetInBits &&
-                 "new fragment is outside of original fragment");
-          Start -= OrigFragment->OffsetInBits;
-        }
-
-        // The alloca may be larger than the variable.
-        auto VarSize = DbgVariable->getVariable()->getSizeInBits();
-        if (VarSize) {
-          if (Size > *VarSize)
-            Size = *VarSize;
-          if (Size == 0 || Start + Size > *VarSize)
-            continue;
-        }
-
-        // Avoid creating a fragment expression that covers the entire variable.
-        if (!VarSize || *VarSize != Size) {
-          if (auto E =
-                  DIExpression::createFragmentExpression(Expr, Start, Size))
-            FragmentExpr = *E;
-          else
-            continue;
-        }
-      }
-
-      // Remove any existing intrinsics on the new alloca describing
-      // the variable fragment.
-      auto RemoveOne = [DbgVariable](auto *OldDII) {
-        auto SameVariableFragment = [](const auto *LHS, const auto *RHS) {
-          return LHS->getVariable() == RHS->getVariable() &&
-                 LHS->getDebugLoc()->getInlinedAt() ==
-                     RHS->getDebugLoc()->getInlinedAt();
-        };
-        if (SameVariableFragment(OldDII, DbgVariable))
-          OldDII->eraseFromParent();
-      };
-      for_each(findDbgDeclares(Fragment.Alloca), RemoveOne);
-      for_each(findDVRDeclares(Fragment.Alloca), RemoveOne);
-
-      insertNewDbgInst(DIB, DbgVariable, Fragment.Alloca, FragmentExpr, &AI);
-    }
-  };
-
   // begin XXX: XXX
-  auto MigrateOnexxx = [&](auto *DbgVariable) {
-    // Bitfield structured bindings now get correct debug info thanks to the
-    // new DW_OP_LLVM_extract_bits_[sz]ext operators. Call through to the
-    // upstream version of MigrateOne if we find one of those operations.
-    if (any_of(::xxx::getExpression(DbgVariable)->expr_ops(),
-               [](const DIExpression::ExprOperand &Op) {
-                 return Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext ||
-                        Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext;
-               })) {
-      // xxx don't! -- try to do the right thing without this crutch.
-      // MigrateOne(DbgVariable);
-      // return;
-    }
-
-    errs() << "MigrateOnexxx " << *DbgVariable << "\n";
+  auto MigrateOne = [&](auto *DbgVariable) {
+    errs() << "MigrateOne " << *DbgVariable << "\n";
     errs() << " - var " << DbgVariable->getVariable()->getName() << "\n";
 
     DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
@@ -5623,7 +5495,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       // XXX: XXX: Add NewDbgFragment arg. NewFragmentExpr
       // has become NewExpr.
       errs() << "- BitExtractAdjustment: " << BitExtractAdjustment << "\n";
-      insertNewDbgInstxxx(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
+      insertNewDbgInst(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
                           NewDbgFragment, BitExtractAdjustment);
     }
   };
@@ -5631,11 +5503,11 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
-  // XXX: XXX call MigrateOnexxx
-  for_each(findDbgDeclares(&AI), MigrateOnexxx);
-  for_each(findDVRDeclares(&AI), MigrateOnexxx);
-  for_each(at::getAssignmentMarkers(&AI), MigrateOnexxx);
-  for_each(at::getDVRAssignmentMarkers(&AI), MigrateOnexxx);
+  // XXX: XXX call MigrateOne
+  for_each(findDbgDeclares(&AI), MigrateOne);
+  for_each(findDVRDeclares(&AI), MigrateOne);
+  for_each(at::getAssignmentMarkers(&AI), MigrateOne);
+  for_each(at::getDVRAssignmentMarkers(&AI), MigrateOne);
 
   errs() << "end splitAlloca\n\n\n";
   return Changed;
