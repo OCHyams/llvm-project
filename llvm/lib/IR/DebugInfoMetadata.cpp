@@ -1774,6 +1774,11 @@ bool DIExpression::extractLeadingOffset(
     if (Op == dwarf::DW_OP_deref || Op == dwarf::DW_OP_deref_size ||
         Op == dwarf::DW_OP_deref_type || Op == dwarf::DW_OP_LLVM_fragment) {
       break;
+    } else if (Op == dwarf::DW_OP_LLVM_extract_bits_zext ||
+               Op == dwarf::DW_OP_LLVM_extract_bits_sext) {
+      // Offset += ExprOpIt->getArg(0);
+      //  Add this offset, then bail.
+      break;
     } else if (Op == dwarf::DW_OP_plus_uconst) {
       Offset += ExprOpIt->getArg(0);
     } else if (Op == dwarf::DW_OP_constu) {
