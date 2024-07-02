@@ -5115,58 +5115,6 @@ static bool calculateFragmentIntersect(
     Result = TrimmedSliceOfVariable;
   return true;
 }
-template <typename DbgTy>
-static bool _calculateFragmentIntersect(
-    const DataLayout &DL, const Value *Dest, uint64_t SliceOffsetInBits,
-    uint64_t SliceSizeInBits, const DbgTy *DVI,
-    std::optional<DIExpression::FragmentInfo> &Result, int64_t ExprOffsetInBits,
-    int64_t &NewExprOffsetInBits) {
-  if (isKillLocation(DVI))
-    return false;
-
-  DIExpression::FragmentInfo VarFrag = DVI->getFragmentOrEntireVariable();
-  if (VarFrag.SizeInBits == 0)
-    return false; // Variable size is unknown.
-
-  // Calculate the difference between Dest and the dbg.assign address +
-  // address-modifying expression.
-  int64_t PointerOffsetInBits;
-  {
-    auto DestOffsetInBytes = getAddress(DVI)->getPointerOffsetFrom(Dest, DL);
-    if (!DestOffsetInBytes)
-      return false; // Can't calculate difference in addresses.
-
-    PointerOffsetInBits = *DestOffsetInBytes * 8 + ExprOffsetInBits;
-  }
-
-  // Adjust the slice offset so that we go from describing the a slice
-  // of memory to a slice of the variable.
-  int64_t AdjustedSliceOffsetInBits =
-      SliceOffsetInBits + VarFrag.OffsetInBits - PointerOffsetInBits;
-
-  NewExprOffsetInBits =
-      std::max(static_cast<int64_t>(0ll), -AdjustedSliceOffsetInBits);
-  AdjustedSliceOffsetInBits =
-      std::max(static_cast<int64_t>(0ll), AdjustedSliceOffsetInBits);
-  // Check if the variable fragment sits outside this memory slice (or
-  // if the new expression offset is less than zero - that should not
-  // be increadibly rare, if it ever happens).
-  if (static_cast<uint64_t>(NewExprOffsetInBits) >= SliceSizeInBits) {
-    Result = {0, 0};
-    return true;
-  }
-
-  DIExpression::FragmentInfo SliceOfVariable(
-      SliceSizeInBits - NewExprOffsetInBits, AdjustedSliceOffsetInBits);
-  // Intersect the variable slice with DAI's fragment to trim it down to size.
-  DIExpression::FragmentInfo TrimmedSliceOfVariable =
-      DIExpression::FragmentInfo::intersect(SliceOfVariable, VarFrag);
-  if (TrimmedSliceOfVariable == VarFrag)
-    Result = std::nullopt;
-  else
-    Result = TrimmedSliceOfVariable;
-  return true;
-}
 
 DIExpression *createOrReplaceFragment(const DIExpression *Expr,
                                       DIExpression::FragmentInfo Frag,
