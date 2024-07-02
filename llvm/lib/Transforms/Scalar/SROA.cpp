@@ -5032,7 +5032,9 @@ const DIExpression *getExpression(const DbgVariableRecord *DVR) {
 /// \p ExprOffsetInBits should be set to address offset encoded in the the
 ///    current expression.
 /// \p NewExprOffsetInBits is set to the difference between the first bit of
-///    memory the fragment describes and the first bit of the slice.
+///    memory the fragment describes and the first bit of the slice. The
+///    magnitude of a negative value therefore indicates the number of bits
+///    into the variable fragment that the memory region begins.
 template <typename DbgTy>
 static bool calculateFragmentIntersect(
     const DataLayout &DL, const Value *Dest, uint64_t SliceOffsetInBits,
@@ -5058,7 +5060,6 @@ static bool calculateFragmentIntersect(
       }
     }
   }
-  errs() << " - | ExtraExprOffset: " << ExtraExprOffset << "\n";
 
   // Calculate the number of bits at add to (DVI + expr) to get to (Dest +
   // SliceOffsetInBits).
@@ -5097,14 +5098,6 @@ static bool calculateFragmentIntersect(
   int64_t MemFragSize = std::max<int64_t>(0, MemEndRelToFragInBits - MemFragStart);
 
   DIExpression::FragmentInfo SliceOfVariable(MemFragSize, MemFragStart);
-
-  errs() << " - | MemStartRelToDbgStartInBits:" << MemStartRelToDbgStartInBits
-         << "\n";
-  errs() << " - | NewExprOffsetInBits: " << NewExprOffsetInBits << "\n";
-  errs() << " - | MemStartRelToFragInBits: " << MemStartRelToFragInBits << "\n";
-  errs() << " - | MemEndRelToFragInBits: " << MemEndRelToFragInBits << "\n";
-  errs() << " - | - MemFrag(Off=" << SliceOfVariable.OffsetInBits
-         << " , Sz=" << SliceOfVariable.SizeInBits << ")\n";
 
   // Intersect the variable slice with DAI's fragment to trim it down to size.
   DIExpression::FragmentInfo TrimmedSliceOfVariable =
