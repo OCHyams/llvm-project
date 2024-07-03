@@ -2098,7 +2098,7 @@ bool DIExpression::calculateFragmentIntersect(
     uint64_t SliceSizeInBits, const Value *DbgPtr, int64_t DbgPtrOffsetInBits,
     int64_t DbgExtractOffsetInBits, DIExpression::FragmentInfo VarFrag,
     std::optional<DIExpression::FragmentInfo> &Result,
-    int64_t &NewExprOffsetInBits) {
+    int64_t &OffsetFromLocationInBits) {
 
   if (VarFrag.SizeInBits == 0)
     return false; // Variable size is unknown.
@@ -2122,20 +2122,13 @@ bool DIExpression::calculateFragmentIntersect(
         SliceOffsetInBits - (DbgPtrOffsetInBits + DbgExtractOffsetInBits);
   }
 
-  // XXX - should shift the duty of adjusting by DbgExtractOffsetInBits out
-  // of the function - that makes it clearer what's going on here.
-  // Also want to rename it to something more general sounding.
-  // This feels right, but it means whatever was happening before is wrong? :D
-  // maybe worth re-inverting the difference direction since we negate here.
-  // NewExprOffsetInBits = -std::min(0, MemStartRelToDbgStartInBits);
-  // negative value might be useful for adjusting extract bits?
-  // + DbgExtractOffsetInBits because that shouldn't get applied to new expr
-  NewExprOffsetInBits = -(MemStartRelToDbgStartInBits + DbgExtractOffsetInBits);
+  // Out-param. Invert offset to get offset from debug location.
+  OffsetFromLocationInBits = -MemStartRelToDbgStartInBits;
 
   // Check if the variable fragment sits outside (before) this memory slice.
   int64_t MemEndRelToDbgStart = MemStartRelToDbgStartInBits + SliceSizeInBits;
   if (MemEndRelToDbgStart < 0) {
-    Result = {0, 0};
+    Result = {0, 0}; // Out-param.
     return true;
   }
 
@@ -2162,9 +2155,9 @@ bool DIExpression::calculateFragmentIntersect(
   DIExpression::FragmentInfo TrimmedSliceOfVariable =
       DIExpression::FragmentInfo::intersect(SliceOfVariable, VarFrag);
   if (TrimmedSliceOfVariable == VarFrag)
-    Result = std::nullopt;
+    Result = std::nullopt; // Out-param.
   else
-    Result = TrimmedSliceOfVariable;
+    Result = TrimmedSliceOfVariable; // Out-param.
   return true;
 }
 

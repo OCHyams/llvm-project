@@ -3105,10 +3105,10 @@ public:
   /// - Return false if the result can't be calculated for any reason.
   /// - \p Result is set to nullopt if the intersect equals \p VarFarg.
   /// - \p Result contains a zero-sized fragment if there's no intersect.
-  /// - \p NewExprOffsetInBits is set to the difference between the first bit of
-  ///   the variable location and the first bit of the slice. The magnitude of a
-  ///   negative value therefore indicates the number of bits into the variable
-  ///   fragment that the memory region begins.
+  /// - \p OffsetFromLocationInBits is set to the difference between the first
+  ///   bit of the variable location and the first bit of the slice. The
+  ///   magnitude of a negative value therefore indicates the number of bits
+  ///   into the variable fragment that the memory region begins.
   ///
   /// We don't pass in a debug record directly to get the constituent parts
   /// and offsets because different debug records store the information in
@@ -3119,7 +3119,7 @@ public:
       uint64_t SliceSizeInBits, const Value *DbgPtr, int64_t DbgPtrOffsetInBits,
       int64_t DbgExtractOffsetInBits, DIExpression::FragmentInfo VarFrag,
       std::optional<DIExpression::FragmentInfo> &Result,
-      int64_t &NewExprOffsetInBits);
+      int64_t &OffsetFromLocationInBits);
 
   using ExtOps = std::array<uint64_t, 6>;
 

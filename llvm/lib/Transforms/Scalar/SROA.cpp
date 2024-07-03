@@ -5295,26 +5295,16 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       errs() << " - Mem Fragment Offset " << Fragment.Offset << "\n";
       errs() << " - Mem Fragment Size   " << Fragment.Size << "\n";
 
-
-      int64_t OffestFromNewAllocaInBits;
+      int64_t OffsetFromLocationInBits;
       std::optional<DIExpression::FragmentInfo> NewDbgFragment;
-
       // Drop debug info for this variable fragment if we can't compute an
       // intersect between it and the alloca slice.
       if (!DIExpression::calculateFragmentIntersect(
               DL, &AI, Fragment.Offset, Fragment.Size, DbgPtr,
               CurrentExprOffsetInBytes * 8, ExtractOffsetInBits, VarFrag,
-              NewDbgFragment, OffestFromNewAllocaInBits))
+              NewDbgFragment, OffsetFromLocationInBits))
         continue; // Do not migrate this fragment to this slice.
       errs() << " - calculateFragmentIntersect\n";
-
-      // XXX - FIXME: negative offset could indicate extract_bits fixup needed.
-      int64_t BitExtractAdjustment = OffestFromNewAllocaInBits;
-      OffestFromNewAllocaInBits =
-          std::max(int64_t(0), OffestFromNewAllocaInBits);
-      errs() << "\tOffestFromNewAllocaInBits " << OffestFromNewAllocaInBits
-             << "\n";
-      errs() << "\tNewDbgFragmentFragment?" << (bool)NewDbgFragment << "\n";
 
       // Zero sized fragment indicates there's no intersect between the variable
       // fragment and the alloca slice. Skip this slice for this variable
@@ -5324,11 +5314,24 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       if (NewDbgFragment)
         errs() << "\tFrag Off " << NewDbgFragment->OffsetInBits
                << "\n\tFrag Sz " << NewDbgFragment->SizeInBits << "\n";
-
       // No fragment indicates DbgVariable's variable or fragment exactly
       // overlaps the slice; copy its fragment (or nullopt if there isn't one).
       if (!NewDbgFragment)
         NewDbgFragment = DbgVariable->getFragment();
+
+      // Reduce the new expression offset by the bit-extract offset.
+      int64_t OffestFromNewAllocaInBits =
+          OffsetFromLocationInBits - ExtractOffsetInBits;
+      // XXX explain this!
+      int64_t BitExtractAdjustment = OffestFromNewAllocaInBits;
+      // The magnitude of a negative value indicates the number of bits into
+      // the variable fragment that the memory region begins (we don't need to
+      // apply the offset anywhere in that case so just zero it).
+      OffestFromNewAllocaInBits =
+          std::max(int64_t(0), OffestFromNewAllocaInBits);
+      errs() << "\tOffestFromNewAllocaInBits " << OffestFromNewAllocaInBits
+             << "\n";
+      errs() << "\tNewDbgFragmentFragment?" << (bool)NewDbgFragment << "\n";
 
       // Rebuild the expression:
       //    {Offset(OffestFromNewAllocaInBits), PostOffsetOps, NewDbgFragment}
