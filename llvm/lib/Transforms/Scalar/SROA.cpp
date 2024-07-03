@@ -5029,43 +5029,27 @@ const DIExpression *getExpression(const DbgVariableRecord *DVR) {
 ///
 /// Result contains a zero-sized fragment if there's no intersect.
 /// \p DVI may be either a DbgDeclareInst or a DbgAssignIntrinsic.
-/// \p ExprOffsetInBits should be set to address offset encoded in the the
+/// \p DbgPtrOffsetInBits should be set to address offset encoded in the the
 ///    current expression.
 /// \p NewExprOffsetInBits is set to the difference between the first bit of
 ///    memory the fragment describes and the first bit of the slice. The
 ///    magnitude of a negative value therefore indicates the number of bits
 ///    into the variable fragment that the memory region begins.
-template <typename DbgTy>
 static bool calculateFragmentIntersect(
     const DataLayout &DL, const Value *Dest, uint64_t SliceOffsetInBits,
-    uint64_t SliceSizeInBits, const DbgTy *DVI,
-    std::optional<DIExpression::FragmentInfo> &Result, int64_t ExprOffsetInBits,
+    uint64_t SliceSizeInBits, const Value *DbgPtr, int64_t DbgPtrOffsetInBits,
+    int64_t DbgExtractOffsetInBits, DIExpression::FragmentInfo VarFrag,
+    std::optional<DIExpression::FragmentInfo> &Result,
     int64_t &NewExprOffsetInBits) {
-  if (isKillLocation(DVI))
-    return false;
 
-  DIExpression::FragmentInfo VarFrag = DVI->getFragmentOrEntireVariable();
   if (VarFrag.SizeInBits == 0)
     return false; // Variable size is unknown.
-
-  // Sneaky extra!
-  int64_t ExtraExprOffset = 0;
-  {
-
-    for (auto Op : getExpression(DVI)->expr_ops()) {
-      if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
-          Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
-        ExtraExprOffset = Op.getArg(0);
-        break;
-      }
-    }
-  }
 
   // Calculate the number of bits at add to (DVI + expr) to get to (Dest +
   // SliceOffsetInBits).
   int64_t MemStartRelToDbgStartInBits;
   {
-    auto DestOffsetInBytes = Dest->getPointerOffsetFrom(getAddress(DVI), DL);
+    auto DestOffsetInBytes = Dest->getPointerOffsetFrom(DbgPtr, DL);
     if (!DestOffsetInBytes)
       return false; // Can't calculate difference in addresses.
 
@@ -5073,14 +5057,14 @@ static bool calculateFragmentIntersect(
     MemStartRelToDbgStartInBits = *DestOffsetInBytes * 8;
     // Add the difference of the offsets.
     MemStartRelToDbgStartInBits +=
-        SliceOffsetInBits - (ExprOffsetInBits + ExtraExprOffset);
+        SliceOffsetInBits - (DbgPtrOffsetInBits + DbgExtractOffsetInBits);
   }
   // This feels right, but it means whatever was happening before is wrong? :D
   // maybe worth re-inverting the difference direction since we negate here.
   // NewExprOffsetInBits = -std::min(0, MemStartRelToDbgStartInBits);
   // negative value might be useful for adjusting extract bits?
-  // + ExtraExprOffset because that shouldn't get applied to new expr
-  NewExprOffsetInBits = -(MemStartRelToDbgStartInBits + ExtraExprOffset);
+  // + DbgExtractOffsetInBits because that shouldn't get applied to new expr
+  NewExprOffsetInBits = -(MemStartRelToDbgStartInBits + DbgExtractOffsetInBits);
 
   // Check if the variable fragment sits outside (before) this memory slice.
   int64_t MemEndRelToDbgStart = MemStartRelToDbgStartInBits + SliceSizeInBits;
@@ -5095,7 +5079,8 @@ static bool calculateFragmentIntersect(
   int64_t MemEndRelToFragInBits = MemStartRelToFragInBits + SliceSizeInBits;
   // Can't have negative frags - is ok, that bit necessarily can't overlap.
   int64_t MemFragStart = std::max<int64_t>(0, MemStartRelToFragInBits);
-  int64_t MemFragSize = std::max<int64_t>(0, MemEndRelToFragInBits - MemFragStart);
+  int64_t MemFragSize =
+      std::max<int64_t>(0, MemEndRelToFragInBits - MemFragStart);
 
   DIExpression::FragmentInfo SliceOfVariable(MemFragSize, MemFragStart);
 
@@ -5360,19 +5345,37 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
     errs() << "MigrateOne " << *DbgVariable << "\n";
     errs() << " - var " << DbgVariable->getVariable()->getName() << "\n";
 
+    // Can't overlap with undef memory.
+    if (xxx::isKillLocation(DbgVariable))
+      return;
+
+    const Value *DbgPtr = xxx::getAddress(DbgVariable);
+    DIExpression::FragmentInfo VarFrag =
+        DbgVariable->getFragmentOrEntireVariable();
+    int64_t CurrentExprOffsetInBytes = 0;
+    SmallVector<uint64_t> PostOffsetOps;
+    if (!::xxx::getExpression(DbgVariable)
+             ->extractLeadingOffset(CurrentExprOffsetInBytes, PostOffsetOps))
+      return; // Couldn't interpret this DIExpression - drop the var.
+    int64_t ExtractOffsetInBits = 0;
+    {
+      for (auto Op : xxx::getExpression(DbgVariable)->expr_ops()) {
+        if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
+            Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
+          ExtractOffsetInBits = Op.getArg(0);
+          break;
+        }
+      }
+    }
+    errs() << " - extractLeadingOffset " << CurrentExprOffsetInBytes << "\n";
+
     DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
     for (auto Fragment : Fragments) {
       errs() << " -- next frag\n";
       errs() << " - Mem Fragment Alloca " << Fragment.Alloca->getName() << "\n";
       errs() << " - Mem Fragment Offset " << Fragment.Offset << "\n";
       errs() << " - Mem Fragment Size   " << Fragment.Size << "\n";
-      int64_t CurrentExprOffsetInBytes = 0;
-      SmallVector<uint64_t> PostOffsetOps;
 
-      if (!::xxx::getExpression(DbgVariable)
-               ->extractLeadingOffset(CurrentExprOffsetInBytes, PostOffsetOps))
-        continue; // Couldn't interpret this DIExpression - drop the var.
-      errs() << " - extractLeadingOffset " << CurrentExprOffsetInBytes << "\n";
 
       int64_t OffestFromNewAllocaInBits;
       std::optional<DIExpression::FragmentInfo> NewDbgFragment;
@@ -5380,9 +5383,9 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       // Drop debug info for this variable fragment if we can't compute an
       // intersect between it and the alloca slice.
       if (!::xxx::calculateFragmentIntersect(
-              DL, &AI, Fragment.Offset, Fragment.Size, DbgVariable,
-              NewDbgFragment, CurrentExprOffsetInBytes * 8,
-              OffestFromNewAllocaInBits))
+              DL, &AI, Fragment.Offset, Fragment.Size, DbgPtr,
+              CurrentExprOffsetInBytes * 8, ExtractOffsetInBits, VarFrag,
+              NewDbgFragment, OffestFromNewAllocaInBits))
         continue; // Do not migrate this fragment to this slice.
       errs() << " - calculateFragmentIntersect\n";
 
