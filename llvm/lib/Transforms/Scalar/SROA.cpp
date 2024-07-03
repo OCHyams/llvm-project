@@ -5319,7 +5319,8 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       if (!NewDbgFragment)
         NewDbgFragment = DbgVariable->getFragment();
 
-      // Reduce the new expression offset by the bit-extract offset.
+      // Reduce the new expression offset by the bit-extract offset since
+      // we'll be keeping that.
       int64_t OffestFromNewAllocaInBits =
           OffsetFromLocationInBits - ExtractOffsetInBits;
       // XXX explain this!
