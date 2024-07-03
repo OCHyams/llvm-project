@@ -4983,13 +4983,13 @@ const Value *getAddress(const DbgVariableRecord *DVR) {
   return DVR->getAddress();
 }
 
-bool isKillLocation(const DbgVariableIntrinsic *DVI) {
+bool isKillAddress(const DbgVariableIntrinsic *DVI) {
   if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
     return DAI->isKillAddress();
   return cast<DbgDeclareInst>(DVI)->isKillLocation();
 }
 
-bool isKillLocation(const DbgVariableRecord *DVR) {
+bool isKillAddress(const DbgVariableRecord *DVR) {
   assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
          DVR->getType() == DbgVariableRecord::LocationType::Assign);
   // TODO: Fold this condition into DPValue::isKillLocation.
@@ -4998,13 +4998,13 @@ bool isKillLocation(const DbgVariableRecord *DVR) {
   return DVR->isKillLocation();
 }
 
-const DIExpression *getExpression(const DbgVariableIntrinsic *DVI) {
+const DIExpression *getAddressExpression(const DbgVariableIntrinsic *DVI) {
   if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
     return DAI->getAddressExpression();
   return cast<DbgDeclareInst>(DVI)->getExpression();
 }
 
-const DIExpression *getExpression(const DbgVariableRecord *DVR) {
+const DIExpression *getAddressExpression(const DbgVariableRecord *DVR) {
   assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
          DVR->getType() == DbgVariableRecord::LocationType::Assign);
   // TODO: Fold this condition into DPValue::getAddressExpression.
@@ -5265,7 +5265,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
     errs() << " - var " << DbgVariable->getVariable()->getName() << "\n";
 
     // Can't overlap with undef memory.
-    if (xxx::isKillLocation(DbgVariable))
+    if (xxx::isKillAddress(DbgVariable))
       return;
 
     const Value *DbgPtr = xxx::getAddress(DbgVariable);
@@ -5273,12 +5273,12 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
         DbgVariable->getFragmentOrEntireVariable();
     int64_t CurrentExprOffsetInBytes = 0;
     SmallVector<uint64_t> PostOffsetOps;
-    if (!::xxx::getExpression(DbgVariable)
+    if (!::xxx::getAddressExpression(DbgVariable)
              ->extractLeadingOffset(CurrentExprOffsetInBytes, PostOffsetOps))
       return; // Couldn't interpret this DIExpression - drop the var.
     int64_t ExtractOffsetInBits = 0;
     {
-      for (auto Op : xxx::getExpression(DbgVariable)->expr_ops()) {
+      for (auto Op : xxx::getAddressExpression(DbgVariable)->expr_ops()) {
         if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
             Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
           ExtractOffsetInBits = Op.getArg(0);
