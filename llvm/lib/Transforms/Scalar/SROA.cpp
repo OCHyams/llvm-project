@@ -4967,47 +4967,39 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
   return NewAI;
 }
 
-// begin XXX: XXX: fix structured binding debuginfo
-namespace xxx {
 // There isn't a shared interface to get the "address" parts out of a
-// dbg.declare and dbg.assign, so provide some wrappers now.
+// dbg.declare and dbg.assign, so provide some wrappers now for
+// both debug intrinsics and records.
 const Value *getAddress(const DbgVariableIntrinsic *DVI) {
   if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
     return DAI->getAddress();
   return cast<DbgDeclareInst>(DVI)->getAddress();
 }
-
 const Value *getAddress(const DbgVariableRecord *DVR) {
   assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
          DVR->getType() == DbgVariableRecord::LocationType::Assign);
   return DVR->getAddress();
 }
-
 bool isKillAddress(const DbgVariableIntrinsic *DVI) {
   if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
     return DAI->isKillAddress();
   return cast<DbgDeclareInst>(DVI)->isKillLocation();
 }
-
 bool isKillAddress(const DbgVariableRecord *DVR) {
   assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
          DVR->getType() == DbgVariableRecord::LocationType::Assign);
-  // TODO: Fold this condition into DPValue::isKillLocation.
   if (DVR->getType() == DbgVariableRecord::LocationType::Assign)
     return DVR->isKillAddress();
   return DVR->isKillLocation();
 }
-
 const DIExpression *getAddressExpression(const DbgVariableIntrinsic *DVI) {
   if (const auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI))
     return DAI->getAddressExpression();
   return cast<DbgDeclareInst>(DVI)->getExpression();
 }
-
 const DIExpression *getAddressExpression(const DbgVariableRecord *DVR) {
   assert(DVR->getType() == DbgVariableRecord::LocationType::Declare ||
          DVR->getType() == DbgVariableRecord::LocationType::Assign);
-  // TODO: Fold this condition into DPValue::getAddressExpression.
   if (DVR->getType() == DbgVariableRecord::LocationType::Assign)
     return DVR->getAddressExpression();
   return DVR->getExpression();
@@ -5068,10 +5060,8 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
   }
   return DIExpression::get(Expr->getContext(), Ops);
 }
-} // namespace xxx
-// end XXX: XXX
 
-// XXX: XXX: Add NewFragment param. See dbg.assign overload.
+// XXX: Add NewFragment param. See dbg.assign overload.
 static void
 insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
                     DIExpression *NewFragmentExpr, Instruction *BeforeInst,
@@ -5079,8 +5069,8 @@ insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
                     int64_t BitExtractAdjustment) {
   // XXX: XXX
   if (NewFragment)
-    NewFragmentExpr = ::xxx::createOrReplaceFragment(
-        NewFragmentExpr, *NewFragment, BitExtractAdjustment);
+    NewFragmentExpr = createOrReplaceFragment(NewFragmentExpr, *NewFragment,
+                                              BitExtractAdjustment);
 
   if (!NewFragmentExpr) {
     errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
@@ -5089,7 +5079,7 @@ insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
                     Orig->getDebugLoc(), BeforeInst);
 }
 
-// XXX: XXX: Add NewFragment param. The fragment info
+// XXX: Add NewFragment param. The fragment info
 // should be applied to the first dbg.assign expression (by convention,
 // that's the only expression with the fragment info for the variable), and
 // the NewFragmentExpr (which now contains no fragment, instead only a new
@@ -5107,14 +5097,14 @@ insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
                          DIAssignID::getDistinct(NewAddr->getContext()));
   }
 
-  // XXX: XXX
+  // XXX:
   // dbg.assign value expression receives the fragment update. The address
   // expression has already been built: NewFragmentExpr (poor naming a result of
   // merge conflict resolution).
   DIExpression *ValueExpr = Orig->getExpression();
   if (NewFragment)
-    ValueExpr = ::xxx::createOrReplaceFragment(ValueExpr, *NewFragment,
-                                               BitExtractAdjustment);
+    ValueExpr =
+        createOrReplaceFragment(ValueExpr, *NewFragment, BitExtractAdjustment);
 
   Instruction *NewAssign =
       DIB.insertDbgAssign(NewAddr, Orig->getValue(), Orig->getVariable(),
@@ -5132,10 +5122,9 @@ insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
                     Instruction *BeforeInst,
                     std::optional<DIExpression::FragmentInfo> NewFragment,
                     int64_t BitExtractAdjustment) {
-  // XXX: XXX
   if (NewFragment)
-    NewFragmentExpr = ::xxx::createOrReplaceFragment(
-        NewFragmentExpr, *NewFragment, BitExtractAdjustment);
+    NewFragmentExpr = createOrReplaceFragment(NewFragmentExpr, *NewFragment,
+                                              BitExtractAdjustment);
 
   if (!NewFragmentExpr) {
     errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
@@ -5265,26 +5254,25 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   NumAllocaPartitions += NumPartitions;
   MaxPartitionsPerAlloca.updateMax(NumPartitions);
 
-  // begin XXX: XXX
   auto MigrateOne = [&](auto *DbgVariable) {
     errs() << "MigrateOne " << *DbgVariable << "\n";
     errs() << " - var " << DbgVariable->getVariable()->getName() << "\n";
 
     // Can't overlap with undef memory.
-    if (xxx::isKillAddress(DbgVariable))
+    if (isKillAddress(DbgVariable))
       return;
 
-    const Value *DbgPtr = xxx::getAddress(DbgVariable);
+    const Value *DbgPtr = getAddress(DbgVariable);
     DIExpression::FragmentInfo VarFrag =
         DbgVariable->getFragmentOrEntireVariable();
     int64_t CurrentExprOffsetInBytes = 0;
     SmallVector<uint64_t> PostOffsetOps;
-    if (!::xxx::getAddressExpression(DbgVariable)
+    if (!getAddressExpression(DbgVariable)
              ->extractLeadingOffset(CurrentExprOffsetInBytes, PostOffsetOps))
       return; // Couldn't interpret this DIExpression - drop the var.
     int64_t ExtractOffsetInBits = 0;
     {
-      for (auto Op : xxx::getAddressExpression(DbgVariable)->expr_ops()) {
+      for (auto Op : getAddressExpression(DbgVariable)->expr_ops()) {
         if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
             Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
           ExtractOffsetInBits = Op.getArg(0);
@@ -5369,18 +5357,14 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       for_each(findDbgDeclares(Fragment.Alloca), RemoveOne);
       for_each(findDVRDeclares(Fragment.Alloca), RemoveOne);
 
-      // XXX: XXX: Add NewDbgFragment arg. NewFragmentExpr
-      // has become NewExpr.
       errs() << "- BitExtractOffset: " << BitExtractOffset << "\n";
       insertNewDbgInst(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
                        NewDbgFragment, BitExtractOffset);
     }
   };
-  // end XXX: XXX
 
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
-  // XXX: XXX call MigrateOne
   for_each(findDbgDeclares(&AI), MigrateOne);
   for_each(findDVRDeclares(&AI), MigrateOne);
   for_each(at::getAssignmentMarkers(&AI), MigrateOne);
