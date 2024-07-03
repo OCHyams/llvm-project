@@ -5013,20 +5013,22 @@ const DIExpression *getAddressExpression(const DbgVariableRecord *DVR) {
   return DVR->getExpression();
 }
 
+
 DIExpression *createOrReplaceFragment(const DIExpression *Expr,
                                       DIExpression::FragmentInfo Frag,
                                       int64_t BitExtractAdjustment) {
   SmallVector<uint64_t, 8> Ops;
-  bool NeedFrag = true;
+  bool HasFragment = false;
+  bool HasBitExtract = false;
+
   for (auto &Op : Expr->expr_ops()) {
     if (Op.getOp() == dwarf::DW_OP_LLVM_fragment) {
-      if (!NeedFrag)
-        return nullptr; // bail like createFragmentExpr if we see both.
-      break;
+      HasFragment = true;
+      continue;
     }
     if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
         Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
-      NeedFrag = false;
+      HasBitExtract = true;
 
       int64_t ExtractOffsetInBits = Op.getArg(0);
       int64_t ExtractSizeInBits = Op.getArg(1);
@@ -5034,19 +5036,21 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
       if (Frag.SizeInBits < uint64_t(ExtractSizeInBits))
         return nullptr; // no no
 
-      if (BitExtractAdjustment < 0) {
+      if (BitExtractAdjustment > 0) {
         Ops.push_back(Op.getOp());
 
-        int64_t AdjustedOffset = ExtractOffsetInBits + BitExtractAdjustment;
+        int64_t AdjustedOffset = ExtractOffsetInBits - BitExtractAdjustment;
         if (AdjustedOffset < 0)
           return nullptr; // bail if new extract is "outside" fragment
 
         Ops.push_back(std::max<int64_t>(0, AdjustedOffset));
         // shrink size if we've moved past the begining of the offset.
-        // cap to 0 again in case -(std::min<int64_t>(0, AdjustedOffset) is larger than size.
-        // adjustedoffset is the extract start after adjusting it, so can be negative - we want to
-        // add that negative offset to the size (off:0 sz:8) adjust -2 -> (off:-2, sz:6) -> off:0, sz:6
-        Ops.push_back(std::max<int64_t>(0, Op.getArg(1) + (std::min<int64_t>(0, AdjustedOffset))));
+        // cap to 0 again in case -(std::min<int64_t>(0, AdjustedOffset) is
+        // larger than size. adjustedoffset is the extract start after adjusting
+        // it, so can be negative - we want to add that negative offset to the
+        // size (off:0 sz:8) adjust -2 -> (off:-2, sz:6) -> off:0, sz:6
+        Ops.push_back(std::max<int64_t>(
+            0, Op.getArg(1) + (std::min<int64_t>(0, AdjustedOffset))));
         // Zero-sized...
         if (Ops.back() == 0)
           return nullptr;
@@ -5055,7 +5059,13 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
     }
     Op.appendToVector(Ops);
   }
-  if (NeedFrag) {
+
+  // Unsupported by createFragmentExpression, so don't support it here yet to
+  // preserve NFC-ness.
+  if (HasFragment && HasBitExtract)
+    return nullptr;
+
+  if (!HasBitExtract) {
     Ops.push_back(dwarf::DW_OP_LLVM_fragment);
     Ops.push_back(Frag.OffsetInBits);
     Ops.push_back(Frag.SizeInBits);
@@ -5324,7 +5334,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       int64_t OffestFromNewAllocaInBits =
           OffsetFromLocationInBits - ExtractOffsetInBits;
       // XXX explain this!
-      int64_t BitExtractAdjustment = OffestFromNewAllocaInBits;
+      int64_t BitExtractAdjustment = -OffestFromNewAllocaInBits;
       // The magnitude of a negative value indicates the number of bits into
       // the variable fragment that the memory region begins (we don't need to
       // apply the offset anywhere in that case so just zero it).
