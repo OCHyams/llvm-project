@@ -5061,77 +5061,91 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
   return DIExpression::get(Expr->getContext(), Ops);
 }
 
-// XXX: Add NewFragment param. See dbg.assign overload.
+/// Insert a new dbg.declare.
+/// \p Orig Original to copy debug loc and variable from.
+/// \p NewAddr Location's new base address.
+/// \p NewAddrExpr New expression to apply to address.
+/// \p BeforeInst Insert position.
+/// \p NewFragment New fragment (absolute, non-relative).
+/// \p BitExtractAdjustment Offset to apply to any extract_bits op.
 static void
 insertNewDbgInst(DIBuilder &DIB, DbgDeclareInst *Orig, AllocaInst *NewAddr,
-                    DIExpression *NewFragmentExpr, Instruction *BeforeInst,
-                    std::optional<DIExpression::FragmentInfo> NewFragment,
-                    int64_t BitExtractAdjustment) {
+                 DIExpression *NewAddrExpr, Instruction *BeforeInst,
+                 std::optional<DIExpression::FragmentInfo> NewFragment,
+                 int64_t BitExtractAdjustment) {
   // XXX: XXX
   if (NewFragment)
-    NewFragmentExpr = createOrReplaceFragment(NewFragmentExpr, *NewFragment,
-                                              BitExtractAdjustment);
-
-  if (!NewFragmentExpr) {
+    NewAddrExpr = createOrReplaceFragment(NewAddrExpr, *NewFragment,
+                                          BitExtractAdjustment);
+  if (!NewAddrExpr) {
     errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
   }
-  DIB.insertDeclare(NewAddr, Orig->getVariable(), NewFragmentExpr,
+  DIB.insertDeclare(NewAddr, Orig->getVariable(), NewAddrExpr,
                     Orig->getDebugLoc(), BeforeInst);
 }
 
-// XXX: Add NewFragment param. The fragment info
-// should be applied to the first dbg.assign expression (by convention,
-// that's the only expression with the fragment info for the variable), and
-// the NewFragmentExpr (which now contains no fragment, instead only a new
-// offset calculation) shoud be used as the destination-modifying expression
-// (the second one).
+/// Insert a new dbg.assign.
+/// \p Orig Original to copy debug loc, variable, value and value expression
+///    from.
+/// \p NewAddr Location's new base address.
+/// \p NewAddrExpr New expression to apply to address.
+/// \p BeforeInst Insert position.
+/// \p NewFragment New fragment (absolute, non-relative).
+/// \p BitExtractAdjustment Offset to apply to any extract_bits op.
 static void
-insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig,
-                    AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
-                    Instruction *BeforeInst,
-                    std::optional<DIExpression::FragmentInfo> NewFragment,
-                    int64_t BitExtractAdjustment) {
+insertNewDbgInst(DIBuilder &DIB, DbgAssignIntrinsic *Orig, AllocaInst *NewAddr,
+                 DIExpression *NewAddrExpr, Instruction *BeforeInst,
+                 std::optional<DIExpression::FragmentInfo> NewFragment,
+                 int64_t BitExtractAdjustment) {
   (void)BeforeInst;
   if (!NewAddr->hasMetadata(LLVMContext::MD_DIAssignID)) {
     NewAddr->setMetadata(LLVMContext::MD_DIAssignID,
                          DIAssignID::getDistinct(NewAddr->getContext()));
   }
 
-  // XXX:
-  // dbg.assign value expression receives the fragment update. The address
-  // expression has already been built: NewFragmentExpr (poor naming a result of
-  // merge conflict resolution).
-  DIExpression *ValueExpr = Orig->getExpression();
+  // A dbg.assign puts fragment info in the value expression only. The address
+  // expression has already been built: NewAddrExpr.
+  DIExpression *NewFragmentExpr = Orig->getExpression();
   if (NewFragment)
-    ValueExpr =
-        createOrReplaceFragment(ValueExpr, *NewFragment, BitExtractAdjustment);
+    NewFragmentExpr = createOrReplaceFragment(NewFragmentExpr, *NewFragment,
+                                              BitExtractAdjustment);
 
   Instruction *NewAssign =
       DIB.insertDbgAssign(NewAddr, Orig->getValue(), Orig->getVariable(),
-                          NewFragmentExpr, NewAddr,
-                          Orig->getAddressExpression(), Orig->getDebugLoc())
+                          NewFragmentExpr, NewAddr, NewAddrExpr,
+                          Orig->getDebugLoc())
           .get<Instruction *>();
   LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign << "\n");
   (void)NewAssign;
 }
 
-// XXX: XXX: Add NewFragment param. See dbg.assign overload.
+/// Insert a new DbgRecord.
+/// \p Orig Original to copy record type, debug loc and variable from, and
+///    additionally value and value expression for dbg_assign records.
+/// \p NewAddr Location's new base address.
+/// \p NewAddrExpr New expression to apply to address.
+/// \p BeforeInst Insert position.
+/// \p NewFragment New fragment (absolute, non-relative).
+/// \p BitExtractAdjustment Offset to apply to any extract_bits op.
 static void
-insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
-                    AllocaInst *NewAddr, DIExpression *NewFragmentExpr,
-                    Instruction *BeforeInst,
-                    std::optional<DIExpression::FragmentInfo> NewFragment,
-                    int64_t BitExtractAdjustment) {
+insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig, AllocaInst *NewAddr,
+                 DIExpression *NewAddrExpr, Instruction *BeforeInst,
+                 std::optional<DIExpression::FragmentInfo> NewFragment,
+                 int64_t BitExtractAdjustment) {
+  (void)DIB;
+  // A dbg_assign puts fragment info in the value expression only. The address
+  // expression has already been built: NewAddrExpr. A dbg_declare puts the
+  // new fragment info into NewAddrExpr (as it only has one expression).
+  DIExpression *NewFragmentExpr =
+      Orig->isDbgAssign() ? Orig->getExpression() : NewAddrExpr;
   if (NewFragment)
     NewFragmentExpr = createOrReplaceFragment(NewFragmentExpr, *NewFragment,
                                               BitExtractAdjustment);
-
   if (!NewFragmentExpr) {
     errs() << " -+ bail on this one, zero sized bit extract after fixup\n";
     return;
   }
 
-  (void)DIB;
   if (Orig->isDbgDeclare()) {
     DbgVariableRecord *DVR = DbgVariableRecord::createDVRDeclare(
         NewAddr, Orig->getVariable(), NewFragmentExpr, Orig->getDebugLoc());
@@ -5148,7 +5162,7 @@ insertNewDbgInst(DIBuilder &DIB, DbgVariableRecord *Orig,
   }
   DbgVariableRecord *NewAssign = DbgVariableRecord::createLinkedDVRAssign(
       NewAddr, Orig->getValue(), Orig->getVariable(), NewFragmentExpr, NewAddr,
-      Orig->getAddressExpression(), Orig->getDebugLoc());
+      NewAddrExpr, Orig->getDebugLoc());
   LLVM_DEBUG(dbgs() << "Created new DVRAssign: " << *NewAssign << "\n");
   (void)NewAssign;
 }
