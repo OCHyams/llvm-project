@@ -5013,87 +5013,6 @@ const DIExpression *getExpression(const DbgVariableRecord *DVR) {
   return DVR->getExpression();
 }
 
-/// This is copy-modified from DebugInfo.cpp's at::calculateFragmentIntersect.
-/// Most of the changes are to accomodate dbg.declares as well as dbg.assigns.
-/// extractIfOffset has been hoisted out of this function and replaced with
-/// readExpressionOffset (above), the result now being passed into this
-/// function.
-///
-/// Calculate the fragment of the variable in \p DVI covered
-/// from (Dest + SliceOffsetInBits) to
-///   to (Dest + SliceOffsetInBits + SliceSizeInBits)
-///
-/// Return false if it can't be calculated for any reason.
-/// Result is set to nullopt if the intersect equals the variable fragment (or
-/// variable size) in DAI.
-///
-/// Result contains a zero-sized fragment if there's no intersect.
-/// \p DVI may be either a DbgDeclareInst or a DbgAssignIntrinsic.
-/// \p DbgPtrOffsetInBits should be set to address offset encoded in the the
-///    current expression.
-/// \p NewExprOffsetInBits is set to the difference between the first bit of
-///    memory the fragment describes and the first bit of the slice. The
-///    magnitude of a negative value therefore indicates the number of bits
-///    into the variable fragment that the memory region begins.
-static bool calculateFragmentIntersect(
-    const DataLayout &DL, const Value *Dest, uint64_t SliceOffsetInBits,
-    uint64_t SliceSizeInBits, const Value *DbgPtr, int64_t DbgPtrOffsetInBits,
-    int64_t DbgExtractOffsetInBits, DIExpression::FragmentInfo VarFrag,
-    std::optional<DIExpression::FragmentInfo> &Result,
-    int64_t &NewExprOffsetInBits) {
-
-  if (VarFrag.SizeInBits == 0)
-    return false; // Variable size is unknown.
-
-  // Calculate the number of bits at add to (DVI + expr) to get to (Dest +
-  // SliceOffsetInBits).
-  int64_t MemStartRelToDbgStartInBits;
-  {
-    auto DestOffsetInBytes = Dest->getPointerOffsetFrom(DbgPtr, DL);
-    if (!DestOffsetInBytes)
-      return false; // Can't calculate difference in addresses.
-
-    // Difference between the pointers.
-    MemStartRelToDbgStartInBits = *DestOffsetInBytes * 8;
-    // Add the difference of the offsets.
-    MemStartRelToDbgStartInBits +=
-        SliceOffsetInBits - (DbgPtrOffsetInBits + DbgExtractOffsetInBits);
-  }
-  // This feels right, but it means whatever was happening before is wrong? :D
-  // maybe worth re-inverting the difference direction since we negate here.
-  // NewExprOffsetInBits = -std::min(0, MemStartRelToDbgStartInBits);
-  // negative value might be useful for adjusting extract bits?
-  // + DbgExtractOffsetInBits because that shouldn't get applied to new expr
-  NewExprOffsetInBits = -(MemStartRelToDbgStartInBits + DbgExtractOffsetInBits);
-
-  // Check if the variable fragment sits outside (before) this memory slice.
-  int64_t MemEndRelToDbgStart = MemStartRelToDbgStartInBits + SliceSizeInBits;
-  if (MemEndRelToDbgStart < 0) {
-    Result = {0, 0};
-    return true;
-  }
-
-  // SliceOfVariable is the bits of the variable that the memory region covers.
-  int64_t MemStartRelToFragInBits =
-      MemStartRelToDbgStartInBits + VarFrag.OffsetInBits;
-  int64_t MemEndRelToFragInBits = MemStartRelToFragInBits + SliceSizeInBits;
-  // Can't have negative frags - is ok, that bit necessarily can't overlap.
-  int64_t MemFragStart = std::max<int64_t>(0, MemStartRelToFragInBits);
-  int64_t MemFragSize =
-      std::max<int64_t>(0, MemEndRelToFragInBits - MemFragStart);
-
-  DIExpression::FragmentInfo SliceOfVariable(MemFragSize, MemFragStart);
-
-  // Intersect the variable slice with DAI's fragment to trim it down to size.
-  DIExpression::FragmentInfo TrimmedSliceOfVariable =
-      DIExpression::FragmentInfo::intersect(SliceOfVariable, VarFrag);
-  if (TrimmedSliceOfVariable == VarFrag)
-    Result = std::nullopt;
-  else
-    Result = TrimmedSliceOfVariable;
-  return true;
-}
-
 DIExpression *createOrReplaceFragment(const DIExpression *Expr,
                                       DIExpression::FragmentInfo Frag,
                                       int64_t BitExtractAdjustment) {
@@ -5382,7 +5301,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
       // Drop debug info for this variable fragment if we can't compute an
       // intersect between it and the alloca slice.
-      if (!::xxx::calculateFragmentIntersect(
+      if (!DIExpression::calculateFragmentIntersect(
               DL, &AI, Fragment.Offset, Fragment.Size, DbgPtr,
               CurrentExprOffsetInBytes * 8, ExtractOffsetInBits, VarFrag,
               NewDbgFragment, OffestFromNewAllocaInBits))

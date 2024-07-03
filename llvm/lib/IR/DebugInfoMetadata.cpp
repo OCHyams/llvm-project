@@ -2092,6 +2092,82 @@ std::optional<DIExpression *> DIExpression::createFragmentExpression(
   return DIExpression::get(Expr->getContext(), Ops);
 }
 
+/// See declaration for more info.
+bool DIExpression::calculateFragmentIntersect(
+    const DataLayout &DL, const Value *SliceStart, uint64_t SliceOffsetInBits,
+    uint64_t SliceSizeInBits, const Value *DbgPtr, int64_t DbgPtrOffsetInBits,
+    int64_t DbgExtractOffsetInBits, DIExpression::FragmentInfo VarFrag,
+    std::optional<DIExpression::FragmentInfo> &Result,
+    int64_t &NewExprOffsetInBits) {
+
+  if (VarFrag.SizeInBits == 0)
+    return false; // Variable size is unknown.
+
+  // Difference between mem slice start and the dbg location start.
+  // 0   4   8   12   16 ...
+  // |       |
+  // dbg location start
+  //         |
+  //         mem slice start
+  // Here MemStartRelToDbgStartInBits is 8. Note this can be negative.
+  int64_t MemStartRelToDbgStartInBits;
+  {
+    auto MemOffsetFromDbgInBytes = SliceStart->getPointerOffsetFrom(DbgPtr, DL);
+    if (!MemOffsetFromDbgInBytes)
+      return false; // Can't calculate difference in addresses.
+    // Difference between the pointers.
+    MemStartRelToDbgStartInBits = *MemOffsetFromDbgInBytes * 8;
+    // Add the difference of the offsets.
+    MemStartRelToDbgStartInBits +=
+        SliceOffsetInBits - (DbgPtrOffsetInBits + DbgExtractOffsetInBits);
+  }
+
+  // XXX - should shift the duty of adjusting by DbgExtractOffsetInBits out
+  // of the function - that makes it clearer what's going on here.
+  // Also want to rename it to something more general sounding.
+  // This feels right, but it means whatever was happening before is wrong? :D
+  // maybe worth re-inverting the difference direction since we negate here.
+  // NewExprOffsetInBits = -std::min(0, MemStartRelToDbgStartInBits);
+  // negative value might be useful for adjusting extract bits?
+  // + DbgExtractOffsetInBits because that shouldn't get applied to new expr
+  NewExprOffsetInBits = -(MemStartRelToDbgStartInBits + DbgExtractOffsetInBits);
+
+  // Check if the variable fragment sits outside (before) this memory slice.
+  int64_t MemEndRelToDbgStart = MemStartRelToDbgStartInBits + SliceSizeInBits;
+  if (MemEndRelToDbgStart < 0) {
+    Result = {0, 0};
+    return true;
+  }
+
+  // Work towards creating SliceOfVariable which is the bits of the variable
+  // that the memory region covers.
+  // 0   4   8   12   16 ...
+  // |       |
+  // dbg location start with VarFrag offset=32
+  //         |
+  //         mem slice start: SliceOfVariable offset=40
+  int64_t MemStartRelToFragInBits =
+      MemStartRelToDbgStartInBits + VarFrag.OffsetInBits;
+  int64_t MemEndRelToFragInBits = MemStartRelToFragInBits + SliceSizeInBits;
+  // If the memory region starts before the debug location the fragment
+  // offset would be negative, which we can't encode. Limit those to 0. This
+  // is fine becausethose bits necessarily don't overlap with the variable
+  // fragment.
+  int64_t MemFragStart = std::max<int64_t>(0, MemStartRelToFragInBits);
+  int64_t MemFragSize =
+      std::max<int64_t>(0, MemEndRelToFragInBits - MemFragStart);
+  DIExpression::FragmentInfo SliceOfVariable(MemFragSize, MemFragStart);
+
+  // Intersect the memory region fragment with the variable location fragment.
+  DIExpression::FragmentInfo TrimmedSliceOfVariable =
+      DIExpression::FragmentInfo::intersect(SliceOfVariable, VarFrag);
+  if (TrimmedSliceOfVariable == VarFrag)
+    Result = std::nullopt;
+  else
+    Result = TrimmedSliceOfVariable;
+  return true;
+}
+
 std::pair<DIExpression *, const ConstantInt *>
 DIExpression::constantFold(const ConstantInt *CI) {
   // Copy the APInt so we can modify it.
