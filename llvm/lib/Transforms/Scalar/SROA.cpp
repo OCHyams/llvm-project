@@ -5013,10 +5013,9 @@ const DIExpression *getAddressExpression(const DbgVariableRecord *DVR) {
   return DVR->getExpression();
 }
 
-
 DIExpression *createOrReplaceFragment(const DIExpression *Expr,
                                       DIExpression::FragmentInfo Frag,
-                                      int64_t BitExtractAdjustment) {
+                                      int64_t BitExtractOffset) {
   SmallVector<uint64_t, 8> Ops;
   bool HasFragment = false;
   bool HasBitExtract = false;
@@ -5029,33 +5028,30 @@ DIExpression *createOrReplaceFragment(const DIExpression *Expr,
     if (Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_zext ||
         Op.getOp() == dwarf::DW_OP_LLVM_extract_bits_sext) {
       HasBitExtract = true;
-
       int64_t ExtractOffsetInBits = Op.getArg(0);
       int64_t ExtractSizeInBits = Op.getArg(1);
 
+      // DIExpression::createFragmentExpression doesn't know how to handle
+      // a fragment that is smaller than the extract. Copy the behaviour
+      // (bail) to avoid non-NFC changes.
+      // FIXME: Don't do this.
       if (Frag.SizeInBits < uint64_t(ExtractSizeInBits))
-        return nullptr; // no no
+        return nullptr;
 
-      if (BitExtractAdjustment > 0) {
-        Ops.push_back(Op.getOp());
+      assert(BitExtractOffset <= 0);
+      int64_t AdjustedOffset = ExtractOffsetInBits + BitExtractOffset;
 
-        int64_t AdjustedOffset = ExtractOffsetInBits - BitExtractAdjustment;
-        if (AdjustedOffset < 0)
-          return nullptr; // bail if new extract is "outside" fragment
+      // DIExpression::createFragmentExpression doesn't know what to do
+      // if the new extract starts "outside" the existing one. Copy the
+      // behaviour (bail) to avoid non-NFC changes.
+      // FIXME: Don't do this.
+      if (AdjustedOffset < 0)
+        return nullptr;
 
-        Ops.push_back(std::max<int64_t>(0, AdjustedOffset));
-        // shrink size if we've moved past the begining of the offset.
-        // cap to 0 again in case -(std::min<int64_t>(0, AdjustedOffset) is
-        // larger than size. adjustedoffset is the extract start after adjusting
-        // it, so can be negative - we want to add that negative offset to the
-        // size (off:0 sz:8) adjust -2 -> (off:-2, sz:6) -> off:0, sz:6
-        Ops.push_back(std::max<int64_t>(
-            0, Op.getArg(1) + (std::min<int64_t>(0, AdjustedOffset))));
-        // Zero-sized...
-        if (Ops.back() == 0)
-          return nullptr;
-        continue;
-      }
+      Ops.push_back(Op.getOp());
+      Ops.push_back(std::max<int64_t>(0, AdjustedOffset));
+      Ops.push_back(ExtractSizeInBits);
+      continue;
     }
     Op.appendToVector(Ops);
   }
@@ -5333,13 +5329,17 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
       // we'll be keeping that.
       int64_t OffestFromNewAllocaInBits =
           OffsetFromLocationInBits - ExtractOffsetInBits;
-      // XXX explain this!
-      int64_t BitExtractAdjustment = -OffestFromNewAllocaInBits;
+      // We need to adjust existing bit extracts if the offset expression
+      // can't eat the slack (the new offset would be negative).
+      int64_t BitExtractOffset =
+          std::min<int64_t>(0, OffestFromNewAllocaInBits);
       // The magnitude of a negative value indicates the number of bits into
-      // the variable fragment that the memory region begins (we don't need to
-      // apply the offset anywhere in that case so just zero it).
+      // the existing variable fragment that the memory region begins. The new
+      // variable fragment already excludes those bits - the new DbgPtr offset
+      // only needs to be applied if it's positive.
       OffestFromNewAllocaInBits =
           std::max(int64_t(0), OffestFromNewAllocaInBits);
+
       errs() << "\tOffestFromNewAllocaInBits " << OffestFromNewAllocaInBits
              << "\n";
       errs() << "\tNewDbgFragmentFragment?" << (bool)NewDbgFragment << "\n";
@@ -5371,9 +5371,9 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
       // XXX: XXX: Add NewDbgFragment arg. NewFragmentExpr
       // has become NewExpr.
-      errs() << "- BitExtractAdjustment: " << BitExtractAdjustment << "\n";
+      errs() << "- BitExtractOffset: " << BitExtractOffset << "\n";
       insertNewDbgInst(DIB, DbgVariable, Fragment.Alloca, NewExpr, &AI,
-                          NewDbgFragment, BitExtractAdjustment);
+                       NewDbgFragment, BitExtractOffset);
     }
   };
   // end XXX: XXX
