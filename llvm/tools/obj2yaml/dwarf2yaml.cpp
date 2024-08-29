@@ -264,6 +264,10 @@ void dumpDebugInfo(DWARFContext &DCtx, DWARFYAML::Data &Y) {
             indirect = false;
             switch (Form) {
             case dwarf::DW_FORM_addr:
+            case dwarf::DW_FORM_addrx:
+            case dwarf::DW_FORM_addrx1:
+            case dwarf::DW_FORM_addrx2:
+            case dwarf::DW_FORM_addrx4:
             case dwarf::DW_FORM_GNU_addr_index:
               if (auto Val = FormValue->getAsAddress())
                 NewValue.Value = *Val;
@@ -322,6 +326,9 @@ void dumpDebugInfo(DWARFContext &DCtx, DWARFYAML::Data &Y) {
             case dwarf::DW_FORM_strp_sup:
             case dwarf::DW_FORM_GNU_str_index:
             case dwarf::DW_FORM_strx:
+            case dwarf::DW_FORM_strx1:
+            case dwarf::DW_FORM_strx2:
+            case dwarf::DW_FORM_strx4:
               if (auto Val = FormValue->getAsCStringOffset())
                 NewValue.Value = *Val;
               break;

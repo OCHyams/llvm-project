@@ -538,6 +538,8 @@ std::optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
         Err = dumpDebugAddr(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_abbrev")
         Err = dumpDebugAbbrev(*DWARFCtx, DWARF);
+      else if (RawSec->Name == ".debug_info")
+        dumpDebugInfo(*DWARFCtx, DWARF);
       else
         continue;
 

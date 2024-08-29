@@ -1,0 +1,66 @@
+# RUN: yaml2obj %s | obj2yaml | FileCheck %s
+
+# Simple roundtrip test that obj2yaml can pretty-print .debug_info (put it in
+# the DWARF section).
+
+TODO: Test invalid data
+TODO: Test strxn and addrxn additions
+
+--- !ELF
+FileHeader:
+  Class:           ELFCLASS64
+  Data:            ELFDATA2LSB
+  Type:            ET_REL
+DWARF:
+  debug_str:
+    - 'clang version 20.0.0' # 0x0
+    - test.cpp               # 0x15
+    - '/'                    # 0x1e
+  debug_abbrev:
+    - ID:              0
+      Table:
+        - Code:            0x1
+          Tag:             DW_TAG_compile_unit
+          Children:        DW_CHILDREN_no
+          Attributes:
+            - Attribute:       DW_AT_producer
+              Form:            DW_FORM_strp
+            - Attribute:       DW_AT_language
+              Form:            DW_FORM_data2
+            - Attribute:       DW_AT_name
+              Form:            DW_FORM_strp
+            - Attribute:       DW_AT_comp_dir
+              Form:            DW_FORM_strp
+  debug_info:
+    - Length:          0x18
+      Version:         5
+      UnitType:        DW_UT_compile
+      AbbrevTableID:   0
+      AbbrOffset:      0x0
+      AddrSize:        8
+      Entries:
+        - AbbrCode:        0x1
+          Values:
+            - Value:           0x0
+            - Value:           0x21
+            - Value:           0x15
+            - Value:           0x1e
+            - Value:           0x0
+        - AbbrCode:        0x0
+...
+# CHECK:      debug_info:
+# CHECK-NEXT:   - Length:          0x18
+# CHECK-NEXT:     Version:         5
+# CHECK-NEXT:     UnitType:        DW_UT_compile
+# CHECK-NEXT:     AbbrevTableID:   0
+# CHECK-NEXT:     AbbrOffset:      0x0
+# CHECK-NEXT:     AddrSize:        8
+# CHECK-NEXT:     Entries:
+# CHECK-NEXT:       - AbbrCode:        0x1
+# CHECK-NEXT:         Values:
+# CHECK-NEXT:           - Value:           0x0
+# CHECK-NEXT:           - Value:           0x21
+# CHECK-NEXT:           - Value:           0x15
+# CHECK-NEXT:           - Value:           0x1e
+# CHECK-NEXT:           - Value:           0x0
+# CHECK-NEXT:       - AbbrCode:        0x0
