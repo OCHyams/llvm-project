@@ -1,0 +1,43 @@
+# RUN: yaml2obj %s | obj2yaml | FileCheck %s
+
+# Simple roundtrip test that obj2yaml can pretty-print .debug_addr (put it in
+# the DWARF section).
+
+--- !ELF
+FileHeader:
+  Class:           ELFCLASS64
+  Data:            ELFDATA2LSB
+  Type:            ET_REL
+DWARF:
+  debug_abbrev:
+    - ID:              0
+      Table:
+        - Code:            0x1
+          Tag:             DW_TAG_compile_unit
+          Children:        DW_CHILDREN_no
+          Attributes:
+            - Attribute:       DW_AT_producer
+              Form:            DW_FORM_strp
+            - Attribute:       DW_AT_language
+              Form:            DW_FORM_data2
+            - Attribute:       DW_AT_name
+              Form:            DW_FORM_strp
+            - Attribute:       DW_AT_comp_dir
+              Form:            DW_FORM_strp
+...
+
+# CHECK:      debug_abbrev:
+# CHECK-NEXT:   - ID:              0
+# CHECK-NEXT:     Table:
+# CHECK-NEXT:       - Code:            0x1
+# CHECK-NEXT:         Tag:             DW_TAG_compile_unit
+# CHECK-NEXT:         Children:        DW_CHILDREN_no
+# CHECK-NEXT:         Attributes:
+# CHECK-NEXT:           - Attribute:       DW_AT_producer
+# CHECK-NEXT:             Form:            DW_FORM_strp
+# CHECK-NEXT:           - Attribute:       DW_AT_language
+# CHECK-NEXT:             Form:            DW_FORM_data2
+# CHECK-NEXT:           - Attribute:       DW_AT_name
+# CHECK-NEXT:             Form:            DW_FORM_strp
+# CHECK-NEXT:           - Attribute:       DW_AT_comp_dir
+# CHECK-NEXT:             Form:            DW_FORM_strp
