@@ -56,5 +56,7 @@ void dumpDebugLines(llvm::DWARFContext &DCtx, llvm::DWARFYAML::Data &Y);
 llvm::Error dumpDebugRanges(llvm::DWARFContext &DCtx, llvm::DWARFYAML::Data &Y);
 llvm::Error dumpDebugStrings(llvm::DWARFContext &DCtx,
                              llvm::DWARFYAML::Data &Y);
+llvm::Error dumpDebugStringOffsets(llvm::DWARFContext &DCtx,
+                                   llvm::DWARFYAML::Data &Y);
 
 #endif

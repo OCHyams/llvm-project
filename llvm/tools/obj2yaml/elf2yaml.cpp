@@ -532,6 +532,8 @@ std::optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
         Err = dumpDebugARanges(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_str")
         Err = dumpDebugStrings(*DWARFCtx, DWARF);
+      else if (RawSec->Name == ".debug_str_offsets")
+        Err = dumpDebugStringOffsets(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_ranges")
         Err = dumpDebugRanges(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_addr")

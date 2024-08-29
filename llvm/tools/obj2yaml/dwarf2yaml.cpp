@@ -101,6 +101,51 @@ Error dumpDebugStrings(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   return Err;
 }
 
+Error dumpDebugStringOffsets(DWARFContext &DCtx, DWARFYAML::Data &Y) {
+  DWARFDataExtractor Data(DCtx.getDWARFObj().getStrOffsetsSection().Data,
+                          DCtx.isLittleEndian(), /*AddressSize=*/0);
+  // TODO: Error handling.
+  // Note that non-linked object files may spit out a load of zeros here
+  // because the offsets require relocation.
+  std::vector<DWARFYAML::StringOffsetsTable> DebugStrOffsets;
+  uint64_t Offset = 0;
+
+  Error Err = Error::success();
+  while (Data.isValidOffset(Offset)) {
+    uint64_t OffsetStart = Offset;
+    DWARFYAML::StringOffsetsTable StrOffset;
+    // 7.26 String Offsets Table
+    // 1. unit_length (initial length)
+    // 2. version (uhalf)
+    // 3. padding (uhalf)
+    // Followed by a number of 4- or 8- byte entries (determined by format).
+
+    // Header.
+    std::tie(StrOffset.Length, StrOffset.Format) =
+        Data.getInitialLength(&Offset);
+    // Length doesn't include header length field.
+    uint8_t SizeInBytes =
+        StrOffset.Format == dwarf::DwarfFormat::DWARF64 ? 8 : 4;
+    uint64_t LengthFieldSize = Offset - OffsetStart;
+    StrOffset.Version = Data.getU16(&Offset);
+    StrOffset.Padding = Data.getU16(&Offset);
+
+    // Entries.
+    while (SizeInBytes + Offset - OffsetStart <=
+           *StrOffset.Length + LengthFieldSize) {
+      uint64_t Entry = Data.getUnsigned(&Offset, SizeInBytes, &Err);
+      StrOffset.Offsets.push_back(Entry);
+      if (Err)
+        llvm_unreachable("todo");
+    }
+
+    DebugStrOffsets.push_back(StrOffset);
+  }
+
+  Y.DebugStrOffsets = std::move(DebugStrOffsets);
+  return Error::success();
+}
+
 Error dumpDebugARanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   DWARFDataExtractor ArangesData(DCtx.getDWARFObj().getArangesSection(),
                                  DCtx.isLittleEndian(), 0);
