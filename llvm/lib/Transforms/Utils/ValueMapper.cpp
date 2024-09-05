@@ -1000,6 +1000,9 @@ void Mapper::remapInstruction(Instruction *I) {
       I->setMetadata(MI.first, New);
   }
 
+  // Remap source location atom instance.
+  RemapSourceAtom(I, getVM());
+
   if (!TypeMapper)
     return;
 
@@ -1280,4 +1283,31 @@ void ValueMapper::scheduleMapGlobalIFunc(GlobalIFunc &GI, Constant &Resolver,
 
 void ValueMapper::scheduleRemapFunction(Function &F, unsigned MCID) {
   getAsMapper(pImpl)->scheduleRemapFunction(F, MCID);
+}
+
+void llvm::RemapSourceAtom(Instruction *I, ValueToValueMapTy &VM) {
+  VM.HaveRemappedSomeAtoms = true;
+  const DebugLoc &DL = I->getDebugLoc();
+  if (!DL)
+    return;
+
+  auto Group = DL->getAtomGroup();
+  if (!Group)
+    return;
+
+  auto R = VM.AtomMap.find(Group);
+  if (R == VM.AtomMap.end())
+    return;
+  Group = R->second;
+
+  auto InlinedAt = DL.getInlinedAt();
+  auto Line = DL.getLine();
+  auto Column = DL.getCol();
+  auto Scope = DL.getScope();
+  auto ImplicitCode = DL.isImplicitCode();
+  auto AtomRank = DL->getAtomRank();
+
+  DILocation *New = DILocation::get(I->getContext(), Line, Column, Scope,
+                                    InlinedAt, ImplicitCode, Group, AtomRank);
+  I->setDebugLoc(New);
 }

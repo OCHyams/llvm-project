@@ -2088,6 +2088,8 @@ void JumpThreadingPass::cloneInstructions(ValueToValueMapTy &ValueMapping,
     adaptNoAliasScopes(New, ClonedScopes, Context);
 
     CloneAndRemapDbgInfo(New, &*BI);
+    if (const DebugLoc &DL = New->getDebugLoc())
+      mapAtomInstance(DL, ValueMapping);
 
     if (RetargetDbgValueIfPossible(New))
       continue;
@@ -2691,6 +2693,10 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
 
     // Remap debug variable operands.
     remapDebugVariable(ValueMapping, New);
+    if (const DebugLoc &DL = New->getDebugLoc()) {
+      mapAtomInstance(DL, ValueMapping);
+      RemapSourceAtom(New, ValueMapping);
+    }
 
     // If this instruction can be simplified after the operands are updated,
     // just use the simplified value instead.  This frequently happens due to

@@ -8862,7 +8862,22 @@ void SelectionDAGBuilder::LowerCallTo(const CallBase &CB, SDValue Callee,
   }
 
   TargetLowering::CallLoweringInfo CLI(DAG);
-  CLI.setDebugLoc(getCurSDLoc())
+
+  // Adjust the key-ness of the loc. We don't want param-reg-copies as
+  // key locations.
+  SDLoc SDL = getCurSDLoc();
+  // Don't do this for now, see comment in DebugInfo.cpp about calls.
+  // Ideally we do do something like this, but need to work out how to
+  // preserve the group/rank only on the call itself.
+  // if (DebugLoc Cur = SDL.getDebugLoc()) {
+  //  DILocation *New = DILocation::get(
+  //      *DAG.getContext(), Cur.getLine(), Cur.getCol(), Cur.getScope(),
+  //      Cur.getInlinedAt(), Cur.isImplicitCode(), Cur.get()->getAtomGroup(),
+  //      0);
+  //  SDL = SDLoc(New, SDL.getIROrder());
+  //}
+  // This of course doesn't work, because now the call also loses its key-ness!
+  CLI.setDebugLoc(SDL)
       .setChain(getRoot())
       .setCallee(RetTy, FTy, Callee, std::move(Args), CB)
       .setTailCall(isTailCall)

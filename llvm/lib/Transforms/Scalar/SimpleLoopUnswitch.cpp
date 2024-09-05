@@ -297,6 +297,7 @@ static void buildPartialInvariantUnswitchConditionalBranch(
   for (auto *Val : reverse(ToDuplicate)) {
     Instruction *Inst = cast<Instruction>(Val);
     Instruction *NewInst = Inst->clone();
+    // OCH: TODO: mapAtomInstance?
     NewInst->insertInto(&BB, BB.end());
     RemapInstruction(NewInst, VMap,
                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);

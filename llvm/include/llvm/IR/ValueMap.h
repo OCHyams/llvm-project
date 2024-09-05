@@ -87,6 +87,13 @@ class ValueMap {
   using ValueMapCVH = ValueMapCallbackVH<KeyT, ValueT, Config>;
   using MapT = DenseMap<ValueMapCVH, ValueT, DenseMapInfo<ValueMapCVH>>;
   using MDMapT = DenseMap<const Metadata *, TrackingMDRef>;
+  // {(subprogram, inlinedat, group, instance): new_instance}.
+  // using DMAtomT =
+  //    DenseMap<std::tuple<Metadata *, Metadata *, uint32_t, uint16_t>,
+  //             uint16_t>;
+  // ^ that's when we used instance, now we don't v
+  // {old atom, new atom}.
+  using DMAtomT = DenseMap<uint64_t, uint64_t>;
   using ExtraData = typename Config::ExtraData;
 
   MapT Map;
@@ -117,6 +124,8 @@ public:
     return *MDMap;
   }
   std::optional<MDMapT> &getMDMap() { return MDMap; }
+  DMAtomT AtomMap;
+  bool HaveRemappedSomeAtoms = false;
 
   /// Get the mapped metadata, if it's in the map.
   std::optional<Metadata *> getMappedMD(const Metadata *MD) const {
@@ -145,6 +154,8 @@ public:
   void clear() {
     Map.clear();
     MDMap.reset();
+    assert((AtomMap.empty() || HaveRemappedSomeAtoms) && "Didn't remap any source atoms?");
+    AtomMap.clear();
   }
 
   /// Return 1 if the specified key is in the map, 0 otherwise.

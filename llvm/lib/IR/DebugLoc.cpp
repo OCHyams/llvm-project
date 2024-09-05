@@ -90,17 +90,20 @@ DebugLoc DebugLoc::replaceInlinedAtSubprogram(
     DILocation *LocToUpdate = LocChain.pop_back_val();
     DIScope *NewScope = DILocalScope::cloneScopeForSubprogram(
         *LocToUpdate->getScope(), NewSP, Ctx, Cache);
-    UpdatedLoc = DILocation::get(Ctx, LocToUpdate->getLine(),
-                                 LocToUpdate->getColumn(), NewScope);
+    UpdatedLoc = DILocation::get(
+        Ctx, LocToUpdate->getLine(), LocToUpdate->getColumn(), NewScope,
+        nullptr, LocToUpdate->isImplicitCode(), LocToUpdate->getAtomGroup(),
+        LocToUpdate->getAtomRank());
     Cache[LocToUpdate] = UpdatedLoc;
   }
 
   // Recreate the location chain, bottom-up, starting at the new scope (or a
   // cached result).
   for (const DILocation *LocToUpdate : reverse(LocChain)) {
-    UpdatedLoc =
-        DILocation::get(Ctx, LocToUpdate->getLine(), LocToUpdate->getColumn(),
-                        LocToUpdate->getScope(), UpdatedLoc);
+    UpdatedLoc = DILocation::get(
+        Ctx, LocToUpdate->getLine(), LocToUpdate->getColumn(),
+        LocToUpdate->getScope(), UpdatedLoc, LocToUpdate->isImplicitCode(),
+        LocToUpdate->getAtomGroup(), LocToUpdate->getAtomRank());
     Cache[LocToUpdate] = UpdatedLoc;
   }
 
@@ -131,7 +134,8 @@ DebugLoc DebugLoc::appendInlinedAt(const DebugLoc &DL, DILocation *InlinedAt,
   // map of already-constructed inlined-at nodes.
   for (const DILocation *MD : reverse(InlinedAtLocations))
     Cache[MD] = Last = DILocation::getDistinct(
-        Ctx, MD->getLine(), MD->getColumn(), MD->getScope(), Last);
+        Ctx, MD->getLine(), MD->getColumn(), MD->getScope(), Last, false,
+        MD->getAtomGroup(), MD->getAtomRank());
 
   return Last;
 }

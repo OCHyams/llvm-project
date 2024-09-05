@@ -740,7 +740,9 @@ static void moveFunctionData(Function &Old, Function &New,
           if (DISubprogram *SP = New.getSubprogram())
             if (auto *Loc = dyn_cast_or_null<DILocation>(MD))
               return DILocation::get(New.getContext(), Loc->getLine(),
-                                     Loc->getColumn(), SP, nullptr);
+                                     Loc->getColumn(), SP, nullptr,
+                                     Loc->isImplicitCode(), Loc->getAtomGroup(),
+                                     Loc->getAtomRank());
           return MD;
         };
         updateLoopMetadataDebugLocations(Val, updateLoopInfoLoc);

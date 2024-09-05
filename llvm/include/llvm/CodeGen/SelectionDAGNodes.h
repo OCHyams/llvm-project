@@ -1169,6 +1169,7 @@ private:
 
 public:
   SDLoc() = default;
+  SDLoc(DebugLoc DL, int IROrder) : DL(DL), IROrder(IROrder) {}
   SDLoc(const SDNode *N) : DL(N->getDebugLoc()), IROrder(N->getIROrder()) {}
   SDLoc(const SDValue V) : SDLoc(V.getNode()) {}
   SDLoc(const Instruction *I, int Order) : IROrder(Order) {

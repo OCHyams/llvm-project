@@ -22,6 +22,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <functional>
@@ -120,6 +121,10 @@ BasicBlock *CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
                             const Twine &NameSuffix = "", Function *F = nullptr,
                             ClonedCodeInfo *CodeInfo = nullptr,
                             DebugInfoFinder *DIFinder = nullptr);
+
+/// Mark a cloned instruction as a new instance so that its source loc can
+/// be updated when remapped.
+void mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap);
 
 /// Return a copy of the specified function and add it to that
 /// function's module.  Also, any references specified in the VMap are changed

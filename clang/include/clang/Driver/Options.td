@@ -7467,6 +7467,10 @@ def fexperimental_assignment_tracking_EQ : Joined<["-"], "fexperimental-assignme
   Values<"disabled,enabled,forced">, NormalizedValues<["Disabled","Enabled","Forced"]>,
   MarshallingInfoEnum<CodeGenOpts<"AssignmentTrackingMode">, "Enabled">;
 
+def fkey_instructions : Flag<["-"], "fkey-instructions">,
+  Group<f_Group>,
+  MarshallingInfoFlag<CodeGenOpts<"EnableKeyInstructions">>;
+
 def enable_tlsdesc : Flag<["-"], "enable-tlsdesc">,
   MarshallingInfoFlag<CodeGenOpts<"EnableTLSDESC">>;
 

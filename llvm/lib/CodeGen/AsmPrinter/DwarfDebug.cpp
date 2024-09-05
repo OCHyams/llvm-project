@@ -80,6 +80,9 @@ static cl::opt<bool>
                            cl::desc("Generate DWARF4 type units."),
                            cl::init(false));
 
+static cl::opt<bool> KeyInstructionsAreStmts("dwarf-use-key-instructions",
+                                             cl::Hidden, cl::init(false));
+
 static cl::opt<bool> SplitDwarfCrossCuReferences(
     "split-dwarf-cross-cu-references", cl::Hidden,
     cl::desc("Enable cross-cu references in DWO files"), cl::init(false));
@@ -2066,14 +2069,16 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     // If we have an ongoing unspecified location, nothing to do here.
     if (!DL)
       return;
-    // We have an explicit location, same as the previous location.
-    // But we might be coming back to it after a line 0 record.
-    if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
-      // Reinstate the source location but not marked as a statement.
-      const MDNode *Scope = DL.getScope();
-      recordSourceLine(DL.getLine(), DL.getCol(), Scope, Flags);
+    if (!KeyInstructionsAreStmts) {
+      // We have an explicit location, same as the previous location.
+      // But we might be coming back to it after a line 0 record.
+      if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
+        // Reinstate the source location but not marked as a statement.
+        const MDNode *Scope = DL.getScope();
+        recordSourceLine(DL.getLine(), DL.getCol(), Scope, Flags);
+      }
+      return;
     }
-    return;
   }
 
   if (!DL) {
@@ -2119,9 +2124,19 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // line 0 and came back, in which case it is not a new statement. We also
   // mark is_stmt for the first non-0 line in each BB, in case a predecessor BB
   // ends with a different line.
-  unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
-  if (DL.getLine() && (DL.getLine() != OldLine || PrevInstInDiffBB))
-    Flags |= DWARF2_FLAG_IS_STMT;
+  // line 0 and came back, in which case it is not a new statement.
+  if (!KeyInstructionsAreStmts) {
+    unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
+    if (DL.getLine() && (DL.getLine() != OldLine || PrevInstInDiffBB))
+      Flags |= DWARF2_FLAG_IS_STMT;
+  } else {
+    // See comment in DebugInfo.cpp about calls.
+    const auto &TII =
+        *MI->getParent()->getParent()->getSubtarget().getInstrInfo();
+    if (DL.getLine() &&
+        (KeyInstructions.contains(MI) || MI->isCall() || TII.isTailCall(*MI)))
+      Flags |= DWARF2_FLAG_IS_STMT;
+  }
 
   const MDNode *Scope = DL.getScope();
   recordSourceLine(DL.getLine(), DL.getCol(), Scope, Flags);
@@ -2228,6 +2243,75 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   // Record beginning of function.
   PrologEndLoc = emitInitialLocDirective(
       *MF, Asm->OutStreamer->getContext().getDwarfCompileUnitID());
+
+  // Find is_stmts!
+  // * Iterate over insts.
+  // * Skip insts without AtomGroup or AtomRank.
+  // * Check if instructions in this group has been seen already in LastAtomMap.
+  //   * If this instr rank is equal, add this instruction. Add it to
+  //     KeyInstructions.
+  //   * If this instr rank is higher (lower precedence), ignore it.
+  //   * If this instr rank is lower (higher precedence), replace the entry,
+  //     erase those instructions from KeyInstructions. Add this instr to
+  //     KeyInstructions.
+  if (KeyInstructionsAreStmts) {
+    KeyInstructions.clear();
+    // {(Scope, InlinedAt, Group): (Rank, Instructions)}.
+    DenseMap<std::tuple<DISubprogram *, DILocation *, uint32_t>,
+             std::pair<uint16_t, SmallVector<const MachineInstr *>>>
+        LastAtomMap;
+    for (auto &MBB : *MF) {
+      for (auto &MI : MBB) {
+        // Is part of an atom?
+        if (!MI.getDebugLoc())
+          continue;
+
+        auto [Scope, InlinedAt, Group, Rank] =
+            MI.getDebugLoc().get()->getAtomInfo();
+
+        if (!Scope || !Group || !Rank)
+          continue;
+
+        auto &[PrevRank, PrevInsts] =
+            LastAtomMap[{Scope, InlinedAt, Group}];
+
+        if (PrevRank == 0) {
+          assert(PrevInsts.empty());
+          PrevRank = Rank;
+          PrevInsts.push_back(&MI);
+        } else if (PrevRank == Rank) {
+          assert(!PrevInsts.empty());
+          // Old behaviour: include this instruction in the set of is_stmts.
+          // PrevInsts.push_back(&MI);
+
+          // New behaviour: include this instruciton in the set of is_stmts, and
+          // remove others of the same rank in this block.
+          SmallVector<const MachineInstr *> Insts;
+          Insts.reserve(PrevInsts.size() + 1);
+          for (auto &PrevInst : PrevInsts) {
+            if (PrevInst->getParent() != MI.getParent())
+              Insts.push_back(PrevInst);
+            else
+              KeyInstructions.erase(PrevInst);
+          }
+          Insts.push_back(&MI);
+          PrevInsts = Insts;
+        } else if (PrevRank > Rank) {
+          assert(!PrevInsts.empty());
+          PrevRank = Rank;
+          for (auto *Supplanted : PrevInsts)
+            KeyInstructions.erase(Supplanted);
+          PrevInsts = {&MI};
+        } else {
+          // PrevRank outranks (nonzero and smaller) this one,
+          // so ignore this instruction.
+          assert(Rank != 0 && PrevRank < Rank && PrevRank != 0);
+          continue;
+        }
+        KeyInstructions.insert(&MI);
+      }
+    }
+  }
 }
 
 unsigned

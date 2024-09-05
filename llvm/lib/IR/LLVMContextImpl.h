@@ -319,23 +319,29 @@ template <> struct MDNodeKeyImpl<DILocation> {
   Metadata *Scope;
   Metadata *InlinedAt;
   bool ImplicitCode;
+  uint64_t AtomGroup;
+  uint8_t AtomRank;
 
   MDNodeKeyImpl(unsigned Line, unsigned Column, Metadata *Scope,
-                Metadata *InlinedAt, bool ImplicitCode)
+                Metadata *InlinedAt, bool ImplicitCode, uint64_t AtomGroup,
+                uint8_t AtomRank)
       : Line(Line), Column(Column), Scope(Scope), InlinedAt(InlinedAt),
-        ImplicitCode(ImplicitCode) {}
+        ImplicitCode(ImplicitCode), AtomGroup(AtomGroup), AtomRank(AtomRank) {}
   MDNodeKeyImpl(const DILocation *L)
       : Line(L->getLine()), Column(L->getColumn()), Scope(L->getRawScope()),
-        InlinedAt(L->getRawInlinedAt()), ImplicitCode(L->isImplicitCode()) {}
+        InlinedAt(L->getRawInlinedAt()), ImplicitCode(L->isImplicitCode()),
+        AtomGroup(L->getAtomGroup()), AtomRank(L->getAtomRank()) {}
 
   bool isKeyOf(const DILocation *RHS) const {
     return Line == RHS->getLine() && Column == RHS->getColumn() &&
            Scope == RHS->getRawScope() && InlinedAt == RHS->getRawInlinedAt() &&
-           ImplicitCode == RHS->isImplicitCode();
+           ImplicitCode == RHS->isImplicitCode() &&
+           AtomGroup == RHS->getAtomGroup() && AtomRank == RHS->getAtomRank();
   }
 
   unsigned getHashValue() const {
-    return hash_combine(Line, Column, Scope, InlinedAt, ImplicitCode);
+    return hash_combine(Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
+                        AtomRank);
   }
 };
 
@@ -1722,6 +1728,10 @@ public:
   }
 
   void deleteTrailingDbgRecords(BasicBlock *B) { TrailingDbgRecords.erase(B); }
+
+  // Next available source atom group number.
+  // 0 is special (means no atom group).
+  uint64_t NextAtomGroup = 1;
 
   std::string DefaultTargetCPU;
   std::string DefaultTargetFeatures;

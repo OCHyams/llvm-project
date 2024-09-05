@@ -72,6 +72,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
@@ -1124,6 +1125,9 @@ static void cloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
       // sure we reset their debug locations in order to avoid stepping on
       // dead code caused by folding dead branches.
       NewBonusInst->setDebugLoc(DebugLoc());
+    } else if (const DebugLoc &DL = NewBonusInst->getDebugLoc()) {
+      // TODO: Test.
+      mapAtomInstance(DL, VMap);
     }
 
     RemapInstruction(NewBonusInst, VMap,
@@ -3535,6 +3539,7 @@ foldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
     // cloned instructions outside of EdgeBB.
     BasicBlock::iterator InsertPt = EdgeBB->getFirstInsertionPt();
     DenseMap<Value *, Value *> TranslateMap; // Track translated values.
+    ValueToValueMapTy VMForDebug;
     TranslateMap[Cond] = CB;
 
     // RemoveDIs: track instructions that we optimise away while folding, so
@@ -3549,6 +3554,11 @@ foldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
       Instruction *N = BBI->clone();
       // Insert the new instruction into its new home.
       N->insertInto(EdgeBB, InsertPt);
+
+      if (const DebugLoc &DL = N->getDebugLoc()) {
+        mapAtomInstance(DL, VMForDebug);
+        RemapSourceAtom(N, VMForDebug);
+      }
 
       if (BBI->hasName())
         N->setName(BBI->getName() + ".c");

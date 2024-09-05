@@ -59,8 +59,7 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
                        unsigned Column, ArrayRef<Metadata *> MDs,
                        bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs) {
-  assert((MDs.size() == 1 || MDs.size() == 2) &&
-         "Expected a scope and optional inlined-at");
+  assert((MDs.size() <= OpMax) && "Expected a scope and optional inlined-at");
 
   // Set line and column.
   assert(Column < (1u << 16) && "Expected 16-bit column");
@@ -80,6 +79,7 @@ static void adjustColumn(unsigned &Column) {
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
                                 unsigned Column, Metadata *Scope,
                                 Metadata *InlinedAt, bool ImplicitCode,
+                                uint64_t AtomGroup, uint8_t AtomRank,
                                 StorageType Storage, bool ShouldCreate) {
   // Fixup column.
   adjustColumn(Column);
@@ -87,7 +87,8 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   if (Storage == Uniqued) {
     if (auto *N = getUniqued(Context.pImpl->DILocations,
                              DILocationInfo::KeyTy(Line, Column, Scope,
-                                                   InlinedAt, ImplicitCode)))
+                                                   InlinedAt, ImplicitCode,
+                                                   AtomGroup, AtomRank)))
       return N;
     if (!ShouldCreate)
       return nullptr;
@@ -95,10 +96,19 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
     assert(ShouldCreate && "Expected non-uniqued nodes to always be created");
   }
 
-  SmallVector<Metadata *, 2> Ops;
+  SmallVector<Metadata *, OpMax> Ops;
   Ops.push_back(Scope);
+
+  if (InlinedAt || AtomGroup || AtomRank) {
+    Ops.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Context, APInt(64, AtomGroup))));
+    Ops.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Context, APInt(8, AtomRank))));
+  }
+
   if (InlinedAt)
     Ops.push_back(InlinedAt);
+
   return storeImpl(new (Ops.size(), Storage) DILocation(
                        Context, Storage, Line, Column, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
@@ -180,7 +190,8 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
                            DILocation *InlinedAt) -> DILocation * {
     if (L1 == L2)
       return DILocation::get(C, L1->getLine(), L1->getColumn(), L1->getScope(),
-                             InlinedAt);
+                             InlinedAt, L1->isImplicitCode(), L1->getAtomRank(),
+                             L1->getAtomGroup());
 
     // If the locations originate from different subprograms we can't produce
     // a common location.
@@ -213,8 +224,13 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
     bool SameCol = L1->getColumn() == L2->getColumn();
     unsigned Line = SameLine ? L1->getLine() : 0;
     unsigned Col = SameLine && SameCol ? L1->getColumn() : 0;
-
-    return DILocation::get(C, Line, Col, Scope, InlinedAt);
+    bool ImplicitCode = 0;
+    uint64_t Group =
+        L1->getAtomGroup() == L2->getAtomGroup() ? L2->getAtomGroup() : 0;
+    uint8_t Rank =
+        L1->getAtomRank() == L2->getAtomRank() ? L2->getAtomRank() : 0;
+    return DILocation::get(C, Line, Col, Scope, InlinedAt, ImplicitCode, Group,
+                           Rank);
   };
 
   DILocation *Result = ARIt != ALocs.rend() ? (*ARIt)->getInlinedAt() : nullptr;
@@ -990,6 +1006,14 @@ DICompileUnit::getNameTableKind(StringRef Str) {
       .Case("Apple", DebugNameTableKind::Apple)
       .Case("None", DebugNameTableKind::None)
       .Default(std::nullopt);
+}
+
+std::tuple<DISubprogram *, DILocation *, uint64_t, uint8_t>
+DILocation::getAtomInfo() const {
+  DISubprogram *Fn = nullptr;
+  if (DILocalScope *Scope = getScope())
+    Fn = Scope->getSubprogram();
+  return {Fn, getInlinedAt(), getAtomGroup(), getAtomRank()};
 }
 
 const char *DICompileUnit::emissionKindString(DebugEmissionKind EK) {

@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../../IR/LLVMContextImpl.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -40,6 +41,85 @@ using namespace llvm;
 
 #define DEBUG_TYPE "clone-function"
 
+// This is obviously mega-bad, but should suffice to prove the concept.
+// We might implement this properly by stuffing instance "max" into a
+// metadata bit, e.g. Grp: i32, Instance: i16, Rank: i16, InstanceMax: metadata
+// !{InstanceMax} = distinct !{max-num}
+//
+// {(Function, InlinedAt, Group): Max Instance}
+// DenseMap<std::tuple<const Metadata *, const Metadata *, uint32_t>, uint16_t>
+// AtomLastInstance;
+// We're not doing this anymore - in fact we're not going to use instance at
+// all.
+
+// What else could we do?
+// - stuff a map into context
+//   - the map we've got here only works for full compiles (assumes we start with all instances 0)
+//   - question about how to merge different input IR/bitcode files
+//
+// - Some kind of per-function data?
+//   Possibly we need per-function data anyway, because pulling KI into a non-KI
+//   function will result in bad stepping; will have to fall back to no KIs.
+//   - how do we set the map/data/info up, special parsing step? error prone?
+//
+// - instruction referencing may provide inspo?
+//
+// - DIAssignID inspo -- Metadata-as-id, each atomgroup has an instanceID
+//   - could be expensive (maybe we can have nullptr-by-default?)
+//   - otherwise works ok
+// ... could we even use DIAssignID? What does that look like and mean?
+//   - !DILocation(..., atom: !{/*group*/}, rank: i8)
+//   - ^^ exact format isn't important to nail down now, but getting a rough size cost is important...
+// maybe more efficient to do something like:
+//   - !DILocatino(..., atom: !{ group-number, rank, /*optional*/!{/*instance*/}})
+//   that way the inner group doesn't need to be distinct, and many may share an instance
+//   only once instancing starts do we get distinct ones
+//
+// - is there a good/easy way to measure metadata tree size?
+// - let's just stuff a number into the context?
+// !DILocation(...., atom, rank)
+//                    ^ u64 got globally
+// - I think we still use fn+inlinedat? Do we not automagically update upon inlining now with the remapping? (yea)
+
+// Note: one sad thing about this approach is we don't get a constant atomNumber for whole of optimsiation, thru inlining, for one atom :(
+// that's fine, just harder to see what's going on now at a glance...
+//   We could do an expensive build kind where we use strings and append them instead, 
+
+// maybe put in remap code idk.
+void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
+#if 0
+  auto AtomGroup = DL.get()->getAtomGroup();
+  auto Scope = DL.getScope();
+  auto InlinedAt = DL.getInlinedAt();
+  if (!AtomGroup || !Scope)
+    return;
+
+  auto Fn = cast<DILocalScope>(Scope)->getSubprogram();
+  auto CurInstance = DL.get()->getAtomInstance();
+
+  // Have mapped already?
+  if (VMap.AtomMap.contains({Fn, InlinedAt, AtomGroup, CurInstance}))
+    return;
+
+  // Nope - let's generate a new instance.
+  uint16_t NewInstance =
+      AtomLastInstance.lookup({Fn, InlinedAt, AtomGroup}) + 1;
+  AtomLastInstance[{Fn, InlinedAt, AtomGroup}] = NewInstance;
+  // Save new instance number to map.
+  VMap.AtomMap.insert({{Fn, InlinedAt, AtomGroup, CurInstance}, NewInstance});
+#endif
+  // new plan -- "instancing" will be handled by just getting a new atom group.
+  auto CurGroup = DL.get()->getAtomGroup();
+  if (!CurGroup)
+    return;
+
+  // Try mapping, if an entry exists already there's nothing
+  // to do - otherwise upate the global.
+  uint64_t &GlobalNext = DL->getContext().pImpl->NextAtomGroup;
+  if (VMap.AtomMap.insert({CurGroup, GlobalNext}).second)
+    ++GlobalNext;
+}
+
 /// See comments in Cloning.h.
 BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
                                   const Twine &NameSuffix, Function *F,
@@ -66,6 +146,8 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
     NewInst->cloneDebugInfoFrom(&I);
 
     VMap[&I] = NewInst; // Add instruction map to value.
+    if (const DebugLoc &DL = NewInst->getDebugLoc())
+      mapAtomInstance(DL.get(), VMap);
 
     if (isa<CallInst>(I) && !I.isDebugOrPseudoInst()) {
       hasCalls = true;
@@ -76,6 +158,8 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
         hasDynamicAllocas = true;
       }
     }
+
+    // Should put debuginfo remapping bits here? :)
   }
 
   if (CodeInfo) {
@@ -521,6 +605,8 @@ void PruningFunctionCloner::CloneBlock(
 
     Instruction *NewInst = cloneInstruction(II);
     NewInst->insertInto(NewBB, NewBB->end());
+    if (const DebugLoc &DL = NewInst->getDebugLoc())
+      mapAtomInstance(DL.get(), VMap);
 
     if (HostFuncIsStrictFP) {
       // All function calls in the inlined function must get 'strictfp'
@@ -621,6 +707,8 @@ void PruningFunctionCloner::CloneBlock(
     CloneDbgRecordsToHere(NewInst, OldTI->getIterator());
 
     VMap[OldTI] = NewInst; // Add instruction map to value.
+    if (const DebugLoc &DL = NewInst->getDebugLoc())
+      mapAtomInstance(DL.get(), VMap);
 
     if (CodeInfo) {
       CodeInfo->OrigVMap[OldTI] = NewInst;
@@ -1110,6 +1198,10 @@ BasicBlock *llvm::DuplicateInstructionsInSplitBetween(
 
     // Remap debug variable operands.
     remapDebugVariable(ValueMapping, New);
+    if (const DebugLoc &DL = New->getDebugLoc()) {
+      mapAtomInstance(DL, ValueMapping);
+      RemapSourceAtom(New, ValueMapping);
+    }
   }
 
   return NewBB;

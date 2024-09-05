@@ -2009,6 +2009,8 @@ static void writeDILocation(raw_ostream &Out, const DILocation *DL,
   Printer.printMetadata("inlinedAt", DL->getRawInlinedAt());
   Printer.printBool("isImplicitCode", DL->isImplicitCode(),
                     /* Default */ false);
+  Printer.printInt("atomGroup", DL->getAtomGroup());
+  Printer.printInt<unsigned>("atomRank", DL->getAtomRank());
   Out << ")";
 }
 
@@ -2664,8 +2666,14 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
       // Give the pointer value instead of "badref", since this comes up all
       // the time when debugging.
       Out << "<" << N << ">";
-    } else
-      Out << '!' << Slot;
+    } else {
+      if (const DILocation *Loc = dyn_cast<DILocation>(N)) {
+        writeDILocation(Out, Loc, WriterCtx);
+        return;
+      } else {
+        Out << '!' << Slot;
+      }
+    }
     return;
   }
 

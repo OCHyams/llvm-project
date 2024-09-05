@@ -1959,22 +1959,38 @@ class DILocation : public MDNode {
   static DILocation *getImpl(LLVMContext &Context, unsigned Line,
                              unsigned Column, Metadata *Scope,
                              Metadata *InlinedAt, bool ImplicitCode,
+                             uint64_t AtomGroup, uint8_t AtomRank,
                              StorageType Storage, bool ShouldCreate = true);
   static DILocation *getImpl(LLVMContext &Context, unsigned Line,
                              unsigned Column, DILocalScope *Scope,
                              DILocation *InlinedAt, bool ImplicitCode,
+                             uint64_t AtomGroup, uint8_t AtomRank,
                              StorageType Storage, bool ShouldCreate = true) {
     return getImpl(Context, Line, Column, static_cast<Metadata *>(Scope),
-                   static_cast<Metadata *>(InlinedAt), ImplicitCode, Storage,
-                   ShouldCreate);
+                   static_cast<Metadata *>(InlinedAt), ImplicitCode, AtomGroup,
+                   AtomRank, Storage, ShouldCreate);
   }
 
   TempDILocation cloneImpl() const {
     // Get the raw scope/inlinedAt since it is possible to invoke this on
     // a DILocation containing temporary metadata.
     return getTemporary(getContext(), getLine(), getColumn(), getRawScope(),
-                        getRawInlinedAt(), isImplicitCode());
+                        getRawInlinedAt(), isImplicitCode(), getAtomGroup(),
+                        getAtomRank());
   }
+
+  // Allocated operands. OpAtomGroup onwards are optional.
+  // Note: This order (inlined-at at the end) results in fat DILocations after
+  // inlining; if that becomes an issue we can either dyn_cast the operands
+  // (allow inlined-at and/or group) or swap the order, but I don't know what
+  // to do about nullptr inlint-at.
+  enum Operands : uint8_t {
+    OpScope,
+    OpAtomGroup,
+    OpAtomRank,
+    OpInlinedAt,
+    OpMax
+  };
 
 public:
   // Disallow replacing operands.
@@ -1982,13 +1998,16 @@ public:
 
   DEFINE_MDNODE_GET(DILocation,
                     (unsigned Line, unsigned Column, Metadata *Scope,
-                     Metadata *InlinedAt = nullptr, bool ImplicitCode = false),
-                    (Line, Column, Scope, InlinedAt, ImplicitCode))
+                     Metadata *InlinedAt = nullptr, bool ImplicitCode = false,
+                     uint64_t AtomGroup = 0, uint8_t AtomRank = 0),
+                    (Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
+                     AtomRank))
   DEFINE_MDNODE_GET(DILocation,
                     (unsigned Line, unsigned Column, DILocalScope *Scope,
-                     DILocation *InlinedAt = nullptr,
-                     bool ImplicitCode = false),
-                    (Line, Column, Scope, InlinedAt, ImplicitCode))
+                     DILocation *InlinedAt = nullptr, bool ImplicitCode = false,
+                     uint64_t AtomGroup = 0, uint8_t AtomRank = 0),
+                    (Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
+                     AtomRank))
 
   /// Return a (temporary) clone of this.
   TempDILocation clone() const { return cloneImpl(); }
@@ -2206,12 +2225,31 @@ public:
         getNextComponentInDiscriminator(getNextComponentInDiscriminator(D)));
   }
 
-  Metadata *getRawScope() const { return getOperand(0); }
+  Metadata *getRawScope() const { return getOperand(OpScope); }
   Metadata *getRawInlinedAt() const {
-    if (getNumOperands() == 2)
-      return getOperand(1);
+    if (getNumOperands() > OpInlinedAt)
+      return getOperand(OpInlinedAt);
     return nullptr;
   }
+  uint64_t getAtomGroup() const {
+    if (getNumOperands() > OpAtomGroup)
+      return cast<ConstantInt>(
+                 cast<ConstantAsMetadata>(getOperand(OpAtomGroup))->getValue())
+          ->getZExtValue();
+    return 0;
+  }
+  uint8_t getAtomRank() const {
+    if (getNumOperands() > OpAtomRank)
+      return cast<ConstantInt>(
+                 cast<ConstantAsMetadata>(getOperand(OpAtomRank))->getValue())
+          ->getZExtValue();
+    return 0;
+  }
+
+  // Function scoped AtomGroup. Returns:
+  // {Function or nullptr, InlinedAt or nullptr, AtomGroup or 0, AtomRank or 0}
+  std::tuple<DISubprogram *, DILocation *, uint64_t, uint8_t>
+  getAtomInfo() const;
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DILocationKind;
@@ -2363,7 +2401,8 @@ DILocation::cloneWithDiscriminator(unsigned Discriminator) const {
   DILexicalBlockFile *NewScope =
       DILexicalBlockFile::get(getContext(), Scope, getFile(), Discriminator);
   return DILocation::get(getContext(), getLine(), getColumn(), NewScope,
-                         getInlinedAt());
+                         getInlinedAt(), isImplicitCode(), getAtomGroup(),
+                         getAtomRank());
 }
 
 unsigned DILocation::getBaseDiscriminator() const {

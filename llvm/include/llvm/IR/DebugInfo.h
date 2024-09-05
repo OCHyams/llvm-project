@@ -377,6 +377,14 @@ public:
 /// Return true if assignment tracking is enabled for module \p M.
 bool isAssignmentTrackingEnabled(const Module &M);
 
+class KeyInstructionsPass : public PassInfoMixin<KeyInstructionsPass> {
+  bool runOnFunction(Function &F);
+
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
 } // end namespace llvm
 
 #endif // LLVM_IR_DEBUGINFO_H
