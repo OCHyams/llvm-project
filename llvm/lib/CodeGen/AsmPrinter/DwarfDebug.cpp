@@ -81,7 +81,7 @@ static cl::opt<bool>
                            cl::init(false));
 
 static cl::opt<bool> KeyInstructionsAreStmts("dwarf-use-key-instructions",
-                                             cl::Hidden, cl::init(false));
+                                             cl::Hidden, cl::init(true));
 
 static cl::opt<bool> SplitDwarfCrossCuReferences(
     "split-dwarf-cross-cu-references", cl::Hidden,

@@ -872,7 +872,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
   // Handle the Key Instructions source locations feature.
-  if (CodeGenOpts.EnableKeyInstructions) {
+  if (CodeGenOpts.EnableKeyInstructions || true /*force enable*/) {
     PB.registerPipelineStartEPCallback(
         [&](ModulePassManager &MPM, OptimizationLevel Level) {
           MPM.addPass(KeyInstructionsPass());
