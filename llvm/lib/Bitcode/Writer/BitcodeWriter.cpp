@@ -3548,6 +3548,7 @@ void ModuleBitcodeWriter::writeFunction(
   VE.incorporateFunction(F);
 
   SmallVector<unsigned, 64> Vals;
+  SmallVector<uint64_t, 64> Vals64;
 
   // Emit the number of basic blocks, so the reader can create them ahead of
   // time.
@@ -3588,13 +3589,15 @@ void ModuleBitcodeWriter::writeFunction(
           // Just repeat the same debug loc as last time.
           Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC_AGAIN, Vals);
         } else {
-          Vals.push_back(DL->getLine());
-          Vals.push_back(DL->getColumn());
-          Vals.push_back(VE.getMetadataOrNullID(DL->getScope()));
-          Vals.push_back(VE.getMetadataOrNullID(DL->getInlinedAt()));
-          Vals.push_back(DL->isImplicitCode());
-          Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Vals);
-          Vals.clear();
+          Vals64.push_back(DL->getLine());
+          Vals64.push_back(DL->getColumn());
+          Vals64.push_back(VE.getMetadataOrNullID(DL->getScope()));
+          Vals64.push_back(VE.getMetadataOrNullID(DL->getInlinedAt()));
+          Vals64.push_back(DL->isImplicitCode());
+          Vals64.push_back(DL->getAtomGroup());
+          Vals64.push_back(DL->getAtomRank());
+          Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_LOC, Vals64);
+          Vals64.clear();
           LastDL = DL;
         }
       }
