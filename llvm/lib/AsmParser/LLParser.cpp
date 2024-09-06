@@ -5179,11 +5179,9 @@ bool LLParser::parseDILocation(MDNode *&Result, bool IsDistinct) {
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
-  // TODO: OCH: Use atom- stuff here.
   Result = GET_OR_DISTINCT(
       DILocation, (Context, line.Val, column.Val, scope.Val, inlinedAt.Val,
                    isImplicitCode.Val, atomGroup.Val, atomRank.Val));
-
   return false;
 }
 

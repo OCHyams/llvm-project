@@ -1951,9 +1951,12 @@ public:
 class DILocation : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
+  uint64_t AtomGroup = 0;
+  uint8_t AtomRank = 0;
 
   DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-             unsigned Column, ArrayRef<Metadata *> MDs, bool ImplicitCode);
+             unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
+             ArrayRef<Metadata *> MDs, bool ImplicitCode);
   ~DILocation() { dropAllReferences(); }
 
   static DILocation *getImpl(LLVMContext &Context, unsigned Line,
@@ -1978,21 +1981,14 @@ class DILocation : public MDNode {
                         getRawInlinedAt(), isImplicitCode(), getAtomGroup(),
                         getAtomRank());
   }
-
-  // Allocated operands. OpAtomGroup onwards are optional.
-  // Note: This order (inlined-at at the end) results in fat DILocations after
-  // inlining; if that becomes an issue we can either dyn_cast the operands
-  // (allow inlined-at and/or group) or swap the order, but I don't know what
-  // to do about nullptr inlint-at.
-  enum Operands : uint8_t {
-    OpScope,
-    OpAtomGroup,
-    OpAtomRank,
-    OpInlinedAt,
-    OpMax
-  };
-
 public:
+  // Function scoped AtomGroup. Returns:
+  // {Function or nullptr, InlinedAt or nullptr, AtomGroup or 0, AtomRank or 0}
+  std::tuple<DISubprogram *, DILocation *, uint64_t, uint8_t>
+  getAtomInfo() const;
+  uint64_t getAtomGroup() const { return AtomGroup; }
+  uint8_t getAtomRank() const { return AtomRank; }
+
   // Disallow replacing operands.
   void replaceOperandWith(unsigned I, Metadata *New) = delete;
 
@@ -2225,31 +2221,12 @@ public:
         getNextComponentInDiscriminator(getNextComponentInDiscriminator(D)));
   }
 
-  Metadata *getRawScope() const { return getOperand(OpScope); }
+  Metadata *getRawScope() const { return getOperand(0); }
   Metadata *getRawInlinedAt() const {
-    if (getNumOperands() > OpInlinedAt)
-      return getOperand(OpInlinedAt);
+    if (getNumOperands() == 2)
+      return getOperand(1);
     return nullptr;
   }
-  uint64_t getAtomGroup() const {
-    if (getNumOperands() > OpAtomGroup)
-      return cast<ConstantInt>(
-                 cast<ConstantAsMetadata>(getOperand(OpAtomGroup))->getValue())
-          ->getZExtValue();
-    return 0;
-  }
-  uint8_t getAtomRank() const {
-    if (getNumOperands() > OpAtomRank)
-      return cast<ConstantInt>(
-                 cast<ConstantAsMetadata>(getOperand(OpAtomRank))->getValue())
-          ->getZExtValue();
-    return 0;
-  }
-
-  // Function scoped AtomGroup. Returns:
-  // {Function or nullptr, InlinedAt or nullptr, AtomGroup or 0, AtomRank or 0}
-  std::tuple<DISubprogram *, DILocation *, uint64_t, uint8_t>
-  getAtomInfo() const;
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DILocationKind;

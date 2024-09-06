@@ -56,10 +56,12 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
 DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-                       unsigned Column, ArrayRef<Metadata *> MDs,
-                       bool ImplicitCode)
-    : MDNode(C, DILocationKind, Storage, MDs) {
-  assert((MDs.size() <= OpMax) && "Expected a scope and optional inlined-at");
+                       unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
+                       ArrayRef<Metadata *> MDs, bool ImplicitCode)
+    : MDNode(C, DILocationKind, Storage, MDs), AtomGroup(AtomGroup),
+      AtomRank(AtomRank) {
+  assert((MDs.size() == 1 || MDs.size() == 2) &&
+         "Expected a scope and optional inlined-at");
 
   // Set line and column.
   assert(Column < (1u << 16) && "Expected 16-bit column");
@@ -96,21 +98,13 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
     assert(ShouldCreate && "Expected non-uniqued nodes to always be created");
   }
 
-  SmallVector<Metadata *, OpMax> Ops;
+  SmallVector<Metadata *, 2> Ops;
   Ops.push_back(Scope);
-
-  if (InlinedAt || AtomGroup || AtomRank) {
-    Ops.push_back(ConstantAsMetadata::get(
-        ConstantInt::get(Context, APInt(64, AtomGroup))));
-    Ops.push_back(ConstantAsMetadata::get(
-        ConstantInt::get(Context, APInt(8, AtomRank))));
-  }
-
   if (InlinedAt)
     Ops.push_back(InlinedAt);
-
-  return storeImpl(new (Ops.size(), Storage) DILocation(
-                       Context, Storage, Line, Column, Ops, ImplicitCode),
+  return storeImpl(new (Ops.size(), Storage)
+                       DILocation(Context, Storage, Line, Column, AtomGroup,
+                                  AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
 
