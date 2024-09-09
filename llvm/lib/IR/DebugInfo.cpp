@@ -2417,7 +2417,10 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
             /* FIXME: Should this only be no-ops?
                       Cast->isNoopCast(F.getParent()->getDataLayout())
                       */
-            AddRank(Op, Rank++, AssignedGroup);
+            AddRank(Op, Rank, AssignedGroup);
+            // Saturate our 3 bit rank.
+            if (Rank < 7)
+              Rank++;
           }
         }
         // This causes a spreading-out of key instructions when SelectionDAG

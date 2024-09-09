@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "../../IR/LLVMContextImpl.h"
 #include "MetadataLoader.h"
 #include "ValueList.h"
 #include "llvm/ADT/APFloat.h"
@@ -5024,6 +5025,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         if (!IA)
           return error("Invalid record");
       }
+
+      if (AtomGroup)
+        Context.pImpl->NextAtomGroup =
+            std::max(AtomGroup, Context.pImpl->NextAtomGroup);
 
       LastLoc = DILocation::get(Scope->getContext(), Line, Col, Scope, IA,
                                 isImplicitCode, AtomGroup, AtomRank);

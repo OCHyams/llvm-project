@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/AsmParser/LLParser.h"
+#include "../IR/LLVMContextImpl.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
@@ -5182,6 +5183,10 @@ bool LLParser::parseDILocation(MDNode *&Result, bool IsDistinct) {
   Result = GET_OR_DISTINCT(
       DILocation, (Context, line.Val, column.Val, scope.Val, inlinedAt.Val,
                    isImplicitCode.Val, atomGroup.Val, atomRank.Val));
+
+  if (atomGroup.Val)
+    Context.pImpl->NextAtomGroup =
+        std::max(atomGroup.Val, Context.pImpl->NextAtomGroup);
   return false;
 }
 

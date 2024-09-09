@@ -58,8 +58,8 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
 DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
                        unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
                        ArrayRef<Metadata *> MDs, bool ImplicitCode)
-    : MDNode(C, DILocationKind, Storage, MDs), AtomGroup(AtomGroup),
-      AtomRank(AtomRank) {
+    : MDNode(C, DILocationKind, Storage, MDs),
+      AtomGroupRank(AtomGroup | (uint64_t(AtomRank) << 61)) {
   assert((MDs.size() == 1 || MDs.size() == 2) &&
          "Expected a scope and optional inlined-at");
 

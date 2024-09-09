@@ -24,7 +24,10 @@ for arg in range(1, len(sys.argv)):
             continue
         for key in data:
             if key in result:
-                result[key] += data[key]
+                if 'MaxRemappedAtom' in key:
+                    result[key] = max(data[key], result[key])
+                else:
+                    result[key] += data[key]
             else:
                 result[key] = data[key]
 

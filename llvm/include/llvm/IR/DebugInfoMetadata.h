@@ -1951,8 +1951,7 @@ public:
 class DILocation : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
-  uint64_t AtomGroup = 0;
-  uint8_t AtomRank = 0;
+  uint64_t AtomGroupRank = 0; // Rank in top 4 bits.
 
   DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
              unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
@@ -1986,8 +1985,10 @@ public:
   // {Function or nullptr, InlinedAt or nullptr, AtomGroup or 0, AtomRank or 0}
   std::tuple<DISubprogram *, DILocation *, uint64_t, uint8_t>
   getAtomInfo() const;
-  uint64_t getAtomGroup() const { return AtomGroup; }
-  uint8_t getAtomRank() const { return AtomRank; }
+  uint64_t getAtomGroup() const {
+    return AtomGroupRank & ((uint64_t(1) << 61) - uint64_t(1));
+  }
+  uint8_t getAtomRank() const { return AtomGroupRank >> uint64_t(61); }
 
   // Disallow replacing operands.
   void replaceOperandWith(unsigned I, Metadata *New) = delete;

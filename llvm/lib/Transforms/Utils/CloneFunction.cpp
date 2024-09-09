@@ -35,11 +35,14 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
+#include "llvm/ADT/Statistic.h"
 #include <map>
 #include <optional>
 using namespace llvm;
 
 #define DEBUG_TYPE "clone-function"
+
+STATISTIC(MaxRemappedAtom, "");
 
 // This is obviously mega-bad, but should suffice to prove the concept.
 // We might implement this properly by stuffing instance "max" into a
@@ -116,8 +119,11 @@ void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
   // Try mapping, if an entry exists already there's nothing
   // to do - otherwise upate the global.
   uint64_t &GlobalNext = DL->getContext().pImpl->NextAtomGroup;
-  if (VMap.AtomMap.insert({CurGroup, GlobalNext}).second)
+  assert(GlobalNext > CurGroup && "Next should always be greater than current");
+  if (VMap.AtomMap.insert({CurGroup, GlobalNext}).second) {
+    MaxRemappedAtom = GlobalNext;
     ++GlobalNext;
+  }
 }
 
 /// See comments in Cloning.h.
