@@ -90,7 +90,6 @@ STATISTIC(MaxRemappedAtom, "");
 
 // maybe put in remap code idk.
 void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
-  return;
 #if 0
   auto AtomGroup = DL.get()->getAtomGroup();
   auto Scope = DL.getScope();
