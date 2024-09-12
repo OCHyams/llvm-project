@@ -99,8 +99,6 @@ protected:
   /// Maps instruction with label emitted after instruction.
   DenseMap<const MachineInstr *, MCSymbol *> LabelsAfterInsn;
 
-  SmallDenseSet<const MachineInstr *> KeyInstructions;
-
   /// Indentify instructions that are marking the beginning of or
   /// ending of a scope.
   void identifyScopeMarkers();

@@ -1949,6 +1949,8 @@ void JumpThreadingPass::updateSSA(BasicBlock *BB, BasicBlock *NewBB,
   SmallVector<DbgVariableRecord *, 4> DbgVariableRecords;
 
   for (Instruction &I : *BB) {
+    RemapSourceAtom(&I, ValueMapping);
+
     // Scan all uses of this instruction to see if it is used outside of its
     // block, and if so, record them in UsesToRename.
     for (Use &U : I.uses()) {

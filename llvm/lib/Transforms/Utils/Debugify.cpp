@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/Debugify.h"
+#include "../../IR/LLVMContextImpl.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/DIBuilder.h"
@@ -34,6 +35,8 @@
 using namespace llvm;
 
 namespace {
+
+cl::opt<bool> ApplyAtomGroups("debugify-atoms", cl::init(false));
 
 cl::opt<bool> Quiet("debugify-quiet",
                     cl::desc("Suppress verbose debugify output"));
@@ -143,8 +146,13 @@ bool llvm::applyDebugifyMetadata(
 
     for (BasicBlock &BB : F) {
       // Attach debug locations.
-      for (Instruction &I : BB)
-        I.setDebugLoc(DILocation::get(Ctx, NextLine++, 1, SP));
+      for (Instruction &I : BB) {
+        uint64_t AtomGroup = ApplyAtomGroups? NextLine : 0;
+        uint64_t AtomRank = ApplyAtomGroups? 1 : 0;
+        I.setDebugLoc(
+            DILocation::get(Ctx, NextLine, 1, SP, nullptr, false, AtomGroup, AtomRank));
+        NextLine++;
+      }
 
       if (DebugifyLevel < Level::LocationsAndVariables)
         continue;
@@ -193,6 +201,9 @@ bool llvm::applyDebugifyMetadata(
     DIB.finalizeSubprogram(SP);
   }
   DIB.finalize();
+  // Update the global next atom group number (Line == AtomGroup in debugify).
+  if (ApplyAtomGroups)
+    M.getContext().pImpl->NextAtomGroup = NextLine;
 
   // Track the number of distinct lines and variables.
   NamedMDNode *NMD = M.getOrInsertNamedMetadata("llvm.debugify");

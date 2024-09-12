@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Linker/IRMover.h"
+#include "../IR/LLVMContextImpl.h"
 #include "LinkDiagnosticInfo.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
@@ -1672,6 +1673,10 @@ Error IRLinker::run() {
       }
     }
   }
+
+  DstM.getContext().pImpl->NextAtomGroup =
+      std::max(DstM.getContext().pImpl->NextAtomGroup,
+               SrcM->getContext().pImpl->NextAtomGroup);
 
   // Merge the module flags into the DstM module.
   return linkModuleFlagsMetadata();

@@ -5186,7 +5186,7 @@ bool LLParser::parseDILocation(MDNode *&Result, bool IsDistinct) {
 
   if (atomGroup.Val)
     Context.pImpl->NextAtomGroup =
-        std::max(atomGroup.Val, Context.pImpl->NextAtomGroup);
+        std::max(atomGroup.Val + 1, Context.pImpl->NextAtomGroup);
   return false;
 }
 

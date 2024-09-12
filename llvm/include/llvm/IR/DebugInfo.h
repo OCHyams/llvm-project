@@ -377,8 +377,12 @@ public:
 /// Return true if assignment tracking is enabled for module \p M.
 bool isAssignmentTrackingEnabled(const Module &M);
 
+/// Add additional metadata to instructions in order to make smarter is_stmt
+/// placement decisions at DWARF emission time.
+///
+/// Complexity is generally O(instruction-count).
 class KeyInstructionsPass : public PassInfoMixin<KeyInstructionsPass> {
-  bool runOnFunction(Function &F);
+  void runOnFunction(Function &F);
 
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);

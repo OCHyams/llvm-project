@@ -396,6 +396,9 @@ bool llvm::SplitIndirectBrCriticalEdges(Function &F,
     // preds.
     ValueToValueMapTy VMap;
     BasicBlock *DirectSucc = CloneBasicBlock(Target, VMap, ".clone", &F);
+    // TODO(OCH): "if (KeyInstructions) {...}"
+    for (Instruction &I : *DirectSucc)
+      RemapSourceAtom(&I, VMap);
 
     BlockFrequency BlockFreqForDirectSucc;
     for (BasicBlock *Pred : OtherPreds) {

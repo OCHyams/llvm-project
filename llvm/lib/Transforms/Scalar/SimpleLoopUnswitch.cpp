@@ -297,7 +297,12 @@ static void buildPartialInvariantUnswitchConditionalBranch(
   for (auto *Val : reverse(ToDuplicate)) {
     Instruction *Inst = cast<Instruction>(Val);
     Instruction *NewInst = Inst->clone();
-    // OCH: TODO: mapAtomInstance?
+
+    // TODO(OCH): Test with partial_unswitch_true_successor_hoist_invariant in
+    // llvm\test\Transforms\SimpleLoopUnswitch\partial-unswitch.ll
+    if (const DebugLoc &DL = Inst->getDebugLoc())
+      mapAtomInstance(DL, VMap);
+
     NewInst->insertInto(&BB, BB.end());
     RemapInstruction(NewInst, VMap,
                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
@@ -2349,6 +2354,7 @@ static void unswitchNontrivialInvariants(
     // Keep a clone of the terminator for MSSA updates.
     Instruction *NewTI = TI.clone();
     NewTI->insertInto(ParentBB, ParentBB->end());
+    // TODO(OCH): Possibly need to bump NewTI's AtomGroup.
 
     // Splice the terminator from the original loop and rewrite its
     // successors.

@@ -89,6 +89,8 @@
 
 using namespace llvm;
 
+cl::opt<bool> InlineLocs("print-locs-inline");
+
 // Make virtual table appear in this compilation unit.
 AssemblyAnnotationWriter::~AssemblyAnnotationWriter() = default;
 
@@ -2667,7 +2669,7 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
       // the time when debugging.
       Out << "<" << N << ">";
     } else {
-      if (const DILocation *Loc = dyn_cast<DILocation>(N)) {
+      if (const DILocation *Loc = dyn_cast<DILocation>(N); Loc && InlineLocs) {
         writeDILocation(Out, Loc, WriterCtx);
         return;
       } else {

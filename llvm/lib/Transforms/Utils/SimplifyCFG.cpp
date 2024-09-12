@@ -1126,7 +1126,7 @@ static void cloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
       // dead code caused by folding dead branches.
       NewBonusInst->setDebugLoc(DebugLoc());
     } else if (const DebugLoc &DL = NewBonusInst->getDebugLoc()) {
-      // TODO: Test.
+      // TODO(OCH): Test.
       mapAtomInstance(DL, VMap);
     }
 

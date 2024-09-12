@@ -2300,26 +2300,49 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
   return PA;
 }
 
-#undef DEBUG_TYPE // Silence redefinition warning (AssignmentTrackingPass).
+#undef DEBUG_TYPE // Silence redefinition warning (from AssignmentTrackingPass).
 #define DEBUG_TYPE "key-instructions"
-bool KeyInstructionsPass::runOnFunction(Function &F) {
+void KeyInstructionsPass::runOnFunction(Function &F) {
   if (!F.getSubprogram())
-    return false;
+    return;
 
-  // Avoid repeatedly hitting the global: just load/store once.
-  uint64_t NextGroup = F.getContext().pImpl->NextAtomGroup;
-  auto Cleanup = make_scope_exit(
-      [&NextGroup, &F] { F.getContext().pImpl->NextAtomGroup = NextGroup; });
+  // We're going to add two new fields to DILocations of instructions that we
+  // deem important for stepping. AtomGroup, which is shared between
+  // instructions that are part of a source atom that implement key
+  // functionality (i.e., something a user wants to see: ctrl-flow,
+  // assignments, calls). This is zero by default for non-key instructions.
+  // AtomRank, which describes a precedence between instructions in an
+  // AtomGroup. The lower the rank the higher the precedence; generally the
+  // lowest ranked instruction in the group is the is_stmt candidate.
 
-  // Heuristic: Same scope/line/col = same atom. This is for the case where
-  // an aggr init is emitted as a bunch of stores.
-  // Catches other things as well like macros (bad, probably, or at least
-  // not really wanted) - possibly others? unsure, just trying things out
-  // right now.
+  // Atoms are identified by a {AtomGroup, InlinedAt} pair, meaning AtomGroup
+  // numbers can be repeated across different functions. Transformations may
+  // need to assign new AtomGroups. In order to guarentee that future
+  // transformations keep the numbers within functions unique, we just need to
+  // track the highest number found in all functions. We could also track a
+  // per-function "next", but that's more expensive and complicated.
+  uint64_t NextGroup = 1;
+  auto Cleanup = make_scope_exit([&NextGroup, &F] {
+    F.getContext().pImpl->NextAtomGroup =
+        std::max(NextGroup, F.getContext().pImpl->NextAtomGroup);
+  });
+
+  // Front ends may emit an aggregate initialisation as a series of stores. We
+  // want all of these stores to have the same AtomGroup, because we ideally
+  // only want to step onto the initialisating assignment once.
+  //
+  // To facilitate this we use the heuristic that identical {Scope, Line,
+  // Column} tuples indicate the instructions come from the same source atom.
+  // This does accidentally collect things like C++ macros, and possibly other
+  // things too. Heuristic: Same scope/line/col = same atom. This is for the
+  // case where
   using SrcLocTup = std::tuple<MDNode *, int, int>;
   DenseMap<SrcLocTup, uint32_t> Groups;
 
-  auto AddRank = [&](Instruction *I, uint16_t Rank, uint32_t Group) {
+  // Returns the AtomGroup used, which may not be \p Group.
+  auto AddAtomInfo = [&](Instruction *I, uint8_t Rank, uint64_t Group) {
+    Rank = std::min<uint8_t>(Rank, 7); // Saturate our 3-bit rank.
+
     unsigned Line = 0;
     unsigned Column = 0;
     MDNode *Scope =
@@ -2335,19 +2358,19 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
       Scope = Cur.getScope();
       InlinedAt = Cur.getInlinedAt();
       ImplicitCode = Cur.isImplicitCode();
-      // If the AtomGroup is already set, choose the one with the lowest
-      // nonzero rank (most important).
-      // e.g.
+      // If the AtomGroup is already set, choose the one with the lowest nonzero
+      // rank (most important). e.g.
       //   %call = call i32 ...
       //   store %call, ...
-      // AddRank(call, 1)  -> 1, 1
-      // AddRank(store, 1) -> 2, 1
+      // results in:
+      //   AddAtomInfo(call, 1)  -> 1, 1
+      //   AddAtomInfo(store, 1) -> 2, 1
       // Add the stored value as part of the atom...
       // ... but keep its existing group/rank.
-      // AddRank(call, 2)  -> 1, 1
+      //   AddAtomInfo(call, 2)  -> 1, 1
       //
-      // TODO: Is there a better way to handle merging? Ideally
-      // we'd like to be able to have it attributed to both atoms.
+      // TODO(OCH): Is there a better way to handle merging? Ideally we'd like
+      // to be able to have it attributed to both atoms.
       if (Cur.get()->getAtomGroup() && Cur.get()->getAtomRank() &&
           Cur.get()->getAtomRank() < Rank) {
         AtomGroup = Cur.get()->getAtomGroup();
@@ -2355,10 +2378,9 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
       }
     }
 
-    // Experimental:
     auto ExistingGroup =
         Groups.insert({std::make_tuple(Scope, Line, Column), AtomGroup});
-    // Use an existing group for this source location if one exists!
+    // Use an existing atom group for this source location if one exists.
     if (!ExistingGroup.second)
       AtomGroup = ExistingGroup.first->second;
 
@@ -2369,47 +2391,29 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
     return AtomGroup;
   };
 
-  // new thing to try:
-  // identical line/col/scope gets same atm group: this is for multiple
-  // stores spewed out for aggr inits. Similar to SROA situation - we actually
-  // want these to be grouped in a different way, we want it so the "last" one
-  // per block is a stoppoint, rather than all.
+  // Iterate over the instructions, applying atom groups and ranks.
   //
-  // but how do we stop that spreading over loop unrolls? I think we basically
-  // can't. Even if we intervene at loop unroll time, then we lose the link
-  // between the same-src-construct bits -- I guess the whole source construct
-  // group needs a new id
-
-  // AtomGroup, AtomRank, SrcID
-  //                      ^^^^^--- Matching SrcID means "only take the last
-  //                      one".
-  //                               Loop unroll has to create a new SrcID for
-  //                               each cloned set. How does it do this?
-  //                               Not sure other than naievely looking up the
-  //                               max for each atomgroup... maybe that's fine
-  //                               for prototype?
-  // We'll call that AtomInstance, and it comes before AtomRank because...
-  // ...because it does (it shouldn't).
-
-  // if we add a bit that says "pls treat these things as a grp differently"
-  // (-> only use final one as stoppoint) then there's no way around the fact
-  // that loop unroll an similar need to update that. Can't get around that any
-  // way I turn this round. Annoyingly this makes the "default" behaviour (where
-  // we've missed a loop unroll update) a regression -- we'd lose stoppoints.
-  // So that's a real risk.
-
-  // let's go down this line of enq anyway...
+  // Note that we don't apply key instruction metadata to calls. This is because
+  // during call lowering parameter setup instructions inherit the call's line
+  // number, and the instructions therefore all get key-ness info.
+  //
+  // FIXME(OCH): This is less of a problem now that only the final lowest-rank
+  // location per block gets is_stmt, though might still cause edge case
+  // weirdness if things get scheduled weirdly. It's probably better to add
+  // call handling back here, to reduce special casing.
   for (auto &BB : F) {
     for (auto &I : BB) {
+      // The AtomGroup number for this source atom.
       uint32_t AssignedGroup = 0;
+
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
         LLVM_DEBUG(dbgs() << "atom store\n");
-        AssignedGroup = AddRank(SI, 1, NextGroup);
+        AssignedGroup = AddAtomInfo(SI, 1, NextGroup);
         if (auto *Op = dyn_cast<Instruction>(SI->getValueOperand())) {
-          AddRank(Op, 2, AssignedGroup);
+          AddAtomInfo(Op, 2, AssignedGroup);
 
           // Add chains of casts too, as they're probably going to evaporate.
-          uint16_t Rank = 3;
+          uint8_t Rank = 3;
           while (auto *Cast = dyn_cast<CastInst>(Op)) {
             Op = dyn_cast<Instruction>(Cast->getOperand(0));
             if (!Op)
@@ -2417,81 +2421,53 @@ bool KeyInstructionsPass::runOnFunction(Function &F) {
             /* FIXME: Should this only be no-ops?
                       Cast->isNoopCast(F.getParent()->getDataLayout())
                       */
-            AddRank(Op, Rank, AssignedGroup);
-            // Saturate our 3 bit rank.
-            if (Rank < 7)
-              Rank++;
+            AddAtomInfo(Op, Rank++, AssignedGroup);
           }
         }
-        // This causes a spreading-out of key instructions when SelectionDAG
-        // lowers a call (creating a bunch of param reg copies that later
-        // might get scheduled around, all of which inherit the group/rank
-        // from the call). For now the back end will just mark calls as
-        // is_stmt. That more or less lines up with Tice's paper, though
-        // it feels a little incomplete (ideally there's only one source
-        // of truth).
-        //} else if (auto *CI = dyn_cast<CallBase>(&I)) {
-        //  // TODO skip if (isa<LifetimeIntrinsic>())
-        //  LLVM_DEBUG(dbgs() << "atom call\n");
-        //  AddRank(CI, 1);
       } else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
-        AssignedGroup = AddRank(MI, 1, NextGroup);
+        LLVM_DEBUG(dbgs() << "atom memintrinsic\n");
+        AssignedGroup = AddAtomInfo(MI, 1, NextGroup);
         if (auto *MS = dyn_cast<MemSetInst>(&I)) {
           if (auto *Op = dyn_cast<Instruction>(MS->getValue()))
-            AddRank(Op, 2, AssignedGroup);
+            AddAtomInfo(Op, 2, AssignedGroup);
         }
-
       } else if (auto *BI = dyn_cast<BranchInst>(&I);
                  BI && BI->isConditional()) {
         LLVM_DEBUG(dbgs() << "atom condbr\n");
-        AssignedGroup = AddRank(BI, 1, NextGroup);
+        AssignedGroup = AddAtomInfo(BI, 1, NextGroup);
         if (auto *Cond = dyn_cast<Instruction>(BI->getCondition()))
-          AddRank(Cond, 2, AssignedGroup);
+          AddAtomInfo(Cond, 2, AssignedGroup);
       } else if (auto *SwI = dyn_cast<SwitchInst>(&I)) {
         LLVM_DEBUG(dbgs() << "atom switch\n");
-        AssignedGroup = AddRank(SwI, 1, NextGroup);
+        AssignedGroup = AddAtomInfo(SwI, 1, NextGroup);
         if (auto *Cond = dyn_cast<Instruction>(SwI->getCondition()))
-          AddRank(Cond, 2, AssignedGroup);
+          AddAtomInfo(Cond, 2, AssignedGroup);
       } else if (auto *RI = dyn_cast<ReturnInst>(&I)) {
         LLVM_DEBUG(dbgs() << "atom ret\n");
-        AssignedGroup = AddRank(RI, 1, NextGroup);
+        AssignedGroup = AddAtomInfo(RI, 1, NextGroup);
       } else {
         continue; // Don't inc Group.
       }
+
+      // If we didn't use the next available group number (because we re-used an
+      // existing atom group number), don't increment it.
       if (AssignedGroup == NextGroup)
         NextGroup++;
     }
   }
-
-  return false;
 }
 
 PreservedAnalyses KeyInstructionsPass::run(Function &F,
                                            FunctionAnalysisManager &AM) {
-  if (!runOnFunction(F))
-    return PreservedAnalyses::all();
-
-  // Q: Can we return a less conservative set than just CFGAnalyses? Can we
-  // return PreservedAnalyses::all()?
-  PreservedAnalyses PA;
-  PA.preserveSet<CFGAnalyses>();
-  return PA;
+  runOnFunction(F);
+  return PreservedAnalyses::all();
 }
 
 PreservedAnalyses KeyInstructionsPass::run(Module &M,
                                            ModuleAnalysisManager &AM) {
-  bool Changed = false;
   for (auto &F : M)
-    Changed |= runOnFunction(F);
-
-  if (!Changed)
-    return PreservedAnalyses::all();
-
-  // Q: Can we return a less conservative set than just CFGAnalyses? Can we
-  // return PreservedAnalyses::all()?
-  PreservedAnalyses PA;
-  PA.preserveSet<CFGAnalyses>();
-  return PA;
+    runOnFunction(F);
+  return PreservedAnalyses::all();
 }
 
 #undef DEBUG_TYPE

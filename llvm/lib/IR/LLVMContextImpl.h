@@ -1729,8 +1729,8 @@ public:
 
   void deleteTrailingDbgRecords(BasicBlock *B) { TrailingDbgRecords.erase(B); }
 
-  // Next available source atom group number.
-  // 0 is special (means no atom group).
+  // Next available source atom group number. Start a 1 because 0 is special
+  // (it means the source location isn't part of an atom group).
   uint64_t NextAtomGroup = 1;
 
   std::string DefaultTargetCPU;

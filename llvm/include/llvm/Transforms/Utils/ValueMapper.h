@@ -270,6 +270,9 @@ inline void RemapInstruction(Instruction *I, ValueToValueMapTy &VM,
 /// Remap source atom. Called by RemapInstruction.
 void RemapSourceAtom(Instruction *I, ValueToValueMapTy &VM);
 
+/// Supress atom remap assertion.
+void SkipAtomRemapping(ValueToValueMapTy &VM);
+
 /// Remap the Values used in the DbgRecord \a DR using the value map \a
 /// VM.
 inline void RemapDbgRecord(Module *M, DbgRecord *DR, ValueToValueMapTy &VM,

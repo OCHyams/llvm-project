@@ -1311,3 +1311,7 @@ void llvm::RemapSourceAtom(Instruction *I, ValueToValueMapTy &VM) {
                                     InlinedAt, ImplicitCode, Group, AtomRank);
   I->setDebugLoc(New);
 }
+
+void llvm::SkipAtomRemapping(ValueToValueMapTy &VM) {
+  VM.HaveRemappedSomeAtoms = true;
+}

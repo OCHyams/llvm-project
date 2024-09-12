@@ -106,6 +106,8 @@ public:
   using value_type = std::pair<KeyT, ValueT>;
   using size_type = unsigned;
 
+  ~ValueMap() { assert((AtomMap.empty() || HaveRemappedSomeAtoms) && "Didn't remap any source atoms?"); }
+
   explicit ValueMap(unsigned NumInitBuckets = 64)
       : Map(NumInitBuckets), Data() {}
   explicit ValueMap(const ExtraData &Data, unsigned NumInitBuckets = 64)

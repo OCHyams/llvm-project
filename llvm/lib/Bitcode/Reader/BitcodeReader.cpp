@@ -5028,7 +5028,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       if (AtomGroup)
         Context.pImpl->NextAtomGroup =
-            std::max(AtomGroup, Context.pImpl->NextAtomGroup);
+            std::max(AtomGroup + 1, Context.pImpl->NextAtomGroup);
 
       LastLoc = DILocation::get(Scope->getContext(), Line, Col, Scope, IA,
                                 isImplicitCode, AtomGroup, AtomRank);

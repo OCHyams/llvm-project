@@ -2225,13 +2225,81 @@ DebugLoc DwarfDebug::emitInitialLocDirective(const MachineFunction &MF,
   return DebugLoc();
 }
 
+void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
+  // For each instruction:
+  //   * Skip insts without AtomGroup or AtomRank.
+  //   * Check if insts in this group have been seen already in LastAtomMap.
+  //     * If this instr rank is equal, add this instruction to KeyInstructions.
+  //       Remove existing instructions from KeyInstructions if they have the
+  //       same parent.
+  //     * If this instr rank is higher (lower precedence), ignore it.
+  //     * If this instr rank is lower (higher precedence), erase existing
+  //       instructions from KeyInstructions. Add this instr to KeyInstructions.
+
+  // New function - reset KeyInstructions.
+  KeyInstructions.clear();
+
+  // {(Scope, InlinedAt, Group): (Rank, Instructions)}.
+  DenseMap<std::tuple<DISubprogram *, DILocation *, uint32_t>,
+           std::pair<uint16_t, SmallVector<const MachineInstr *>>>
+      LastAtomMap;
+
+  for (auto &MBB : *MF) {
+    for (auto &MI : MBB) {
+      if (!MI.getDebugLoc())
+        continue;
+
+      auto [Scope, InlinedAt, Group, Rank] =
+          MI.getDebugLoc().get()->getAtomInfo();
+      if (!Scope || !Group || !Rank)
+        continue;
+
+      auto &[PrevRank, PrevInsts] = LastAtomMap[{Scope, InlinedAt, Group}];
+
+      if (PrevRank == 0) {
+        assert(PrevInsts.empty());
+        PrevRank = Rank;
+        PrevInsts.push_back(&MI);
+
+      } else if (PrevRank == Rank) {
+        assert(!PrevInsts.empty());
+        SmallVector<const MachineInstr *> Insts;
+        Insts.reserve(PrevInsts.size() + 1);
+        for (auto &PrevInst : PrevInsts) {
+          if (PrevInst->getParent() != MI.getParent())
+            Insts.push_back(PrevInst);
+          else
+            KeyInstructions.erase(PrevInst);
+        }
+        Insts.push_back(&MI);
+        PrevInsts = Insts;
+
+      } else if (PrevRank > Rank) {
+        assert(!PrevInsts.empty());
+        PrevRank = Rank;
+        for (auto *Supplanted : PrevInsts)
+          KeyInstructions.erase(Supplanted);
+        PrevInsts = {&MI};
+
+      } else {
+        // PrevRank outranks (is nonzero and smaller) this so ignore this
+        // instruction.
+        assert(Rank != 0 && PrevRank < Rank && PrevRank != 0);
+        continue;
+      }
+      KeyInstructions.insert(&MI);
+    }
+  }
+}
+
 // Gather pre-function debug information.  Assumes being called immediately
 // after the function entry point has been emitted.
 void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   CurFn = MF;
 
   auto *SP = MF->getFunction().getSubprogram();
-  assert(LScopes.empty() || SP == LScopes.getCurrentFunctionScope()->getScopeNode());
+  assert(LScopes.empty() ||
+         SP == LScopes.getCurrentFunctionScope()->getScopeNode());
   if (SP->getUnit()->getEmissionKind() == DICompileUnit::NoDebug)
     return;
 
@@ -2244,74 +2312,8 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   PrologEndLoc = emitInitialLocDirective(
       *MF, Asm->OutStreamer->getContext().getDwarfCompileUnitID());
 
-  // Find is_stmts!
-  // * Iterate over insts.
-  // * Skip insts without AtomGroup or AtomRank.
-  // * Check if instructions in this group has been seen already in LastAtomMap.
-  //   * If this instr rank is equal, add this instruction. Add it to
-  //     KeyInstructions.
-  //   * If this instr rank is higher (lower precedence), ignore it.
-  //   * If this instr rank is lower (higher precedence), replace the entry,
-  //     erase those instructions from KeyInstructions. Add this instr to
-  //     KeyInstructions.
-  if (KeyInstructionsAreStmts) {
-    KeyInstructions.clear();
-    // {(Scope, InlinedAt, Group): (Rank, Instructions)}.
-    DenseMap<std::tuple<DISubprogram *, DILocation *, uint32_t>,
-             std::pair<uint16_t, SmallVector<const MachineInstr *>>>
-        LastAtomMap;
-    for (auto &MBB : *MF) {
-      for (auto &MI : MBB) {
-        // Is part of an atom?
-        if (!MI.getDebugLoc())
-          continue;
-
-        auto [Scope, InlinedAt, Group, Rank] =
-            MI.getDebugLoc().get()->getAtomInfo();
-
-        if (!Scope || !Group || !Rank)
-          continue;
-
-        auto &[PrevRank, PrevInsts] =
-            LastAtomMap[{Scope, InlinedAt, Group}];
-
-        if (PrevRank == 0) {
-          assert(PrevInsts.empty());
-          PrevRank = Rank;
-          PrevInsts.push_back(&MI);
-        } else if (PrevRank == Rank) {
-          assert(!PrevInsts.empty());
-          // Old behaviour: include this instruction in the set of is_stmts.
-          // PrevInsts.push_back(&MI);
-
-          // New behaviour: include this instruciton in the set of is_stmts, and
-          // remove others of the same rank in this block.
-          SmallVector<const MachineInstr *> Insts;
-          Insts.reserve(PrevInsts.size() + 1);
-          for (auto &PrevInst : PrevInsts) {
-            if (PrevInst->getParent() != MI.getParent())
-              Insts.push_back(PrevInst);
-            else
-              KeyInstructions.erase(PrevInst);
-          }
-          Insts.push_back(&MI);
-          PrevInsts = Insts;
-        } else if (PrevRank > Rank) {
-          assert(!PrevInsts.empty());
-          PrevRank = Rank;
-          for (auto *Supplanted : PrevInsts)
-            KeyInstructions.erase(Supplanted);
-          PrevInsts = {&MI};
-        } else {
-          // PrevRank outranks (nonzero and smaller) this one,
-          // so ignore this instruction.
-          assert(Rank != 0 && PrevRank < Rank && PrevRank != 0);
-          continue;
-        }
-        KeyInstructions.insert(&MI);
-      }
-    }
-  }
+  if (KeyInstructionsAreStmts)
+    findKeyInstructions(MF);
 }
 
 unsigned
