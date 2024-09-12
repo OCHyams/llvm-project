@@ -1286,6 +1286,7 @@ void ValueMapper::scheduleRemapFunction(Function &F, unsigned MCID) {
 }
 
 void llvm::RemapSourceAtom(Instruction *I, ValueToValueMapTy &VM) {
+  return;
   VM.HaveRemappedSomeAtoms = true;
   const DebugLoc &DL = I->getDebugLoc();
   if (!DL)
