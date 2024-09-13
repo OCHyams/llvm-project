@@ -1001,7 +1001,8 @@ void Mapper::remapInstruction(Instruction *I) {
   }
 
   // Remap source location atom instance.
-  RemapSourceAtom(I, getVM());
+  if (Flags & RF_DoNotRemapAtoms)
+    RemapSourceAtom(I, getVM());
 
   if (!TypeMapper)
     return;
