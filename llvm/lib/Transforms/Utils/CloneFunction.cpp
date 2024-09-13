@@ -278,7 +278,10 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
            "Subprogram should be in DIFinder->subprogram_count()...");
   }
 
-  const auto RemapFlag = ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges;
+  // We're cloning into a new function, we don't need to remap atoms.
+  auto RemapFlag = RF_DoNotRemapAtoms |
+                   (ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges);
+
   // Duplicate the metadata that is attached to the cloned function.
   // Subprograms/CUs/types that were already mapped to themselves won't be
   // duplicated.
@@ -753,9 +756,12 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
 
     // Finally, remap the terminator instructions, as those can't be remapped
     // until all BBs are mapped.
-    RemapInstruction(NewBB->getTerminator(), VMap,
-                     ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
-                     TypeMapper, Materializer);
+    // We're cloning into a new function, we don't need to remap atoms.
+    RemapInstruction(
+        NewBB->getTerminator(), VMap,
+        RF_DoNotRemapAtoms |
+            (ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges),
+        TypeMapper, Materializer);
   }
 
   // Defer PHI resolution until rest of function is resolved, PHI resolution
@@ -878,12 +884,15 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
   // we didn't do this, ValueAsMetadata(use-before-def) operands would be
   // replaced by empty metadata. This would signal later cleanup passes to
   // remove the debug intrinsics, potentially causing incorrect locations.
+  // We're cloning into a new function, we don't need to remap atoms.
   for (const auto *DVI : DbgIntrinsics) {
     if (DbgVariableIntrinsic *NewDVI =
             cast_or_null<DbgVariableIntrinsic>(VMap.lookup(DVI)))
-      RemapInstruction(NewDVI, VMap,
-                       ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
-                       TypeMapper, Materializer);
+      RemapInstruction(
+          NewDVI, VMap,
+          RF_DoNotRemapAtoms |
+              (ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges),
+          TypeMapper, Materializer);
   }
 
   // Do the same for DbgVariableRecords, touching all the instructions in the
