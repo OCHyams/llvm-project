@@ -2303,7 +2303,6 @@ PreservedAnalyses AssignmentTrackingPass::run(Module &M,
 #undef DEBUG_TYPE // Silence redefinition warning (from AssignmentTrackingPass).
 #define DEBUG_TYPE "key-instructions"
 void KeyInstructionsPass::runOnFunction(Function &F) {
-  return;
   if (!F.getSubprogram())
     return;
 

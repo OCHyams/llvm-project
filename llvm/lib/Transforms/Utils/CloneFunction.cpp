@@ -45,7 +45,6 @@ using namespace llvm;
 STATISTIC(MaxRemappedAtom, "Highest global NextAtomGroup (after mapping)");
 
 void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
-  return;
   auto CurGroup = DL.get()->getAtomGroup();
   if (!CurGroup)
     return;
