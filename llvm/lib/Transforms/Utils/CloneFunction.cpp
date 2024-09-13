@@ -63,7 +63,8 @@ void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
 BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
                                   const Twine &NameSuffix, Function *F,
                                   ClonedCodeInfo *CodeInfo,
-                                  DebugInfoFinder *DIFinder) {
+                                  DebugInfoFinder *DIFinder,
+                                  bool DoNotMapAtoms) {
   BasicBlock *NewBB = BasicBlock::Create(BB->getContext(), "", F);
   NewBB->IsNewDbgInfoFormat = BB->IsNewDbgInfoFormat;
   if (BB->hasName())
@@ -85,8 +86,10 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
     NewInst->cloneDebugInfoFrom(&I);
 
     VMap[&I] = NewInst; // Add instruction map to value.
-    if (const DebugLoc &DL = NewInst->getDebugLoc())
-      mapAtomInstance(DL.get(), VMap);
+
+    if (!DoNotMapAtoms)
+      if (const DebugLoc &DL = NewInst->getDebugLoc())
+        mapAtomInstance(DL.get(), VMap);
 
     if (isa<CallInst>(I) && !I.isDebugOrPseudoInst()) {
       hasCalls = true;
@@ -216,7 +219,7 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
 
     // Create a new basic block and copy instructions into it!
     BasicBlock *CBB = CloneBasicBlock(&BB, VMap, NameSuffix, NewFunc, CodeInfo,
-                                      DIFinder ? &*DIFinder : nullptr);
+                                      DIFinder ? &*DIFinder : nullptr, false);
 
     // Add basic block mapping.
     VMap[&BB] = CBB;
@@ -545,8 +548,11 @@ void PruningFunctionCloner::CloneBlock(
 
     Instruction *NewInst = cloneInstruction(II);
     NewInst->insertInto(NewBB, NewBB->end());
-    if (const DebugLoc &DL = NewInst->getDebugLoc())
-      mapAtomInstance(DL.get(), VMap);
+
+    // -- actually, I don't think we need to do this, since PFC is always
+    // cloning a whole function?
+    // if (const DebugLoc &DL = NewInst->getDebugLoc())
+    //  mapAtomInstance(DL.get(), VMap);
 
     if (HostFuncIsStrictFP) {
       // All function calls in the inlined function must get 'strictfp'

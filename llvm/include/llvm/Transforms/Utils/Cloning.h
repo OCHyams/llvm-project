@@ -117,10 +117,15 @@ struct ClonedCodeInfo {
 /// If you would like to collect additional information about the cloned
 /// function, you can specify a ClonedCodeInfo object with the optional fifth
 /// parameter.
+///
+/// If you don't want atomGroup numbers to get mapped for remapping later,
+/// set MapAtoms to false. Do not do this unless you understand the
+/// implications.
 BasicBlock *CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
                             const Twine &NameSuffix = "", Function *F = nullptr,
                             ClonedCodeInfo *CodeInfo = nullptr,
-                            DebugInfoFinder *DIFinder = nullptr);
+                            DebugInfoFinder *DIFinder = nullptr,
+                            bool MapAtoms = true);
 
 /// Mark a cloned instruction as a new instance so that its source loc can
 /// be updated when remapped.
