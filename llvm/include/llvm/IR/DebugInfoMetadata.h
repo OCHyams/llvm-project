@@ -1951,7 +1951,7 @@ public:
 class DILocation : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
-  uint64_t AtomGroup : 61;
+  uint32_t AtomGroup : 29; // test
   uint8_t AtomRank : 3;
 
   DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
