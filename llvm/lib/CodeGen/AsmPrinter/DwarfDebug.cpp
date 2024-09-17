@@ -2243,6 +2243,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
   DenseMap<std::tuple<DISubprogram *, DILocation *, uint32_t>,
            std::pair<uint16_t, SmallVector<const MachineInstr *>>>
       LastAtomMap;
+  SmallVector<const MachineInstr *> Insts;
+
 
   for (auto &MBB : *MF) {
     for (auto &MI : MBB) {
@@ -2263,8 +2265,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
 
       } else if (PrevRank == Rank) {
         assert(!PrevInsts.empty());
-        SmallVector<const MachineInstr *> Insts;
         Insts.reserve(PrevInsts.size() + 1);
+
         for (auto &PrevInst : PrevInsts) {
           if (PrevInst->getParent() != MI.getParent())
             Insts.push_back(PrevInst);
@@ -2272,7 +2274,9 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
             KeyInstructions.erase(PrevInst);
         }
         Insts.push_back(&MI);
+
         PrevInsts = Insts;
+        Insts.clear();
 
       } else if (PrevRank > Rank) {
         assert(!PrevInsts.empty());
