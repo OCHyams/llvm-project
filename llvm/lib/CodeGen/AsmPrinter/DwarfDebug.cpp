@@ -2245,7 +2245,6 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       LastAtomMap;
   SmallVector<const MachineInstr *> Insts;
 
-
   for (auto &MBB : *MF) {
     for (auto &MI : MBB) {
       if (!MI.getDebugLoc())
@@ -2275,7 +2274,7 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         }
         Insts.push_back(&MI);
 
-        PrevInsts = Insts;
+        std::swap(PrevInsts, Insts);
         Insts.clear();
 
       } else if (PrevRank > Rank) {
