@@ -2341,6 +2341,9 @@ void KeyInstructionsPass::runOnFunction(Function &F) {
 
   // Returns the AtomGroup used, which may not be \p Group.
   auto AddAtomInfo = [&](Instruction *I, uint8_t Rank, uint64_t Group) {
+    if (!I->getDebugLoc())
+      return 0;
+
     Rank = std::min<uint8_t>(Rank, 7); // Saturate our 3-bit rank.
 
     unsigned Line = 0;
@@ -2403,6 +2406,8 @@ void KeyInstructionsPass::runOnFunction(Function &F) {
   // call handling back here, to reduce special casing.
   for (auto &BB : F) {
     for (auto &I : BB) {
+      if (!I.getDebugLoc())
+        continue;
       // The AtomGroup number for this source atom.
       uint32_t AssignedGroup = 0;
 
