@@ -2340,7 +2340,7 @@ void KeyInstructionsPass::runOnFunction(Function &F) {
   DenseMap<SrcLocTup, uint32_t> Groups;
 
   // Returns the AtomGroup used, which may not be \p Group.
-  auto AddAtomInfo = [&](Instruction *I, uint8_t Rank, uint64_t Group) {
+  auto AddAtomInfo = [&](Instruction *I, uint8_t Rank, uint64_t Group) -> uint64_t {
     if (!I->getDebugLoc())
       return 0;
 
