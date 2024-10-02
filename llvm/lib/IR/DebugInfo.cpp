@@ -2408,6 +2408,9 @@ void KeyInstructionsPass::runOnFunction(Function &F) {
     for (auto &I : BB) {
       if (!I.getDebugLoc())
         continue;
+      if (isa<DebugInfoIntrinsic>(I))
+        continue;
+
       // The AtomGroup number for this source atom.
       uint32_t AssignedGroup = 0;
 
