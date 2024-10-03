@@ -2140,7 +2140,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     if (DL.getLine() && (DL.getLine() != OldLine || PrevInstInDiffBB))
       Flags |= DWARF2_FLAG_IS_STMT;
   } else {
-    if (IsKey)
+    if (IsKey /* or is a branch? too general? : or is a branch-pair?*/)
       Flags |= DWARF2_FLAG_IS_STMT;
   }
 
@@ -2273,7 +2273,11 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         Insts.reserve(PrevInsts.size() + 1);
 
         for (auto &PrevInst : PrevInsts) {
-          if (PrevInst->getParent() != MI.getParent())
+          // Add all branches in this group at this rank. Otherwise we get this:
+          // condbr  ; (not is_stmt)
+          // br      ; is_stmt
+          // We could make this "more targetd",
+          if (PrevInst->getParent() != MI.getParent() || PrevInst->isBranch())
             Insts.push_back(PrevInst);
           else
             KeyInstructions.erase(PrevInst);
