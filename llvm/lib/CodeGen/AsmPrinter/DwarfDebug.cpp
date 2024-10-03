@@ -2065,11 +2065,21 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
       Asm->OutStreamer->getContext().getCurrentDwarfLoc().getLine();
 
   bool PrevInstInDiffBB = PrevInstBB && PrevInstBB != MI->getParent();
+
+  bool IsKey = false;
+  if (KeyInstructionsAreStmts && DL && DL.getLine()) {
+    // See comment in DebugInfo.cpp about calls.
+    const auto &TII =
+        *MI->getParent()->getParent()->getSubtarget().getInstrInfo();
+    IsKey = KeyInstructions.contains(MI) || MI->isCall() || TII.isTailCall(*MI);
+  }
+
   if (DL == PrevInstLoc && !PrevInstInDiffBB) {
     // If we have an ongoing unspecified location, nothing to do here.
     if (!DL)
       return;
-    if (!KeyInstructionsAreStmts) {
+
+    if (!IsKey) {
       // We have an explicit location, same as the previous location.
       // But we might be coming back to it after a line 0 record.
       if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
@@ -2130,11 +2140,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     if (DL.getLine() && (DL.getLine() != OldLine || PrevInstInDiffBB))
       Flags |= DWARF2_FLAG_IS_STMT;
   } else {
-    // See comment in DebugInfo.cpp about calls.
-    const auto &TII =
-        *MI->getParent()->getParent()->getSubtarget().getInstrInfo();
-    if (DL.getLine() &&
-        (KeyInstructions.contains(MI) || MI->isCall() || TII.isTailCall(*MI)))
+    if (IsKey)
       Flags |= DWARF2_FLAG_IS_STMT;
   }
 
