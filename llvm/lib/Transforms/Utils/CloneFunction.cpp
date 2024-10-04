@@ -64,7 +64,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
                                   const Twine &NameSuffix, Function *F,
                                   ClonedCodeInfo *CodeInfo,
                                   DebugInfoFinder *DIFinder,
-                                  bool DoNotMapAtoms) {
+                                  bool MapAtoms) {
   BasicBlock *NewBB = BasicBlock::Create(BB->getContext(), "", F);
   NewBB->IsNewDbgInfoFormat = BB->IsNewDbgInfoFormat;
   if (BB->hasName())
@@ -87,7 +87,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
 
     VMap[&I] = NewInst; // Add instruction map to value.
 
-    if (!DoNotMapAtoms)
+    if (MapAtoms)
       if (const DebugLoc &DL = NewInst->getDebugLoc())
         mapAtomInstance(DL.get(), VMap);
 
