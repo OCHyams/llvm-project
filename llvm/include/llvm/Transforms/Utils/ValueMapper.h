@@ -102,13 +102,6 @@ enum RemapFlags {
   /// Any global values not in value map are mapped to null instead of mapping
   /// to self.  Illegal if RF_IgnoreMissingLocals is also set.
   RF_NullMapMissingGlobalValues = 8,
-
-  /// Do not remap atom instances. Only safe if to do this if the cloned
-  /// instructions being remapped have been inserted into a new function,
-  /// or an existing function where the inlined-at fields are going to be
-  /// updated. If in doubt, don't use this flag. It's only used for (compiler)
-  /// performance reasons.
-  RF_DoNotRemapAtoms = 16,
 };
 
 inline RemapFlags operator|(RemapFlags LHS, RemapFlags RHS) {
