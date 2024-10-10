@@ -535,6 +535,8 @@ void PruningFunctionCloner::CloneBlock(
         DbgCursor = std::next(II);
       };
 
+  SkipAtomRemapping(VMap);
+
   // Loop over all instructions, and copy them over, DCE'ing as we go.  This
   // loop doesn't include the terminator.
   for (BasicBlock::const_iterator II = StartingInst, IE = --BB->end(); II != IE;
@@ -566,7 +568,8 @@ void PruningFunctionCloner::CloneBlock(
     // debug intrinsic processing because they may contain use-before-defs.
     if (!isa<PHINode>(NewInst) && !isa<DbgVariableIntrinsic>(NewInst)) {
       RemapInstruction(NewInst, VMap,
-                       ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges);
+                        llvm::RF_DoNotRemapAtoms |
+                       (ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges));
 
       // Eagerly constant fold the newly cloned instruction. If successful, add
       // a mapping to the new value. Non-constant operands may be incomplete at
