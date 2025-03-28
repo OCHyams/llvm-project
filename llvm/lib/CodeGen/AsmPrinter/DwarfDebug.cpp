@@ -2444,13 +2444,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       if (Buoy && Buoy != &MI && BuoyToKeyInst.contains(Buoy) &&
           BuoyToKeyInst[Buoy]->getDebugLoc() &&
           Group != BuoyToKeyInst[Buoy]->getDebugLoc().get()->getAtomGroup()) {
-        Buoy = &*next_nodbg(Buoy->getIterator(), std::next(MI.getIterator()));
+        Buoy = &MI;
       }
-
-      // We have a group and rank but no line info - continue so we don't
-      // use this as an is_stmt location over a better backup instruction.
-      if (!MI.getDebugLoc()->getLine())
-        continue;
 
       auto &[PrevRank, PrevInsts] = LastAtomMap[{InlinedAt, Group}];
 
