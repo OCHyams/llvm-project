@@ -21,11 +21,15 @@
 ; OBJ-NEXT: 29:       callq   0x2e <fun+0x2e>
 ; OBJ-NEXT: 2e:       movl    $0x2, (%r14)
 ; OBJ-NEXT: 35:       callq   0x3a <fun+0x3a>
-; OBJ-NEXT: 3a:       movl    %ebx, %eax
-; OBJ-NEXT: 3c:       popq    %rbx
-; OBJ-NEXT: 3d:       popq    %r14
-; OBJ-NEXT: 3f:       popq    %rbp
-; OBJ-NEXT: 40:       retq
+; OBJ-NEXT: 3a:       movl    $0x3, (%r14)
+; OBJ-NEXT: 41:       callq   0x46 <fun+0x46>
+; OBJ-NEXT: 46:       movl    $0x4, (%r14)
+; OBJ-NEXT: 4d:       callq   0x52 <fun+0x52>
+; OBJ-NEXT: 52:       movl    %ebx, %eax
+; OBJ-NEXT: 54:       popq    %rbx
+; OBJ-NEXT: 55:       popq    %r14
+; OBJ-NEXT: 57:       popq    %rbp
+; OBJ-NEXT: 58:       retq
 
 ; DBG:      Address            Line   Column File   ISA Discriminator OpIndex Flags
 ; DBG-NEXT: ------------------ ------ ------ ------ --- ------------- ------- -------------
@@ -58,9 +62,16 @@
 ; DBG-NEXT: 0x000000000000002e      6      0      0   0             0       0
 ; DBG-NEXT: 0x0000000000000035      7      0      0   0             0       0  is_stmt
 
-; DBG-NEXT: 0x000000000000003a      8      0      0   0             0       0
-; DBG-NEXT: 0x000000000000003c      8      0      0   0             0       0  epilogue_begin
-; DBG-NEXT: 0x0000000000000041      8      0      0   0             0       0  end_sequence
+;; Test E:
+;; Check the is_stmt floats up to an instruction in the same group of the same
+;; or lower precedence.
+; DBG-NEXT: 0x000000000000003a      8      0      0   0             0       0  is_stmt
+; DBG-NEXT: 0x0000000000000041      8      0      0   0             0       0
+; DBG-NEXT: 0x0000000000000046      9      0      0   0             0       0  is_stmt
+
+; DBG-NEXT: 0x0000000000000052     10      0      0   0             0       0
+; DBG-NEXT: 0x0000000000000054     10      0      0   0             0       0  epilogue_begin
+; DBG-NEXT: 0x0000000000000059     10      0      0   0             0       0  end_sequence
 
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -81,7 +92,12 @@ entry:
 ;; Test D:
   store i32 2, ptr @z,     !dbg !DILocation(line: 6, scope: !11, atomGroup: 3, atomRank: 2)
   tail call void @f(),     !dbg !DILocation(line: 7, scope: !11, atomGroup: 3, atomRank: 1)
-  ret i32 %y,              !dbg !DILocation(line: 8, scope: !11)
+;; Test E:
+  store i32 3, ptr @z,     !dbg !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 2)
+  tail call void @f(),     !dbg !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 1)
+  store i32 4, ptr @z,     !dbg !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
+  tail call void @f(),     !dbg !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
+  ret i32 %y,              !dbg !DILocation(line: 10, scope: !11)
 }
 
 declare void @f() local_unnamed_addr

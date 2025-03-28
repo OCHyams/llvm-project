@@ -2421,7 +2421,7 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
             SmallVector<const MachineInstr *> Insts;
             Insts.reserve(CandidateInsts.size());
             for (auto &PrevInst : CandidateInsts) {
-              if (PrevInst->getParent() != MI.getParent())
+              if (PrevInst->getParent() != MI.getParent() || PrevInst == Buoy)
                 Insts.push_back(PrevInst);
               else
                 KeyInstructions.erase(PrevInst);
