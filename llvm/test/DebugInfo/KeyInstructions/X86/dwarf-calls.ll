@@ -1,41 +1,66 @@
 ; RUN: llc %s --filetype=obj -o - --dwarf-use-key-instructions \
 ; RUN: | llvm-objdump -d - --no-show-raw-insn \
 ; RUN: | FileCheck %s --check-prefix=OBJ
-;
+
 ; RUN: llc %s --filetype=obj -o - --dwarf-use-key-instructions \
 ; RUN: | llvm-dwarfdump - --debug-line \
 ; RUN: | FileCheck %s --check-prefix=DBG
 
-; OBJ: 0000000000000000 <fun>:
-; OBJ-NEXT:  0:  pushq   %rbx
-; OBJ-NEXT:  1:  movq    (%rip), %rax
-; OBJ-NEXT:  8:  movl    $0x0, (%rax)
-; OBJ-NEXT:  e:  movq    (%rip), %rax
-; OBJ-NEXT: 15:  movl    (%rax), %ebx
-; OBJ-NEXT: 17:  callq   0x1c <fun+0x1c>
-; OBJ-NEXT: 1c:  callq   0x21 <fun+0x21>
-; OBJ-NEXT: 21:  addl    %ebx, %eax
-; OBJ-NEXT: 23:  popq    %rbx
-; OBJ-NEXT: 24:  retq
+; OBJ:0000000000000000 <fun>:
+; OBJ-NEXT:  0:       pushq   %rbp
+; OBJ-NEXT:  1:       pushq   %r14
+; OBJ-NEXT:  3:       pushq   %rbx
+; OBJ-NEXT:  4:       movq    (%rip), %rax
+; OBJ-NEXT:  b:       movl    (%rax), %ebp
+; OBJ-NEXT:  d:       callq   0x12 <fun+0x12>
+; OBJ-NEXT: 12:       callq   0x17 <fun+0x17>
+; OBJ-NEXT: 17:       movl    %eax, %ebx
+; OBJ-NEXT: 19:       addl    %ebp, %ebx
+; OBJ-NEXT: 1b:       movq    (%rip), %r14
+; OBJ-NEXT: 22:       movl    $0x1, (%r14)
+; OBJ-NEXT: 29:       callq   0x2e <fun+0x2e>
+; OBJ-NEXT: 2e:       movl    $0x2, (%r14)
+; OBJ-NEXT: 35:       callq   0x3a <fun+0x3a>
+; OBJ-NEXT: 3a:       movl    %ebx, %eax
+; OBJ-NEXT: 3c:       popq    %rbx
+; OBJ-NEXT: 3d:       popq    %r14
+; OBJ-NEXT: 3f:       popq    %rbp
+; OBJ-NEXT: 40:       retq
 
 ; DBG:      Address            Line   Column File   ISA Discriminator OpIndex Flags
 ; DBG-NEXT: ------------------ ------ ------ ------ --- ------------- ------- -------------
 ; DBG-NEXT: 0x0000000000000000      1      0      0   0             0       0  is_stmt
-; DBG-NEXT: 0x0000000000000001      1      0      0   0             0       0  is_stmt prologue_end
-; DBG-NEXT: 0x000000000000000e      2      0      0   0             0       0
-; DBG-NEXT: 0x0000000000000017      3      0      0   0             0       0  is_stmt
-; DBG-NEXT: 0x000000000000001c      4      0      0   0             0       0  is_stmt
-; DBG-NEXT: 0x0000000000000021      5      0      0   0             0       0  is_stmt
-; DBG-NEXT: 0x0000000000000023      6      0      0   0             0       0  is_stmt epilogue_begin
-; DBG-NEXT: 0x0000000000000025      6      0      0   0             0       0  is_stmt end_sequence
+; DBG-NEXT: 0x0000000000000004      2      0      0   0             0       0  is_stmt prologue_end
 
-;; Check the 1st call gets is_stmt despite having no atom group. Check the 2nd
-;; call gets is_stmt applied despite being part of group 1 and having lower
-;; precedence than the add. Check that the add stil gets is_stmt applied.
+;; Test A:
+;; Check the 1st call (line 3) gets is_stmt despite having no atom group.
+; DBG-NEXT: 0x000000000000000d      3      0      0   0             0       0  is_stmt
 
-;; The store is added to prevent a rotten-green test. Non-key-instructions mode
-;; will add is_stmt to each entry as each is a new line. Key Instructions mode
-;; skips line 2 as it's not a call, pro/epi end/begin, or part of an atom.
+;; Test B:
+;; Check the 2nd call (line 4) gets is_stmt applied despite being part of group
+;; 1 and having lower precedence than the add. Check that the add stil gets
+;; is_stmt applied.
+;; There are two is_stmt line 4 entries are is_stmt because we don't float
+;; is_stmts up on the same line past other key instructions. The call is
+;; key, so the add's is_stmt floats up to the movl on the same line, but
+;; not past the call.
+; DBG-NEXT: 0x0000000000000012      4      0      0   0             0       0  is_stmt
+; DBG-NEXT: 0x0000000000000017      4      0      0   0             0       0  is_stmt
+; DBG-NEXT: 0x0000000000000019      4      0      0   0             0       0
+
+;; Test C:
+;; Check that is_stmt floats up from the call to the store.
+; DBG-NEXT: 0x000000000000001b      5      0      0   0             0       0  is_stmt
+; DBG-NEXT: 0x0000000000000029      5      0      0   0             0       0
+
+;; Test D:
+;; Check the is_stmt is not applied to the lower ranking instruction.
+; DBG-NEXT: 0x000000000000002e      6      0      0   0             0       0
+; DBG-NEXT: 0x0000000000000035      7      0      0   0             0       0  is_stmt
+
+; DBG-NEXT: 0x000000000000003a      8      0      0   0             0       0
+; DBG-NEXT: 0x000000000000003c      8      0      0   0             0       0  epilogue_begin
+; DBG-NEXT: 0x0000000000000041      8      0      0   0             0       0  end_sequence
 
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -44,12 +69,19 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define hidden i32 @fun() local_unnamed_addr !dbg !11 {
 entry:
-  store i32 0, ptr @z,     !dbg !DILocation(line: 1, scope: !11)
   %b = load i32, ptr @a,   !dbg !DILocation(line: 2, scope: !11)
+;; Test A:
   tail call void @f(),     !dbg !DILocation(line: 3, scope: !11)
+;; Test B:
   %x = tail call i32 @g(), !dbg !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 2)
-  %y = add i32 %x, %b,     !dbg !DILocation(line: 5, scope: !11, atomGroup: 1, atomRank: 1)
-  ret i32 %y,              !dbg !DILocation(line: 6, scope: !11)
+  %y = add i32 %x, %b,     !dbg !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 1)
+;; Test C:
+  store i32 1, ptr @z,     !dbg !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 2)
+  tail call void @f(),     !dbg !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 1)
+;; Test D:
+  store i32 2, ptr @z,     !dbg !DILocation(line: 6, scope: !11, atomGroup: 3, atomRank: 2)
+  tail call void @f(),     !dbg !DILocation(line: 7, scope: !11, atomGroup: 3, atomRank: 1)
+  ret i32 %y,              !dbg !DILocation(line: 8, scope: !11)
 }
 
 declare void @f() local_unnamed_addr

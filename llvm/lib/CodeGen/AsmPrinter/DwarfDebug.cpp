@@ -2154,7 +2154,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   }
 
   if (KeyInstructionsAreStmts) {
-    if (IsKey /*|| ForceIsStmt??*/)
+    if (IsKey)
       Flags |= DWARF2_FLAG_IS_STMT;
   } else {
     // If the line changed, we call that a new statement; unless we went to
@@ -2408,35 +2408,29 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       if (MI.isCall() || TII.isTailCall(MI)) {
         assert(MI.getDebugLoc() && "Unexpectedly missing DL");
 
-        // Calls are always key. So for the bouyancy code to work, we need to
-        // apply that unconditonally to calls now.
+        // Calls are always key.
         KeyInstructions.insert(Buoy);
         BuoyToKeyInst[Buoy] = &MI;
 
-        auto Cleanup = make_scope_exit([&] {
-          // If this is key (and calls are) then we don't want to risk
-          // floating subsequent is_stmts past it.
-          Buoy = nullptr;
-        });
-
-
-        auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
         uint64_t Group = MI.getDebugLoc()->getAtomGroup();
         uint8_t Rank = MI.getDebugLoc()->getAtomRank();
-        if (!Group || !Rank)
-          continue;
-
-        auto &[PrevRank, PrevInsts] = LastAtomMap[{InlinedAt, Group}];
-        if (PrevRank == Rank || PrevRank > Rank) {
-          for (auto *Supplanted : PrevInsts) {
-            // Don't erase the is_stmt we're using for this call.
-            if (Supplanted != Buoy)
-              KeyInstructions.erase(Supplanted);
+        if (Group && Rank) {
+          auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
+          auto &[PrevRank, PrevInsts] = LastAtomMap[{InlinedAt, Group}];
+          if (PrevRank == Rank || PrevRank > Rank) {
+            for (auto *Supplanted : PrevInsts) {
+              // Don't erase the is_stmt we're using for this call.
+              if (Supplanted != Buoy)
+                KeyInstructions.erase(Supplanted);
+            }
+            // Don't save the calls, we don't want them to be removable.
+            PrevInsts = {};
+            PrevRank = 0;
           }
-          // Don't save the calls, we don't want them to be removable.
-          PrevInsts = {};
-          PrevRank = 0;
         }
+
+        // Avoid floating any future is_stmts up to the call.
+        Buoy = nullptr;
         continue;
       }
 
@@ -2446,6 +2440,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       if (!Group || !Rank)
         continue;
 
+      // FIXME: Check if this really makes sense to keep.
+      // if not, we can ditch BuoyToKeyInst entirely I think.
       // If the last KI attached to this buoy has a different atom group then
       // we don't want to move past it; make the subsequent inst the buoy.
       if (Buoy && Buoy != &MI && BuoyToKeyInst.contains(Buoy) &&
@@ -2667,9 +2663,10 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   PrologEndLoc = emitInitialLocDirective(
       *MF, Asm->OutStreamer->getContext().getDwarfCompileUnitID());
 
-  findForceIsStmtInstrs(MF);
   if (KeyInstructionsAreStmts)
     findKeyInstructions(MF);
+  else
+    findForceIsStmtInstrs(MF);
 }
 
 unsigned
