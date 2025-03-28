@@ -2449,33 +2449,30 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       auto &[CandidateRank, CandidateInsts] = GroupCandidates[{InlinedAt, Group}];
 
       if (CandidateRank == 0) {
+        // This is the first time we're seeing an instruction in this atom
+        // group. Add it to the map.
         assert(CandidateInsts.empty());
         CandidateRank = Rank;
         CandidateInsts.push_back(Buoy);
 
       } else if (CandidateRank == Rank) {
+        // We've seen other instructions in this group of this rank. Discard
+        // ones we've seen in this block, keep the others, add this one.
         assert(!CandidateInsts.empty());
         SmallVector<const MachineInstr *> Insts;
         Insts.reserve(CandidateInsts.size() + 1);
         for (auto &PrevInst : CandidateInsts) {
-          // Add all branches in this group at this rank. Otherwise we get this:
-          //   condbr  ; (not is_stmt)
-          //   br      ; is_stmt
-          // We could make this more targeted, but this works well for now.
-          // Don't do this when we're using Buoyant-is-stmts.
-
-          // PrevInst - The instructino we marked is_stmt, which might come
-          //            before the key instruction.
-          // BuoyToKeyInst[PrevInst] <- The actual key instruction.
           if (PrevInst->getParent() != MI.getParent())
             Insts.push_back(PrevInst);
           else
             KeyInstructions.erase(PrevInst);
         }
         Insts.push_back(Buoy);
-        CandidateInsts = Insts;
+        CandidateInsts = std::move(Insts);
 
       } else if (CandidateRank > Rank) {
+        // We've seen other instructions in this group of lower precedence
+        // (higher rank). Discard them, add this one.
         assert(!CandidateInsts.empty());
         CandidateRank = Rank;
         for (auto *Supplanted : CandidateInsts)
@@ -2483,8 +2480,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         CandidateInsts = {Buoy};
 
       } else {
-        // CandidateRank outranks (is nonzero and smaller) this so ignore this
-        // instruction.
+        // We've seen other instructions in this group with higher precedence
+        // (lower rank). Discard this one.
         assert(Rank != 0 && CandidateRank < Rank && CandidateRank != 0);
         continue;
       }
