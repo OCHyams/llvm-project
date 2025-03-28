@@ -2374,18 +2374,14 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
            std::pair<uint16_t, SmallVector<const MachineInstr *>>>
       LastAtomMap;
 
-  // Rather than apply is_stmt directly to Key Instructions, we "float" is_stmt
-  // up to the 1st instruction with the same line number in a contiguous block.
-  // That instruction is called the "buoy". Each Buoy only maps to a single Key
-  // Instruction to avoid is_stmts floating past other Key Instructions.
-  //
-  // Map the Buoy instruction we're applying is_stmt to the key instructions
-  // that they're representing. Key=Buoy, Value=Key Instruction.
-  DenseMap<const MachineInstr *, const MachineInstr *> BuoyToKeyInst;
-
   for (auto &MBB : *MF) {
-    // See BuoyToKeyInst comment.
+    // Rather than apply is_stmt directly to Key Instructions, we "float"
+    // is_stmt up to the 1st instruction with the same line number in a
+    // contiguous block. That instruction is called the "buoy". Each Buoy only
+    // maps to a single Key Instruction to avoid is_stmts floating past other
+    // Key Instructions.
     const MachineInstr *Buoy = nullptr;
+    uint64_t BuoyAtom = 0;
 
     for (auto &MI : MBB) {
       if (MI.isMetaInstruction())
@@ -2395,8 +2391,11 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         continue;
 
       // Reset the Buoy to this instruciton if it has a different line number.
-      if (!Buoy || Buoy->getDebugLoc().getLine() != MI.getDebugLoc().getLine())
+      if (!Buoy ||
+          Buoy->getDebugLoc().getLine() != MI.getDebugLoc().getLine()) {
         Buoy = &MI;
+        BuoyAtom = 0;
+      }
 
       // Call instructions are handled specially - we always mark them as key
       // regardless of atom info.
@@ -2407,7 +2406,6 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
 
         // Calls are always key.
         KeyInstructions.insert(Buoy);
-        BuoyToKeyInst[Buoy] = &MI;
 
         uint64_t Group = MI.getDebugLoc()->getAtomGroup();
         uint8_t Rank = MI.getDebugLoc()->getAtomRank();
@@ -2437,14 +2435,11 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       if (!Group || !Rank)
         continue;
 
-      // FIXME: Check if this really makes sense to keep.
-      // if not, we can ditch BuoyToKeyInst entirely I think.
       // If the last KI attached to this buoy has a different atom group then
-      // we don't want to move past it; make the subsequent inst the buoy.
-      if (Buoy && Buoy != &MI && BuoyToKeyInst.contains(Buoy) &&
-          BuoyToKeyInst[Buoy]->getDebugLoc() &&
-          Group != BuoyToKeyInst[Buoy]->getDebugLoc().get()->getAtomGroup()) {
+      // we don't want to move past it; make this inst the buoy.
+      if (BuoyAtom && BuoyAtom != Group) {
         Buoy = &MI;
+        BuoyAtom = MI.getDebugLoc()->getAtomGroup();
       }
 
       auto &[PrevRank, PrevInsts] = LastAtomMap[{InlinedAt, Group}];
@@ -2468,8 +2463,7 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
           // PrevInst - The instructino we marked is_stmt, which might come
           //            before the key instruction.
           // BuoyToKeyInst[PrevInst] <- The actual key instruction.
-          if (PrevInst->getParent() != MI.getParent() ||
-              BuoyToKeyInst[PrevInst]->isBranch())
+          if (PrevInst->getParent() != MI.getParent())
             Insts.push_back(PrevInst);
           else
             KeyInstructions.erase(PrevInst);
@@ -2491,7 +2485,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         continue;
       }
       KeyInstructions.insert(Buoy);
-      BuoyToKeyInst[Buoy] = &MI;
+      assert(!BuoyAtom || BuoyAtom == MI.getDebugLoc()->getAtomGroup());
+      BuoyAtom = MI.getDebugLoc()->getAtomGroup();
     }
   }
 }
