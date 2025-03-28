@@ -2377,10 +2377,13 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
   for (auto &MBB : *MF) {
     // Rather than apply is_stmt directly to Key Instructions, we "float"
     // is_stmt up to the 1st instruction with the same line number in a
-    // contiguous block. That instruction is called the "buoy". Each Buoy only
-    // maps to a single Key Instruction to avoid is_stmts floating past other
-    // Key Instructions.
+    // contiguous block. That instruction is called the "buoy". The
+    // buoy gets reset if we encouner an instruction with an atom
+    // group.
     const MachineInstr *Buoy = nullptr;
+    // The atom group number associated with Buoy which may be 0 if we haven't
+    // encountered an atom group yet in this blob of instructions with the same
+    // line number.
     uint64_t BuoyAtom = 0;
 
     for (auto &MI : MBB) {
@@ -2418,7 +2421,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
               if (Supplanted != Buoy)
                 KeyInstructions.erase(Supplanted);
             }
-            // Don't save the calls, we don't want them to be removable.
+            // Don't save the calls, we don't want them to be removable
+            // from KeyInstructions.
             PrevInsts = {};
             PrevRank = 0;
           }
@@ -2435,8 +2439,7 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       if (!Group || !Rank)
         continue;
 
-      // If the last KI attached to this buoy has a different atom group then
-      // we don't want to move past it; make this inst the buoy.
+      // Don't let is_stmts float past instructions from different source atoms.
       if (BuoyAtom && BuoyAtom != Group) {
         Buoy = &MI;
         BuoyAtom = MI.getDebugLoc()->getAtomGroup();
