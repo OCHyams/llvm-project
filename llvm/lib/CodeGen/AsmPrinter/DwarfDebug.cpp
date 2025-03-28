@@ -2416,7 +2416,25 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         if (Group && Rank) {
           auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
           auto &[CandidateRank, CandidateInsts] = GroupCandidates[{InlinedAt, Group}];
-          if (CandidateRank == Rank || CandidateRank > Rank) {
+          if (CandidateRank == Rank) {
+            assert(!CandidateInsts.empty());
+            SmallVector<const MachineInstr *> Insts;
+            Insts.reserve(CandidateInsts.size());
+            for (auto &PrevInst : CandidateInsts) {
+              if (PrevInst->getParent() != MI.getParent())
+                Insts.push_back(PrevInst);
+              else
+                KeyInstructions.erase(PrevInst);
+            }
+
+            if (Insts.empty()) {
+              CandidateInsts.clear();
+              CandidateRank = 0;
+            } else {
+              CandidateInsts = std::move(Insts);
+            }
+
+          } else if (CandidateRank > Rank) {
             for (auto *Supplanted : CandidateInsts) {
               // Don't erase the is_stmt we're using for this call.
               if (Supplanted != Buoy)
@@ -2424,7 +2442,7 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
             }
             // Don't save the calls, we don't want them to be removable
             // from KeyInstructions.
-            CandidateInsts = {};
+            CandidateInsts.clear();
             CandidateRank = 0;
           }
         }
