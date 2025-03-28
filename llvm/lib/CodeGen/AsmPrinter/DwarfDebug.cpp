@@ -2359,20 +2359,21 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
   // New function - reset KeyInstructions.
   KeyInstructions.clear();
 
+  // The current candidate is_stmt instructions for each source atom.
+  // Map {(InlinedAt, Group): (Rank, Instructions)}.
+  DenseMap<std::pair<DILocation *, uint32_t>,
+           std::pair<uint16_t, SmallVector<const MachineInstr *>>>
+      GroupCandidates;
+
   // For each instruction:
-  //   * Skip insts without AtomGroup or AtomRank.
-  //   * Check if insts in this group have been seen already in LastAtomMap.
+  //   * Skip insts without DebugLoc, AtomGroup or AtomRank, and line zeros.
+  //   * Check if insts in this group have been seen already in GroupCandidates.
   //     * If this instr rank is equal, add this instruction to KeyInstructions.
   //       Remove existing instructions from KeyInstructions if they have the
   //       same parent.
   //     * If this instr rank is higher (lower precedence), ignore it.
   //     * If this instr rank is lower (higher precedence), erase existing
   //       instructions from KeyInstructions. Add this instr to KeyInstructions.
-
-  // {(InlinedAt, Group): (Rank, Instructions)}.
-  DenseMap<std::pair<DILocation *, uint32_t>,
-           std::pair<uint16_t, SmallVector<const MachineInstr *>>>
-      LastAtomMap;
 
   for (auto &MBB : *MF) {
     // Rather than apply is_stmt directly to Key Instructions, we "float"
@@ -2414,17 +2415,17 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         uint8_t Rank = MI.getDebugLoc()->getAtomRank();
         if (Group && Rank) {
           auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
-          auto &[PrevRank, PrevInsts] = LastAtomMap[{InlinedAt, Group}];
-          if (PrevRank == Rank || PrevRank > Rank) {
-            for (auto *Supplanted : PrevInsts) {
+          auto &[CandidateRank, CandidateInsts] = GroupCandidates[{InlinedAt, Group}];
+          if (CandidateRank == Rank || CandidateRank > Rank) {
+            for (auto *Supplanted : CandidateInsts) {
               // Don't erase the is_stmt we're using for this call.
               if (Supplanted != Buoy)
                 KeyInstructions.erase(Supplanted);
             }
             // Don't save the calls, we don't want them to be removable
             // from KeyInstructions.
-            PrevInsts = {};
-            PrevRank = 0;
+            CandidateInsts = {};
+            CandidateRank = 0;
           }
         }
 
@@ -2445,18 +2446,18 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         BuoyAtom = MI.getDebugLoc()->getAtomGroup();
       }
 
-      auto &[PrevRank, PrevInsts] = LastAtomMap[{InlinedAt, Group}];
+      auto &[CandidateRank, CandidateInsts] = GroupCandidates[{InlinedAt, Group}];
 
-      if (PrevRank == 0) {
-        assert(PrevInsts.empty());
-        PrevRank = Rank;
-        PrevInsts.push_back(Buoy);
+      if (CandidateRank == 0) {
+        assert(CandidateInsts.empty());
+        CandidateRank = Rank;
+        CandidateInsts.push_back(Buoy);
 
-      } else if (PrevRank == Rank) {
-        assert(!PrevInsts.empty());
+      } else if (CandidateRank == Rank) {
+        assert(!CandidateInsts.empty());
         SmallVector<const MachineInstr *> Insts;
-        Insts.reserve(PrevInsts.size() + 1);
-        for (auto &PrevInst : PrevInsts) {
+        Insts.reserve(CandidateInsts.size() + 1);
+        for (auto &PrevInst : CandidateInsts) {
           // Add all branches in this group at this rank. Otherwise we get this:
           //   condbr  ; (not is_stmt)
           //   br      ; is_stmt
@@ -2472,19 +2473,19 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
             KeyInstructions.erase(PrevInst);
         }
         Insts.push_back(Buoy);
-        PrevInsts = Insts;
+        CandidateInsts = Insts;
 
-      } else if (PrevRank > Rank) {
-        assert(!PrevInsts.empty());
-        PrevRank = Rank;
-        for (auto *Supplanted : PrevInsts)
+      } else if (CandidateRank > Rank) {
+        assert(!CandidateInsts.empty());
+        CandidateRank = Rank;
+        for (auto *Supplanted : CandidateInsts)
           KeyInstructions.erase(Supplanted);
-        PrevInsts = {Buoy};
+        CandidateInsts = {Buoy};
 
       } else {
-        // PrevRank outranks (is nonzero and smaller) this so ignore this
+        // CandidateRank outranks (is nonzero and smaller) this so ignore this
         // instruction.
-        assert(Rank != 0 && PrevRank < Rank && PrevRank != 0);
+        assert(Rank != 0 && CandidateRank < Rank && CandidateRank != 0);
         continue;
       }
       KeyInstructions.insert(Buoy);
