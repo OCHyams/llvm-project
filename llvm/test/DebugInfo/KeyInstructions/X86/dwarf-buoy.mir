@@ -7,21 +7,25 @@
 # RUN: | FileCheck %s --check-prefix=DBG
 
 # OBJ: 0000000000000000 <_Z1fPiii>:
-# OBJ-NEXT: 0: movl    $0x1, %ebx
-# OBJ-NEXT: 5: movl    $0x2, %eax
-# OBJ-NEXT: a: retq
+# OBJ-NEXT:  0:       movl    $0x1, %ebx
+# OBJ-NEXT:  5:       movl    $0x2, %eax
+# OBJ-NEXT:  a:       movl    $0x0, %eax
+# OBJ-NEXT:  f:       movl    $0x0, %eax
+# OBJ-NEXT: 14:       retq
 
 # DBG:      Address            Line   Column File   ISA Discriminator OpIndex Flags
 # DBG-NEXT: ------------------ ------ ------ ------ --- ------------- ------- -------------
 # DBG-NEXT: 0x0000000000000000      1      0      0   0             0       0  is_stmt prologue_end
 # DBG-NEXT: 0x0000000000000005      2      0      0   0             0       0  is_stmt
-# DBG-NEXT: 0x000000000000000a      2      0      0   0             0       0
+# DBG-NEXT: 0x000000000000000a      0      0      0   0             0       0
+# DBG-NEXT: 0x0000000000000014      2      0      0   0             0       0
+# DBG-NEXT: 0x0000000000000015      2      0      0   0             0       0  end_sequence
 
 ## The `RET64` is the only key instruction. The `MOV32ri 2` has the same line
 ## number so the is_stmt should "float up" from the ret to the mov. Check this
-## happens, check that the DBG_VALUE wedged between them with a different line
-## number doesn't disrupt that, and check the is_stmt doesn't float too far up
-## onto the `MOV32ri 1`.
+## happens; check that the DBG_VALUE wedged between them with a different line
+## number, the line zero, and missing DebugLoc, don't disrupt that; and check
+## the is_stmt doesn't float too far up onto the `MOV32ri 1`.
 
 --- |
   target triple = "x86_64-unknown-linux-gnu"
@@ -54,6 +58,8 @@ body:             |
 
     $ebx = MOV32ri 1,                              debug-location !DILocation(line: 1, scope: !5)
     $eax = MOV32ri 2,                              debug-location !DILocation(line: 2, scope: !5)
+    $eax = MOV32ri 0,                              debug-location !DILocation(line: 0, scope: !5)
+    $eax = MOV32ri 0
     DBG_VALUE $noreg, $noreg, !8, !DIExpression(), debug-location !DILocation(line: 1, scope: !5)
     RET64 $eax,                                    debug-location !DILocation(line: 2, scope: !5, atomGroup: 1, atomRank: 2)
 

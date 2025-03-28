@@ -2391,11 +2391,8 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
       if (MI.isMetaInstruction())
         continue;
 
-      if (!MI.getDebugLoc()) {
-        // FIXME: Should we ignore line 0 / empty locs for buoys?
-        Buoy = nullptr;
+      if (!MI.getDebugLoc() || !MI.getDebugLoc().getLine())
         continue;
-      }
 
       // Reset the Buoy to this instruciton if it has a different line number.
       if (!Buoy || Buoy->getDebugLoc().getLine() != MI.getDebugLoc().getLine())
