@@ -2416,14 +2416,23 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
         if (Group && Rank) {
           auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
           auto &[CandidateRank, CandidateInsts] = GroupCandidates[{InlinedAt, Group}];
+
+          // This looks similar to the non-call handling code, except that
+          // we don't put the call into CandidateInsts so that they can't be
+          // made un-key. As a result, we also have to take special care not
+          // to erase the is_stmt from the buoy, and prevent that happening
+          // in the future.
+
           if (CandidateRank == Rank) {
+            // We've seen other instructions in this group of this rank. Discard
+            // ones we've seen in this block, keep the others.
             assert(!CandidateInsts.empty());
             SmallVector<const MachineInstr *> Insts;
             Insts.reserve(CandidateInsts.size());
             for (auto &PrevInst : CandidateInsts) {
-              if (PrevInst->getParent() != MI.getParent() || PrevInst == Buoy)
+              if (PrevInst->getParent() != MI.getParent())
                 Insts.push_back(PrevInst);
-              else
+              else if (PrevInst != Buoy)
                 KeyInstructions.erase(PrevInst);
             }
 
@@ -2435,13 +2444,13 @@ void DwarfDebug::findKeyInstructions(const MachineFunction *MF) {
             }
 
           } else if (CandidateRank > Rank) {
+            // We've seen other instructions in this group of lower precedence
+            // (higher rank). Discard them.
             for (auto *Supplanted : CandidateInsts) {
               // Don't erase the is_stmt we're using for this call.
               if (Supplanted != Buoy)
                 KeyInstructions.erase(Supplanted);
             }
-            // Don't save the calls, we don't want them to be removable
-            // from KeyInstructions.
             CandidateInsts.clear();
             CandidateRank = 0;
           }
