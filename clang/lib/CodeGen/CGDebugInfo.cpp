@@ -153,11 +153,11 @@ void CGDebugInfo::addInstSourceAtomMetadata(llvm::Instruction *I,
 };
 
 void CGDebugInfo::addInstToCurrentSourceAtom(llvm::Instruction *KeyInstruction,
-                                             llvm::Value *Backup,
-                                             uint8_t KeyInstRank) {
+                                             llvm::Value *Backup) {
   if (!CGM.getCodeGenOpts().DebugKeyInstructions)
     return;
 
+  uint8_t KeyInstRank = 0;
   uint64_t Group = KeyInstructionsInfo.CurrentAtom;
   if (!Group)
     return;
@@ -184,17 +184,16 @@ void CGDebugInfo::addInstToCurrentSourceAtom(llvm::Instruction *KeyInstruction,
 }
 
 void CGDebugInfo::addRetToOverrideOrNewSourceAtom(llvm::ReturnInst *Ret,
-                                                  llvm::Value *Backup,
-                                                  uint8_t KeyInstRank) {
+                                                  llvm::Value *Backup) {
   if (KeyInstructionsInfo.RetAtomOverride) {
     uint64_t CurrentAtom = KeyInstructionsInfo.CurrentAtom;
     KeyInstructionsInfo.CurrentAtom = KeyInstructionsInfo.RetAtomOverride;
-    addInstToCurrentSourceAtom(Ret, Backup, KeyInstRank);
+    addInstToCurrentSourceAtom(Ret, Backup);
     KeyInstructionsInfo.CurrentAtom = CurrentAtom;
     KeyInstructionsInfo.RetAtomOverride = 0;
   } else {
     auto Grp = ApplyAtomGroup(this);
-    addInstToCurrentSourceAtom(Ret, Backup, KeyInstRank);
+    addInstToCurrentSourceAtom(Ret, Backup);
   }
 }
 

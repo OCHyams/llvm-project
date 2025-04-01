@@ -649,16 +649,20 @@ public:
                                                 StringRef Category,
                                                 StringRef FailureMsg);
 
-  // TODO(OCH): comment.
+  /// Reset internal state.
   void completeFunction();
 
-  // TODO(OCH): Add comment.
+  /// Add \p KeyInstruction and an optional \p Backup instruction to the
+  /// current atom group, created using ApplyAtomGroup.
   void addInstToCurrentSourceAtom(llvm::Instruction *KeyInstruction,
-                                  llvm::Value *Backup, uint8_t KeyInstRank = 1);
-  // TODO(OCH): Add comment.
+                                  llvm::Value *Backup);
+
+  /// Add \p Ret and an optional \p Backup instruction to the
+  /// saved override used for some ret instructions if it exists, or a new atom.
   void addRetToOverrideOrNewSourceAtom(llvm::ReturnInst *Ret,
-                                       llvm::Value *Backup,
-                                       uint8_t KeyInstRank = 1);
+                                       llvm::Value *Backup);
+
+  /// Set an atom group override for use in addRetToOverrideOrNewSourceAtom.
   void setRetInstSourceAtomOverride(uint64_t Group);
 
 private:
