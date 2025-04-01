@@ -928,10 +928,9 @@ static bool canEmitInitWithFewStoresAfterBZero(llvm::Constant *Init,
 
 /// For inits that canEmitInitWithFewStoresAfterBZero returned true for, emit
 /// the scalar stores that would be required.
-static void emitStoresForInitAfterBZero(CodeGenModule &CGM,
-                                        llvm::Constant *Init, Address Loc,
-                                        bool isVolatile, CGBuilderTy &Builder,
-                                        bool IsAutoInit) {
+void CodeGenFunction::emitStoresForInitAfterBZero(llvm::Constant *Init,
+                                                  Address Loc, bool isVolatile,
+                                                  bool IsAutoInit) {
   assert(!Init->isNullValue() && !isa<llvm::UndefValue>(Init) &&
          "called emitStoresForInitAfterBZero for zero or undef value.");
 
@@ -952,8 +951,8 @@ static void emitStoresForInitAfterBZero(CodeGenModule &CGM,
       // If necessary, get a pointer to the element and emit it.
       if (!Elt->isNullValue() && !isa<llvm::UndefValue>(Elt))
         emitStoresForInitAfterBZero(
-            CGM, Elt, Builder.CreateConstInBoundsGEP2_32(Loc, 0, i), isVolatile,
-            Builder, IsAutoInit);
+            Elt, Builder.CreateConstInBoundsGEP2_32(Loc, 0, i), isVolatile,
+            IsAutoInit);
     }
     return;
   }
@@ -966,9 +965,9 @@ static void emitStoresForInitAfterBZero(CodeGenModule &CGM,
 
     // If necessary, get a pointer to the element and emit it.
     if (!Elt->isNullValue() && !isa<llvm::UndefValue>(Elt))
-      emitStoresForInitAfterBZero(CGM, Elt,
+      emitStoresForInitAfterBZero(Elt,
                                   Builder.CreateConstInBoundsGEP2_32(Loc, 0, i),
-                                  isVolatile, Builder, IsAutoInit);
+                                  isVolatile, IsAutoInit);
   }
 }
 
@@ -1201,8 +1200,7 @@ void CodeGenFunction::emitStoresForConstant(const VarDecl &D, Address Loc,
         constant->isNullValue() || isa<llvm::UndefValue>(constant);
     if (!valueAlreadyCorrect) {
       Loc = Loc.withElementType(Ty);
-      emitStoresForInitAfterBZero(CGM, constant, Loc, isVolatile, Builder,
-                                  IsAutoInit);
+      emitStoresForInitAfterBZero(constant, Loc, isVolatile, IsAutoInit);
     }
     return;
   }
