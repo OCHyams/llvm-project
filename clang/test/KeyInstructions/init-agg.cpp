@@ -15,10 +15,8 @@ void a() {
 // CHECK: %0 = load i32, ptr @g{{.*}}, !dbg [[G2R2:!.*]]
 // CHECK: store i32 %0, ptr %{{.*}}, !dbg [[G2R1]]
     int B[] = { 1, 2, g};
-// TODO-CHECK: ret{{.*}}, !dbg [[G3R1:!.*]]
 }
 
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[G2R2]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 2)
-// TODO-CHECK: [[G3R1]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 1)
