@@ -157,12 +157,11 @@ void CGDebugInfo::addInstToCurrentSourceAtom(llvm::Instruction *KeyInstruction,
   if (!CGM.getCodeGenOpts().DebugKeyInstructions)
     return;
 
-  uint8_t KeyInstRank = 0;
   uint64_t Group = KeyInstructionsInfo.CurrentAtom;
   if (!Group)
     return;
 
-  addInstSourceAtomMetadata(KeyInstruction, Group, KeyInstRank);
+  addInstSourceAtomMetadata(KeyInstruction, Group, /*Rank=*/1);
 
   llvm::Instruction *BackupI =
       llvm::dyn_cast_or_null<llvm::Instruction>(Backup);
@@ -170,16 +169,17 @@ void CGDebugInfo::addInstToCurrentSourceAtom(llvm::Instruction *KeyInstruction,
     return;
 
   // Add the backup instruction to the group.
-  addInstSourceAtomMetadata(BackupI, Group, /*Rank*/ ++KeyInstRank);
+  addInstSourceAtomMetadata(BackupI, Group, /*Rank=*/2);
 
   // Look through chains of casts too, as they're probably going to evaporate.
   // FIXME: And other nops like zero length geps?
   // FIXME: Should use Cast->isNoopCast()?
+  uint8_t Rank = 3;
   while (auto *Cast = dyn_cast<llvm::CastInst>(BackupI)) {
     BackupI = dyn_cast<llvm::Instruction>(Cast->getOperand(0));
     if (!BackupI)
       break;
-    addInstSourceAtomMetadata(BackupI, Group, ++KeyInstRank);
+    addInstSourceAtomMetadata(BackupI, Group, Rank++);
   }
 }
 
