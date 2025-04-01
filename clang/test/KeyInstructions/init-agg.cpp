@@ -9,12 +9,12 @@ int g;
 void a() {
 // CHECK: _Z1av()
 // CHECK: call void @llvm.memcpy{{.*}}, !dbg [[G1R1:!.*]]
-    int A[] = { 1, 2, 3};
+    int A[] = { 1, 2, 3 };
 // CHECK: store i32 1, ptr %{{.*}}, !dbg [[G2R1:!.*]]
 // CHECK: store i32 2, ptr %{{.*}}, !dbg [[G2R1]]
 // CHECK: %0 = load i32, ptr @g{{.*}}, !dbg [[G2R2:!.*]]
 // CHECK: store i32 %0, ptr %{{.*}}, !dbg [[G2R1]]
-    int B[] = { 1, 2, g};
+    int B[] = { 1, 2, g };
 }
 
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
