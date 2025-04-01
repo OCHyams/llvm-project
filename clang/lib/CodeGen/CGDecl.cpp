@@ -1169,10 +1169,10 @@ static Address createUnnamedGlobalForMemcpyFrom(CodeGenModule &CGM,
   return SrcPtr.withElementType(CGM.Int8Ty);
 }
 
-static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
-                                  Address Loc, bool isVolatile,
-                                  CGBuilderTy &Builder,
-                                  llvm::Constant *constant, bool IsAutoInit) {
+void CodeGenFunction::emitStoresForConstant(const VarDecl &D, Address Loc,
+                                            bool isVolatile,
+                                            llvm::Constant *constant,
+                                            bool IsAutoInit) {
   auto *Ty = constant->getType();
   uint64_t ConstantSize = CGM.getDataLayout().getTypeAllocSize(Ty);
   if (!ConstantSize)
@@ -1240,7 +1240,7 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
               CharUnits::fromQuantity(Layout->getElementOffset(i));
           Address EltPtr = Builder.CreateConstInBoundsByteGEP(
               Loc.withElementType(CGM.Int8Ty), CurOff);
-          emitStoresForConstant(CGM, D, EltPtr, isVolatile, Builder,
+          emitStoresForConstant(D, EltPtr, isVolatile,
                                 constant->getAggregateElement(i), IsAutoInit);
         }
         return;
@@ -1251,7 +1251,7 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
         for (unsigned i = 0; i != ATy->getNumElements(); i++) {
           Address EltPtr = Builder.CreateConstGEP(
               Loc.withElementType(ATy->getElementType()), i);
-          emitStoresForConstant(CGM, D, EltPtr, isVolatile, Builder,
+          emitStoresForConstant(D, EltPtr, isVolatile,
                                 constant->getAggregateElement(i), IsAutoInit);
         }
         return;
@@ -1269,24 +1269,22 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
     I->addAnnotationMetadata("auto-init");
 }
 
-static void emitStoresForZeroInit(CodeGenModule &CGM, const VarDecl &D,
-                                  Address Loc, bool isVolatile,
-                                  CGBuilderTy &Builder) {
+void CodeGenFunction::emitStoresForZeroInit(const VarDecl &D, Address Loc,
+                                            bool isVolatile) {
   llvm::Type *ElTy = Loc.getElementType();
   llvm::Constant *constant =
       constWithPadding(CGM, IsPattern::No, llvm::Constant::getNullValue(ElTy));
-  emitStoresForConstant(CGM, D, Loc, isVolatile, Builder, constant,
+  emitStoresForConstant(D, Loc, isVolatile, constant,
                         /*IsAutoInit=*/true);
 }
 
-static void emitStoresForPatternInit(CodeGenModule &CGM, const VarDecl &D,
-                                     Address Loc, bool isVolatile,
-                                     CGBuilderTy &Builder) {
+void CodeGenFunction::emitStoresForPatternInit(const VarDecl &D, Address Loc,
+                                               bool isVolatile) {
   llvm::Type *ElTy = Loc.getElementType();
   llvm::Constant *constant = constWithPadding(
       CGM, IsPattern::Yes, initializationPatternFor(CGM, ElTy));
   assert(!isa<llvm::UndefValue>(constant));
-  emitStoresForConstant(CGM, D, Loc, isVolatile, Builder, constant,
+  emitStoresForConstant(D, Loc, isVolatile, constant,
                         /*IsAutoInit=*/true);
 }
 
@@ -1829,7 +1827,7 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
       if (trivialAutoVarInitMaxSize > 0 &&
           allocSize > trivialAutoVarInitMaxSize)
         return;
-      emitStoresForZeroInit(CGM, D, Loc, isVolatile, Builder);
+      emitStoresForZeroInit(D, Loc, isVolatile);
       break;
     case LangOptions::TrivialAutoVarInitKind::Pattern:
       if (CGM.stopAutoInit())
@@ -1837,7 +1835,7 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
       if (trivialAutoVarInitMaxSize > 0 &&
           allocSize > trivialAutoVarInitMaxSize)
         return;
-      emitStoresForPatternInit(CGM, D, Loc, isVolatile, Builder);
+      emitStoresForPatternInit(D, Loc, isVolatile);
       break;
     }
     return;
@@ -2053,8 +2051,8 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
     return EmitStoreThroughLValue(RValue::get(constant), lv, true);
   }
 
-  emitStoresForConstant(CGM, D, Loc.withElementType(CGM.Int8Ty),
-                        type.isVolatileQualified(), Builder, constant,
+  emitStoresForConstant(D, Loc.withElementType(CGM.Int8Ty),
+                        type.isVolatileQualified(), constant,
                         /*IsAutoInit=*/false);
 }
 
