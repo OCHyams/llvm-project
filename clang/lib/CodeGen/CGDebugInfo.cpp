@@ -173,8 +173,8 @@ void CGDebugInfo::addInstToCurrentSourceAtom(llvm::Instruction *KeyInstruction,
   addInstSourceAtomMetadata(BackupI, Group, /*Rank*/ ++KeyInstRank);
 
   // Look through chains of casts too, as they're probably going to evaporate.
-  // FIXME(OCH): And other nops like zero length geps?
-  // FIXME(OCH): Should use Cast->isNoopCast()?
+  // FIXME: And other nops like zero length geps?
+  // FIXME: Should use Cast->isNoopCast()?
   while (auto *Cast = dyn_cast<llvm::CastInst>(BackupI)) {
     BackupI = dyn_cast<llvm::Instruction>(Cast->getOperand(0));
     if (!BackupI)
