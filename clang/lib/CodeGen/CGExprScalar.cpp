@@ -5741,6 +5741,7 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
 
 LValue CodeGenFunction::EmitCompoundAssignmentLValue(
                                             const CompoundAssignOperator *E) {
+  ApplyAtomGroup Grp(getDebugInfo());
   ScalarExprEmitter Scalar(*this);
   Value *Result = nullptr;
   switch (E->getOpcode()) {
