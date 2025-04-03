@@ -4,7 +4,7 @@
 void g(int *a) {
     // CHECK: %2 = load ptr, ptr %a.addr{{.*}}, !dbg [[G1R2:!.*]]
     // CHECK: store ptr %2, ptr @_ZZ1gPiE1b{{.*}}, !dbg [[G1R1:!.*]]
-      static int &b = *a;
+    static int &b = *a;
 }
 
 // CHECK: [[G1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
