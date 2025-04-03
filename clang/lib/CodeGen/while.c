@@ -21,10 +21,10 @@
 // 2, [4, 2]+ which might be nicer. FIXME: do that later.
 
 void a(int A) {
-    // CHECK: %dec = add nsw i32 %0, -1, !dbg [[G1R2:!.*]]
-    // CHECK: store i32 %dec, ptr %A.addr{{.*}}, !dbg [[G1R1:!.*]]
-    // CHECK: %tobool = icmp ne i32 %dec, 0, !dbg [[G2R1:!.*]]
-    // CHECK: br i1 %tobool, label %while.body, label %while.end, !dbg [[G3R1:!.*]]
+// CHECK: %dec = add nsw i32 %0, -1, !dbg [[G1R2:!.*]]
+// CHECK: store i32 %dec, ptr %A.addr{{.*}}, !dbg [[G1R1:!.*]]
+// CHECK: %tobool = icmp ne i32 %dec, 0, !dbg [[G2R1:!.*]]
+// CHECK: br i1 %tobool, label %while.body, label %while.end, !dbg [[G3R1:!.*]]
     while (--A) { };
 }
 
