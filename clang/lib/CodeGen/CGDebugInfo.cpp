@@ -221,10 +221,10 @@ ApplyAtomGroup::~ApplyAtomGroup() {
   if (!DI)
     return;
 
-  if (DI->KeyInstructionsInfo.HighestEmittedAtom + 1 <
-      DI->KeyInstructionsInfo.NextAtom)
-    DI->KeyInstructionsInfo.NextAtom =
-        DI->KeyInstructionsInfo.HighestEmittedAtom + 1;
+  // We may not have used the group number at all.
+  DI->KeyInstructionsInfo.NextAtom =
+      std::min(DI->KeyInstructionsInfo.HighestEmittedAtom + 1,
+               DI->KeyInstructionsInfo.NextAtom);
 
   DI->KeyInstructionsInfo.CurrentAtom = OriginalAtom;
 }
