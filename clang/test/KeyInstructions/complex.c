@@ -1,11 +1,9 @@
 
 // RUN: %clang -gkey-instructions -x c++ %s -gmlt -gcolumn-info -S -emit-llvm -o - -Wno-unused-variable \
-// RUN: | FileCheck %s 
-// //--implicit-check-not atomGroup --implicit-check-not atomRank
+// RUN: | FileCheck %s --implicit-check-not atomGroup --implicit-check-not atomRank
 
 // RUN: %clang -gkey-instructions -x c %s -gmlt -gcolumn-info -S -emit-llvm -o - -Wno-unused-variable \
-// RUN: | FileCheck %s 
-// --implicit-check-not atomGroup --implicit-check-not atomRank
+// RUN: | FileCheck %s --implicit-check-not atomGroup --implicit-check-not atomRank
 
 _Complex float ci;
 void test() {
