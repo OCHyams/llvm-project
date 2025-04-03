@@ -1,8 +1,10 @@
-// RUN: %clang -gkey-instructions %s -gmlt -gcolumn-info -S -emit-llvm -o - \
+// RUN: %clang -gkey-instructions -x c++ %s -gmlt -gcolumn-info -S -emit-llvm -o - \
+// RUN: | FileCheck %s --implicit-check-not atomGroup --implicit-check-not atomRank
+
+// RUN: %clang -gkey-instructions -x c %s -gmlt -gcolumn-info -S -emit-llvm -o - \
 // RUN: | FileCheck %s --implicit-check-not atomGroup --implicit-check-not atomRank
 
 void a() {
-// CHECK: _Z1av()
 // CHECK: store i32 0, ptr %A{{.*}}, !dbg [[G1R1:!.*]]
     int A = 0;
 // CHECK: %add = add {{.*}}, !dbg [[G2R2:!.*]]
