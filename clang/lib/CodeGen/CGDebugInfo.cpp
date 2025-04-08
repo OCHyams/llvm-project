@@ -197,6 +197,17 @@ void CGDebugInfo::addRetToOverrideOrNewSourceAtom(llvm::ReturnInst *Ret,
   }
 }
 
+void CGDebugInfo::setInstIsNotKey(llvm::Instruction *I) const {
+  auto DL = I->getDebugLoc();
+  if (!DL || DL->getAtomGroup())
+    return;
+  uint64_t Marker = std::numeric_limits<uint64_t>::max();
+  llvm::DILocation *NewDL = llvm::DILocation::get(
+      I->getContext(), DL.getLine(), DL.getCol(), DL.getScope(),
+      DL.getInlinedAt(), DL.isImplicitCode(), Marker, 1);
+  I->setDebugLoc(NewDL);
+}
+
 void CGDebugInfo::setRetInstSourceAtomOverride(uint64_t Group) {
   assert(KeyInstructionsInfo.RetAtomOverride == 0);
   KeyInstructionsInfo.RetAtomOverride = Group;

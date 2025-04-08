@@ -40,6 +40,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Debug.h"
@@ -1783,6 +1784,11 @@ public:
                                        llvm::Value *Backup) {
     if (CGDebugInfo *DI = getDebugInfo())
       DI->addRetToOverrideOrNewSourceAtom(Ret, Backup);
+  }
+
+  void setInstIsNotKey(llvm::Instruction *I) {
+    if (CGDebugInfo *DI = getDebugInfo())
+      DI->setInstIsNotKey(I);
   }
 
 private:

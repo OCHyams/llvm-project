@@ -27,6 +27,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Allocator.h"
 #include <map>
@@ -664,6 +665,8 @@ public:
 
   /// Set an atom group override for use in addRetToOverrideOrNewSourceAtom.
   void setRetInstSourceAtomOverride(uint64_t Group);
+
+  void setInstIsNotKey(llvm::Instruction *I) const;
 
 private:
   /// Amend \p I's DebugLoc with \p Group (its source atom group) and \p
