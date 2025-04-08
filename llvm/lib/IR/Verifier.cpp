@@ -5145,6 +5145,11 @@ void Verifier::visitInstruction(Instruction &I) {
   BasicBlock *BB = I.getParent();
   Check(BB, "Instruction not embedded in basic block!", &I);
 
+  if (auto &DL = I.getDebugLoc()) {
+    if (isa<StoreInst>(I) || isa<MemTransferInst>(I))
+      CheckDI(DL->getAtomGroup(), "Store missing atom", I, DL);
+  }
+
   if (!isa<PHINode>(I)) {   // Check that non-phi nodes are not self referential
     for (User *U : I.users()) {
       Check(U != (User *)&I || !DT.isReachableFromEntry(BB),
