@@ -850,9 +850,11 @@ llvm::BasicBlock *CodeGenFunction::EmitLandingPad() {
       Builder.CreateLandingPad(llvm::StructType::get(Int8PtrTy, Int32Ty), 0);
 
   llvm::Value *LPadExn = Builder.CreateExtractValue(LPadInst, 0);
-  Builder.CreateStore(LPadExn, getExceptionSlot());
+  auto *I = Builder.CreateStore(LPadExn, getExceptionSlot());
+  setInstIsNotKey(I);
   llvm::Value *LPadSel = Builder.CreateExtractValue(LPadInst, 1);
-  Builder.CreateStore(LPadSel, getEHSelectorSlot());
+  I = Builder.CreateStore(LPadSel, getEHSelectorSlot());
+  setInstIsNotKey(I);
 
   // Save the exception pointer.  It's safe to use a single exception
   // pointer per function because EH cleanups can never have nested
@@ -1654,7 +1656,8 @@ llvm::BasicBlock *CodeGenFunction::getEHResumeBlock(bool isCleanup) {
   LPadVal = Builder.CreateInsertValue(LPadVal, Exn, 0, "lpad.val");
   LPadVal = Builder.CreateInsertValue(LPadVal, Sel, 1, "lpad.val");
 
-  Builder.CreateResume(LPadVal);
+  auto *Resume = Builder.CreateResume(LPadVal);
+  addInstToNewSourceAtom(Resume, nullptr);
   Builder.restoreIP(SavedIP);
   return EHResumeBlock;
 }
