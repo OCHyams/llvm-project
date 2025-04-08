@@ -836,8 +836,11 @@ void CodeGenFunction::PopCleanupBlock(bool FallthroughIsBranchThrough,
       // If there's a fallthrough, we need to store the cleanup
       // destination index.  For fall-throughs this is always zero.
       if (HasFallthrough) {
-        if (!HasPrebranchedFallthrough)
-          Builder.CreateStore(Builder.getInt32(0), getNormalCleanupDestSlot());
+        if (!HasPrebranchedFallthrough) {
+          auto *I = Builder.CreateStore(Builder.getInt32(0),
+                                        getNormalCleanupDestSlot());
+          setInstIsNotKey(I);
+        }
 
       // Otherwise, save and clear the IP if we don't have fallthrough
       // because the cleanup is inactive.
