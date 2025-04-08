@@ -22,6 +22,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 
+#include <limits>
 #include <numeric>
 #include <optional>
 
@@ -67,7 +68,7 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
-  if (AtomRank)
+  if (AtomGroup && AtomGroup != std::numeric_limits<uint64_t>::max())
     C.updateAtomGroupWaterline(AtomGroup + 1);
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&

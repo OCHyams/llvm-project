@@ -54,6 +54,7 @@
 #include "llvm/Support/SHA256.h"
 #include "llvm/Support/TimeProfiler.h"
 #include <cstdint>
+#include <limits>
 #include <optional>
 using namespace clang;
 using namespace clang::CodeGen;
@@ -236,6 +237,20 @@ ApplyAtomGroup::~ApplyAtomGroup() {
   DI->KeyInstructionsInfo.NextAtom =
       std::min(DI->KeyInstructionsInfo.HighestEmittedAtom + 1,
                DI->KeyInstructionsInfo.NextAtom);
+
+  DI->KeyInstructionsInfo.CurrentAtom = OriginalAtom;
+}
+
+ApplyNoAtoms::ApplyNoAtoms(CGDebugInfo *DI) : DI(DI) {
+  if (!DI)
+    return;
+  OriginalAtom = DI->KeyInstructionsInfo.CurrentAtom;
+  DI->KeyInstructionsInfo.CurrentAtom = std::numeric_limits<uint64_t>::max();
+}
+
+ApplyNoAtoms::~ApplyNoAtoms() {
+  if (!DI)
+    return;
 
   DI->KeyInstructionsInfo.CurrentAtom = OriginalAtom;
 }

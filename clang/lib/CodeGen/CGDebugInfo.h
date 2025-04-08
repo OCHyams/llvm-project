@@ -60,6 +60,7 @@ class CGDebugInfo {
   friend class ApplyDebugLocation;
   friend class SaveAndRestoreLocation;
   friend class ApplyAtomGroup;
+  friend class ApplyNoAtoms;
 
   CodeGenModule &CGM;
   const llvm::codegenoptions::DebugInfoKind DebugKind;
@@ -904,6 +905,15 @@ class ApplyAtomGroup {
 public:
   ApplyAtomGroup(CGDebugInfo *DI);
   ~ApplyAtomGroup();
+};
+
+class ApplyNoAtoms {
+  uint64_t OriginalAtom = 0;
+  CGDebugInfo *DI = nullptr;
+
+public:
+  ApplyNoAtoms(CGDebugInfo *DI);
+  ~ApplyNoAtoms();
 };
 
 /// A scoped helper to set the current debug location to the specified
