@@ -888,7 +888,8 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI_mm_setcsr:
   case X86::BI__builtin_ia32_ldmxcsr: {
     RawAddress Tmp = CreateMemTemp(E->getArg(0)->getType());
-    Builder.CreateStore(Ops[0], Tmp);
+    auto *Store = Builder.CreateStore(Ops[0], Tmp);
+    setInstIsNotKey(Store);
     return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::x86_sse_ldmxcsr),
                               Tmp.getPointer());
   }
