@@ -2132,9 +2132,15 @@ class DILocation : public MDNode {
                         getAtomRank());
   }
 public:
-  uint64_t getAtomGroup() const {
+  uint64_t getRawAtomGroup() const {
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
     return AtomGroup;
+#endif
+    return 0;
+  }
+  uint64_t getAtomGroup() const {
+#ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
+    return AtomGroup == std::numeric_limits<uint64_t>::max() ? 0 : AtomGroup;
 #endif
     return 0;
   }
