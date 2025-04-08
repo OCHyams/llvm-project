@@ -2590,6 +2590,7 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
         EmitPointerAuthSign(*AuthenticationInfo, VTableAddressPoint);
 
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
+  setInstIsNotKey(Store);
   TBAAAccessInfo TBAAInfo = CGM.getTBAAVTablePtrAccessInfo(PtrTy);
   CGM.DecorateInstructionWithTBAA(Store, TBAAInfo);
   if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
