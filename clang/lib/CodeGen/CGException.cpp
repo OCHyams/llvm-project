@@ -12,6 +12,7 @@
 
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
+#include "CGDebugInfo.h"
 #include "CGObjCRuntime.h"
 #include "CodeGenFunction.h"
 #include "ConstantEmitter.h"
@@ -404,6 +405,7 @@ void CodeGenFunction::EmitAnyExprToExn(const Expr *e, Address addr) {
   llvm::Type *ty = ConvertTypeForMem(e->getType());
   Address typedAddr = addr.withElementType(ty);
 
+  ApplyNoAtoms NoGrp(getDebugInfo());
   // FIXME: this isn't quite right!  If there's a final unelided call
   // to a copy constructor, then according to [except.terminate]p1 we
   // must call std::terminate() if that constructor throws, because
