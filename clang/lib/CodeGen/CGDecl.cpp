@@ -1395,7 +1395,8 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
       VLAExprNames.push_back(&Ident);
       auto SizeExprAddr =
           CreateDefaultAlignTempAlloca(VlaSize.NumElts->getType(), NameRef);
-      Builder.CreateStore(VlaSize.NumElts, SizeExprAddr);
+      auto *I = Builder.CreateStore(VlaSize.NumElts, SizeExprAddr);
+      setInstIsNotKey(I);
       Dimensions.emplace_back(SizeExprAddr.getPointer(),
                               Type1D.getUnqualifiedType());
     }
@@ -1666,7 +1667,8 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
 
         llvm::Value *V = Builder.CreateStackSave();
         assert(V->getType() == AllocaInt8PtrTy);
-        Builder.CreateStore(V, Stack);
+        auto *I = Builder.CreateStore(V, Stack);
+        setInstIsNotKey(I);
 
         DidCallStackSave = true;
 
