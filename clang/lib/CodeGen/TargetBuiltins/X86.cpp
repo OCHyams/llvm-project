@@ -2948,7 +2948,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       return HigherBits;
 
     Address HighBitsAddress = EmitPointerWithAlignment(E->getArg(2));
-    Builder.CreateStore(HigherBits, HighBitsAddress);
+    // TODO(OCH): Test.
+    auto *Store = Builder.CreateStore(HigherBits, HighBitsAddress);
+    addInstToNewSourceAtom(Store, HigherBits);
     return Builder.CreateIntCast(MulResult, ResType, IsSigned);
   }
 
