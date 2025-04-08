@@ -1726,7 +1726,7 @@ public:
   /// Zero-init the MCDC temp value.
   void maybeResetMCDCCondBitmap(const Expr *E) {
     if (isMCDCCoverageEnabled() && isBinaryLogicalOp(E)) {
-      PGO.emitMCDCCondBitmapReset(Builder, E, MCDCCondBitmapAddr);
+      PGO.emitMCDCCondBitmapReset(*this, Builder, E, MCDCCondBitmapAddr);
       PGO.setCurrentStmt(E);
     }
   }

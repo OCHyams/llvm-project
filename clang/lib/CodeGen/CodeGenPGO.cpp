@@ -1280,7 +1280,8 @@ void CodeGenPGO::emitMCDCTestVectorBitmapUpdate(CGBuilderTy &Builder,
       CGM.getIntrinsic(llvm::Intrinsic::instrprof_mcdc_tvbitmap_update), Args);
 }
 
-void CodeGenPGO::emitMCDCCondBitmapReset(CGBuilderTy &Builder, const Expr *S,
+void CodeGenPGO::emitMCDCCondBitmapReset(CodeGenFunction &CGF,
+                                         CGBuilderTy &Builder, const Expr *S,
                                          Address MCDCCondBitmapAddr) {
   if (!canEmitMCDCCoverage(Builder) || !RegionMCDCState)
     return;
@@ -1291,7 +1292,8 @@ void CodeGenPGO::emitMCDCCondBitmapReset(CGBuilderTy &Builder, const Expr *S,
     return;
 
   // Emit intrinsic that resets a dedicated temporary value on the stack to 0.
-  Builder.CreateStore(Builder.getInt32(0), MCDCCondBitmapAddr);
+  auto *I = Builder.CreateStore(Builder.getInt32(0), MCDCCondBitmapAddr);
+  CGF.setInstIsNotKey(I); // TODO(OCH): needs test.
 }
 
 void CodeGenPGO::emitMCDCCondBitmapUpdate(CGBuilderTy &Builder, const Expr *S,
@@ -1332,7 +1334,8 @@ void CodeGenPGO::emitMCDCCondBitmapUpdate(CGBuilderTy &Builder, const Expr *S,
   auto *NewTV = Builder.CreateAdd(CurTV, Builder.getInt32(TVIdxs[true]));
   NewTV = Builder.CreateSelect(
       Val, NewTV, Builder.CreateAdd(CurTV, Builder.getInt32(TVIdxs[false])));
-  Builder.CreateStore(NewTV, MCDCCondBitmapAddr);
+  auto *I = Builder.CreateStore(NewTV, MCDCCondBitmapAddr);
+  CGF.setInstIsNotKey(I); // TODO(OCH): needs test.
 }
 
 void CodeGenPGO::setValueProfilingFlag(llvm::Module &M) {

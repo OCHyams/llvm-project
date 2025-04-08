@@ -117,8 +117,8 @@ public:
                                       Address MCDCCondBitmapAddr,
                                       CodeGenFunction &CGF);
   void emitMCDCParameters(CGBuilderTy &Builder);
-  void emitMCDCCondBitmapReset(CGBuilderTy &Builder, const Expr *S,
-                               Address MCDCCondBitmapAddr);
+  void emitMCDCCondBitmapReset(CodeGenFunction &CGF, CGBuilderTy &Builder,
+                               const Expr *S, Address MCDCCondBitmapAddr);
   void emitMCDCCondBitmapUpdate(CGBuilderTy &Builder, const Expr *S,
                                 Address MCDCCondBitmapAddr, llvm::Value *Val,
                                 CodeGenFunction &CGF);
