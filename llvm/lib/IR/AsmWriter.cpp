@@ -87,6 +87,7 @@
 #include <vector>
 
 using namespace llvm;
+cl::opt<bool> InlineLocs("print-locs-inline");
 
 static cl::opt<bool>
     PrintInstAddrs("print-inst-addrs", cl::Hidden,
@@ -2757,8 +2758,14 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
       // Give the pointer value instead of "badref", since this comes up all
       // the time when debugging.
       Out << "<" << N << ">";
-    } else
-      Out << '!' << Slot;
+    } else {
+      if (const DILocation *Loc = dyn_cast<DILocation>(N); Loc && InlineLocs) {
+        writeDILocation(Out, Loc, WriterCtx);
+        return;
+      } else {
+        Out << '!' << Slot;
+      }
+    }
     return;
   }
 
