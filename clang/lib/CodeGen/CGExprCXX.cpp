@@ -973,6 +973,7 @@ static llvm::Value *EmitCXXNewAllocSize(CodeGenFunction &CGF,
 static void StoreAnyExprIntoOneUnit(CodeGenFunction &CGF, const Expr *Init,
                                     QualType AllocType, Address NewPtr,
                                     AggValueSlot::Overlap_t MayOverlap) {
+  ApplyNoAtoms NoGrp(CGF.getDebugInfo(), true); // Mark ignored stores with sentinel.
   // FIXME: Refactor with EmitExprAsInit.
   switch (CGF.getEvaluationKind(AllocType)) {
   case TEK_Scalar:

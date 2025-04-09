@@ -242,9 +242,13 @@ ApplyAtomGroup::~ApplyAtomGroup() {
   DI->KeyInstructionsInfo.CurrentAtom = OriginalAtom;
 }
 
-ApplyNoAtoms::ApplyNoAtoms(CGDebugInfo *DI) : DI(DI) {
+ApplyNoAtoms::ApplyNoAtoms(CGDebugInfo *DI, bool BailIfGrpAlready) : DI(DI) {
   if (!DI)
     return;
+  if (BailIfGrpAlready && DI->KeyInstructionsInfo.CurrentAtom) {
+    this->DI = nullptr;
+    return;
+  }
   OriginalAtom = DI->KeyInstructionsInfo.CurrentAtom;
   DI->KeyInstructionsInfo.CurrentAtom = std::numeric_limits<uint64_t>::max();
 }

@@ -912,7 +912,7 @@ class ApplyNoAtoms {
   CGDebugInfo *DI = nullptr;
 
 public:
-  ApplyNoAtoms(CGDebugInfo *DI);
+  ApplyNoAtoms(CGDebugInfo *DI, bool BailIfGrpAlready = false);
   ~ApplyNoAtoms();
 };
 
