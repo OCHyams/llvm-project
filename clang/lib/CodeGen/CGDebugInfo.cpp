@@ -143,8 +143,9 @@ void CGDebugInfo::addInstSourceAtomMetadata(llvm::Instruction *I,
 
   // Update the function-local watermark so we don't reuse this number for
   // another atom.
-  KeyInstructionsInfo.HighestEmittedAtom =
-      std::max(Group, KeyInstructionsInfo.HighestEmittedAtom);
+  if (Group != std::numeric_limits<uint64_t>::max())
+    KeyInstructionsInfo.HighestEmittedAtom =
+        std::max(Group, KeyInstructionsInfo.HighestEmittedAtom);
 
   // Apply the new DILocation to the instruction.
   llvm::DILocation *NewDL = llvm::DILocation::get(
