@@ -1570,7 +1570,8 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
           RawAddress NRVOFlag =
               CreateTempAlloca(Zero->getType(), CharUnits::One(), "nrvo");
           EnsureInsertPoint();
-          Builder.CreateStore(Zero, NRVOFlag);
+          auto *S = Builder.CreateStore(Zero, NRVOFlag);
+          setInstIsNotKey(S);
 
           // Record the NRVO flag for this variable.
           NRVOFlags[&D] = NRVOFlag.getPointer();
