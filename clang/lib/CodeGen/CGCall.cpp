@@ -1435,7 +1435,8 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
     // to that information.
     RawAddress Tmp =
         CreateTempAllocaForCoercion(*this, SrcTy, Dst.getAlignment());
-    Builder.CreateStore(Src, Tmp);
+    auto *S = Builder.CreateStore(Src, Tmp);
+    setInstIsNotKey(S);
     auto *I = Builder.CreateMemCpy(
         Dst.emitRawPointer(*this), Dst.getAlignment().getAsAlign(),
         Tmp.getPointer(), Tmp.getAlignment().getAsAlign(),
@@ -5144,8 +5145,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  bool IsVirtualFunctionPointerThunk) {
   // FIXME: We no longer need the types from CallArgs; lift up and simplify.
 
-  ApplyNoAtoms NoGrp(getDebugInfo()); // Ignore calls and coerced stores.
-
   assert(Callee.isOrdinary() || Callee.isVirtual());
 
   // Handle struct-return functions by passing a pointer to the
@@ -6114,7 +6113,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         // no_unique_address); omit the store for such types - as there is no
         // actual data to store.
         if (!isEmptyRecord(getContext(), RetTy, true)) {
-          // If the value is offset in memory, apply the offset now.
+          // If the value is offset in memory, apply the offset now. //xxx 2nd store here
+          ApplyNoAtoms NoGrp(getDebugInfo()); // Ignore coerced stores.
           Address StorePtr = emitAddressAtOffset(*this, DestPtr, RetAI);
           CreateCoercedStore(
               CI, StorePtr,
