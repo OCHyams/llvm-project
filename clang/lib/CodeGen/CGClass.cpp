@@ -2150,6 +2150,7 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
     LValue Src = EmitLValue(Arg);
     QualType DestTy = getContext().getTypeDeclType(D->getParent());
     LValue Dest = MakeAddrLValue(This, DestTy);
+    ApplyNoAtoms NoGrp(getDebugInfo(), true); // Skip if unused expr.
     EmitAggregateCopyCtor(Dest, Src, ThisAVS.mayOverlap());
     return;
   }
