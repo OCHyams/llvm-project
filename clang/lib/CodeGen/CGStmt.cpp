@@ -1657,8 +1657,10 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
 
     // If there is an NRVO flag for this variable, set it to 1 into indicate
     // that the cleanup code should not destroy the variable.
-    if (llvm::Value *NRVOFlag = NRVOFlags[S.getNRVOCandidate()])
-      Builder.CreateFlagStore(Builder.getTrue(), NRVOFlag);
+    if (llvm::Value *NRVOFlag = NRVOFlags[S.getNRVOCandidate()]) {
+      auto *S = Builder.CreateFlagStore(Builder.getTrue(), NRVOFlag);
+      setInstIsNotKey(S);
+    }
   } else if (!ReturnValue.isValid() || (RV && RV->getType()->isVoidType())) {
     // Make sure not to return anything, but evaluate the expression
     // for side effects.
