@@ -489,6 +489,7 @@ static bool isAAPCS(const TargetInfo &TargetInfo) {
 
 LValue CodeGenFunction::
 EmitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *M) {
+  ApplyNoAtoms NoGrp(getDebugInfo());
   const Expr *E = M->getSubExpr();
 
   assert((!M->getExtendingDecl() || !isa<VarDecl>(M->getExtendingDecl()) ||

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CGCXXABI.h"
+#include "CGDebugInfo.h"
 #include "CGHLSLRuntime.h"
 #include "CGObjCRuntime.h"
 #include "CGRecordLayout.h"
@@ -283,6 +284,7 @@ bool AggExprEmitter::TypeRequiresGCollection(QualType T) {
 
 void AggExprEmitter::withReturnValueSlot(
     const Expr *E, llvm::function_ref<RValue(ReturnValueSlot)> EmitCall) {
+
   QualType RetTy = E->getType();
   bool RequiresDestruction =
       !Dest.isExternallyDestructed() &&
@@ -320,6 +322,12 @@ void AggExprEmitter::withReturnValueSlot(
       LifetimeEndBlock = CGF.EHStack.stable_begin();
     }
   }
+
+  // // Don't mark stores to tmp as atoms. (Well, we already don't but tell the verifier that.)
+  // ApplyNoAtoms NoGrp(nullptr);
+  // llvm::errs() << CGF.CurFn->getName() << " UseTemp? " << UseTemp << "\n";
+  // if (!UseTemp)
+  //   NoGrp = ApplyNoAtoms(CGF.getDebugInfo());
 
   RValue Src =
       EmitCall(ReturnValueSlot(RetAddr, Dest.isVolatile(), IsResultUnused,

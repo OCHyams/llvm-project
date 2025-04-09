@@ -6114,7 +6114,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         // actual data to store.
         if (!isEmptyRecord(getContext(), RetTy, true)) {
           // If the value is offset in memory, apply the offset now. //xxx 2nd store here
-          ApplyNoAtoms NoGrp(getDebugInfo()); // Ignore coerced stores.
+          //ApplyAtomGroup Grp(getDebugInfo()); // Ignore coerced stores.
           Address StorePtr = emitAddressAtOffset(*this, DestPtr, RetAI);
           CreateCoercedStore(
               CI, StorePtr,
