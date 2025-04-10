@@ -19,6 +19,7 @@
 
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
+#include "CGDebugInfo.h"
 #include "CGRecordLayout.h"
 #include "CGVTables.h"
 #include "CodeGenFunction.h"
@@ -2461,6 +2462,7 @@ Address ItaniumCXXABI::InitializeArrayCookie(CodeGenFunction &CGF,
 
   // Write the number of elements into the appropriate slot.
   Address NumElementsPtr = CookiePtr.withElementType(CGF.SizeTy);
+  ApplyNoAtoms NoGrp(CGF.getDebugInfo(), true); // mark if not part of assignment
   llvm::Instruction *SI = CGF.Builder.CreateStore(NumElements, NumElementsPtr);
   CGF.addInstToCurrentSourceAtom(SI, NumElements); // maybe matters, maybe doesn't
 
