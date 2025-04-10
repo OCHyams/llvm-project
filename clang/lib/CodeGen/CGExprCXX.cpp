@@ -1139,7 +1139,8 @@ void CodeGenFunction::EmitNewArrayInitializer(
       // element.  TODO: some of these stores can be trivially
       // observed to be unnecessary.
       if (EndOfInit.isValid()) {
-        Builder.CreateStore(CurPtr.emitRawPointer(*this), EndOfInit);
+        auto *S = Builder.CreateStore(CurPtr.emitRawPointer(*this), EndOfInit);
+        setInstIsNotKey(S);
       }
       // FIXME: If the last initializer is an incomplete initializer list for
       // an array, and we have an array filler, we can fold together the two
@@ -1199,8 +1200,10 @@ void CodeGenFunction::EmitNewArrayInitializer(
     //
     // FIXME: Share this cleanup with the constructor call emission rather than
     // having it create a cleanup of its own.
-    if (EndOfInit.isValid())
-      Builder.CreateStore(CurPtr.emitRawPointer(*this), EndOfInit);
+    if (EndOfInit.isValid()) {
+      auto *S = Builder.CreateStore(CurPtr.emitRawPointer(*this), EndOfInit);
+      setInstIsNotKey(S);
+    }
 
     // Emit a constructor call loop to initialize the remaining elements.
     if (InitListElements)
@@ -1286,8 +1289,10 @@ void CodeGenFunction::EmitNewArrayInitializer(
   CurPtr = Address(CurPtrPhi, CurPtr.getElementType(), ElementAlign);
 
   // Store the new Cleanup position for irregular Cleanups.
-  if (EndOfInit.isValid())
-    Builder.CreateStore(CurPtr.emitRawPointer(*this), EndOfInit);
+  if (EndOfInit.isValid()) {
+    auto *S = Builder.CreateStore(CurPtr.emitRawPointer(*this), EndOfInit);
+    setInstIsNotKey(S);
+  }
 
   // Enter a partial-destruction Cleanup if necessary.
   if (!pushedCleanup && needsEHCleanup(DtorKind)) {

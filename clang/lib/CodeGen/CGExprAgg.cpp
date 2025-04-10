@@ -694,8 +694,10 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
       // Tell the cleanup that it needs to destroy up to this
       // element.  TODO: some of these stores can be trivially
       // observed to be unnecessary.
-      if (endOfInit.isValid())
-        Builder.CreateStore(element, endOfInit);
+      if (endOfInit.isValid()) {
+        auto *S = Builder.CreateStore(element, endOfInit);
+        CGF.setInstIsNotKey(S);
+      }
     }
 
     LValue elementLV = CGF.MakeAddrLValue(
@@ -737,7 +739,10 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
           llvmElementType, element,
           llvm::ConstantInt::get(CGF.SizeTy, NumInitElements),
           "arrayinit.start");
-      if (endOfInit.isValid()) Builder.CreateStore(element, endOfInit);
+      if (endOfInit.isValid()) {
+        auto *S = Builder.CreateStore(element, endOfInit);
+        CGF.setInstIsNotKey(S);
+      }
     }
 
     // Compute the end of the array.
@@ -775,7 +780,10 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
         llvmElementType, currentElement, one, "arrayinit.next");
 
     // Tell the EH cleanup that we finished with the last element.
-    if (endOfInit.isValid()) Builder.CreateStore(nextElement, endOfInit);
+    if (endOfInit.isValid()) {
+      auto *S = Builder.CreateStore(nextElement, endOfInit);
+      CGF.setInstIsNotKey(S);
+    }
 
     // Leave the loop if we're done.
     llvm::Value *done = Builder.CreateICmpEQ(nextElement, end,
