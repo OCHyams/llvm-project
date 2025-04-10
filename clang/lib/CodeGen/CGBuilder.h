@@ -24,6 +24,9 @@ namespace CodeGen {
 class CGBuilderTy;
 class CodeGenFunction;
 
+void addInstToCurrentAtomGroup(CodeGenFunction *CGF, llvm::Instruction *Key,
+                               llvm::Value *Backup);
+
 /// This is an IRBuilder insertion helper that forwards to
 /// CodeGenFunction::InsertHelper, which adds necessary metadata to
 /// instructions.
@@ -135,15 +138,19 @@ public:
   // take an alignment.
   llvm::StoreInst *CreateStore(llvm::Value *Val, Address Addr,
                                bool IsVolatile = false) {
-    return CreateAlignedStore(Val, emitRawPointerFromAddress(Addr),
-                              Addr.getAlignment().getAsAlign(), IsVolatile);
+    auto *S = CreateAlignedStore(Val, emitRawPointerFromAddress(Addr),
+                                 Addr.getAlignment().getAsAlign(), IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), S, S->getValueOperand());
+    return S;
   }
 
   using CGBuilderBaseTy::CreateAlignedStore;
   llvm::StoreInst *CreateAlignedStore(llvm::Value *Val, llvm::Value *Addr,
                                       CharUnits Align,
                                       bool IsVolatile = false) {
-    return CreateAlignedStore(Val, Addr, Align.getAsAlign(), IsVolatile);
+    auto *S = CreateAlignedStore(Val, Addr, Align.getAsAlign(), IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), S, S->getValueOperand());
+    return S;
   }
 
   // FIXME: these "default-aligned" APIs should be removed,
@@ -151,7 +158,9 @@ public:
   llvm::StoreInst *CreateDefaultAlignedStore(llvm::Value *Val,
                                              llvm::Value *Addr,
                                              bool IsVolatile = false) {
-    return CGBuilderBaseTy::CreateStore(Val, Addr, IsVolatile);
+    auto *S = CGBuilderBaseTy::CreateStore(Val, Addr, IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), S, S->getValueOperand());
+    return S;
   }
 
   /// Emit a load from an i1 flag variable.
@@ -366,23 +375,30 @@ public:
                                bool IsVolatile = false) {
     llvm::Value *DestPtr = emitRawPointerFromAddress(Dest);
     llvm::Value *SrcPtr = emitRawPointerFromAddress(Src);
-    return CreateMemCpy(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
-                        Src.getAlignment().getAsAlign(), Size, IsVolatile);
+    auto *I = CreateMemCpy(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
+                           Src.getAlignment().getAsAlign(), Size, IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), I, nullptr);
+    return I;
   }
   llvm::CallInst *CreateMemCpy(Address Dest, Address Src, uint64_t Size,
                                bool IsVolatile = false) {
     llvm::Value *DestPtr = emitRawPointerFromAddress(Dest);
     llvm::Value *SrcPtr = emitRawPointerFromAddress(Src);
-    return CreateMemCpy(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
-                        Src.getAlignment().getAsAlign(), Size, IsVolatile);
+    auto *I = CreateMemCpy(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
+                           Src.getAlignment().getAsAlign(), Size, IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), I, nullptr);
+    return I;
   }
 
   using CGBuilderBaseTy::CreateMemCpyInline;
   llvm::CallInst *CreateMemCpyInline(Address Dest, Address Src, uint64_t Size) {
     llvm::Value *DestPtr = emitRawPointerFromAddress(Dest);
     llvm::Value *SrcPtr = emitRawPointerFromAddress(Src);
-    return CreateMemCpyInline(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
-                              Src.getAlignment().getAsAlign(), getInt64(Size));
+    auto *I =
+        CreateMemCpyInline(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
+                           Src.getAlignment().getAsAlign(), getInt64(Size));
+    addInstToCurrentAtomGroup(getCGF(), I, nullptr);
+    return I;
   }
 
   using CGBuilderBaseTy::CreateMemMove;
@@ -390,23 +406,29 @@ public:
                                 bool IsVolatile = false) {
     llvm::Value *DestPtr = emitRawPointerFromAddress(Dest);
     llvm::Value *SrcPtr = emitRawPointerFromAddress(Src);
-    return CreateMemMove(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
-                         Src.getAlignment().getAsAlign(), Size, IsVolatile);
+    auto *I = CreateMemMove(DestPtr, Dest.getAlignment().getAsAlign(), SrcPtr,
+                            Src.getAlignment().getAsAlign(), Size, IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), I, nullptr);
+    return I;
   }
 
   using CGBuilderBaseTy::CreateMemSet;
   llvm::CallInst *CreateMemSet(Address Dest, llvm::Value *Value,
                                llvm::Value *Size, bool IsVolatile = false) {
-    return CreateMemSet(emitRawPointerFromAddress(Dest), Value, Size,
-                        Dest.getAlignment().getAsAlign(), IsVolatile);
+    auto *I = CreateMemSet(emitRawPointerFromAddress(Dest), Value, Size,
+                           Dest.getAlignment().getAsAlign(), IsVolatile);
+    addInstToCurrentAtomGroup(getCGF(), I, nullptr);
+    return I;
   }
 
   using CGBuilderBaseTy::CreateMemSetInline;
   llvm::CallInst *CreateMemSetInline(Address Dest, llvm::Value *Value,
                                      uint64_t Size) {
-    return CreateMemSetInline(emitRawPointerFromAddress(Dest),
-                              Dest.getAlignment().getAsAlign(), Value,
-                              getInt64(Size));
+    auto *I = CreateMemSetInline(emitRawPointerFromAddress(Dest),
+                                 Dest.getAlignment().getAsAlign(), Value,
+                                 getInt64(Size));
+    addInstToCurrentAtomGroup(getCGF(), I, nullptr);
+    return I;
   }
 
   using CGBuilderBaseTy::CreatePreserveStructAccessIndex;

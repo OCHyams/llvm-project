@@ -75,6 +75,12 @@ static bool shouldEmitLifetimeMarkers(const CodeGenOptions &CGOpts,
   return CGOpts.OptimizationLevel != 0;
 }
 
+void clang::CodeGen::addInstToCurrentAtomGroup(CodeGenFunction *CGF,
+                                               llvm::Instruction *Key,
+                                               llvm::Value *Backup) {
+  CGF->addInstToCurrentSourceAtom(Key, Backup);
+}
+
 CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
     : CodeGenTypeCache(cgm), CGM(cgm), Target(cgm.getTarget()),
       Builder(cgm, cgm.getModule().getContext(), llvm::ConstantFolder(),

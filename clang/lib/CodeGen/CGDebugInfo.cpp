@@ -132,6 +132,9 @@ void CGDebugInfo::addInstSourceAtomMetadata(llvm::Instruction *I,
 
   const llvm::DebugLoc &DL = I->getDebugLoc();
 
+  if (DL.get()->getAtomGroup() == Group && DL.get()->getAtomRank() == Rank)
+    return; // Nothing to do.
+
   // Each instruction can only be attributed to one source atom (a limitation of
   // the implementation). If this instruction is already part of a source atom,
   // pick the group in which it has highest precedence (lowest rank).
