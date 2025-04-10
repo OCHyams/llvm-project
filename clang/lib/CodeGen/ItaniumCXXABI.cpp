@@ -4898,7 +4898,8 @@ static void InitCatchParam(CodeGenFunction &CGF,
         Address ExnPtrTmp =
           CGF.CreateTempAlloca(PtrTy, CGF.getPointerAlign(), "exn.byref.tmp");
         llvm::Value *Casted = CGF.Builder.CreateBitCast(AdjustedExn, PtrTy);
-        CGF.Builder.CreateStore(Casted, ExnPtrTmp);
+        auto *S = CGF.Builder.CreateStore(Casted, ExnPtrTmp);
+        CGF.addInstToCurrentSourceAtom(S, Casted);
 
         // Bind the reference to the temporary.
         AdjustedExn = ExnPtrTmp.emitRawPointer(CGF);
@@ -4907,7 +4908,8 @@ static void InitCatchParam(CodeGenFunction &CGF,
 
     llvm::Value *ExnCast =
       CGF.Builder.CreateBitCast(AdjustedExn, LLVMCatchTy, "exn.byref");
-    CGF.Builder.CreateStore(ExnCast, ParamAddr);
+    auto *S = CGF.Builder.CreateStore(ExnCast, ParamAddr);
+    CGF.addInstToCurrentSourceAtom(S, ExnCast);
     return;
   }
 
@@ -4929,9 +4931,11 @@ static void InitCatchParam(CodeGenFunction &CGF,
 
       case Qualifiers::OCL_None:
       case Qualifiers::OCL_ExplicitNone:
-      case Qualifiers::OCL_Autoreleasing:
-        CGF.Builder.CreateStore(CastExn, ParamAddr);
+      case Qualifiers::OCL_Autoreleasing: {
+        auto *S = CGF.Builder.CreateStore(CastExn, ParamAddr);
+        CGF.addInstToCurrentSourceAtom(S, CastExn);
         return;
+      }
 
       case Qualifiers::OCL_Weak:
         CGF.EmitARCInitWeak(ParamAddr, CastExn);

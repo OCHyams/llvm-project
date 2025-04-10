@@ -824,6 +824,7 @@ llvm::BasicBlock *CodeGenFunction::getInvokeDestImpl() {
 }
 
 llvm::BasicBlock *CodeGenFunction::EmitLandingPad() {
+  ApplyNoAtoms NoGrp(getDebugInfo());
   assert(EHStack.requiresLandingPad());
   assert(!CGM.getLangOpts().IgnoreExceptions &&
          "LandingPad should not be emitted when -fignore-exceptions are in "
