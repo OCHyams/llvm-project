@@ -1787,8 +1787,10 @@ public:
   }
 
   void setInstIsNotKey(llvm::Instruction *I) {
-    if (CGDebugInfo *DI = getDebugInfo())
-      DI->setInstIsNotKey(I);
+    // Don't go through getDebugInfo, since that can return nullptr even if I
+    // has DebugLocs to update!
+    if (DebugInfo)
+      DebugInfo->setInstIsNotKey(I);
   }
 
 private:
