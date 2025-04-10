@@ -1558,7 +1558,7 @@ void CodeGenFunction::emitImplicitAssignmentOperatorBody(FunctionArgList &Args) 
   const CompoundStmt *RootCS = cast<CompoundStmt>(RootS);
 
   LexicalScope Scope(*this, RootCS->getSourceRange());
-
+  ApplyNoAtoms Grp(getDebugInfo()); // I think we can ignore implicit stuff?
   incrementProfileCounter(RootCS);
   maybeCreateMCDCCondBitmap();
   AssignmentMemcpyizer AM(*this, AssignOp, Args);
