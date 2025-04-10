@@ -20,5 +20,4 @@ void fun() {
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
-// CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[RET:!.*]] = !DILocation({{.*}}, atomGroup: [[#]], atomRank: [[#]])

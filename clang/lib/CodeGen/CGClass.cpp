@@ -1277,7 +1277,7 @@ void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
 
   CXXConstructorDecl::init_const_iterator B = CD->init_begin(),
                                           E = CD->init_end();
-
+  ApplyNoAtoms NoGrp(getDebugInfo()); // Ignore most prologue things.
   // Virtual base initializers first, if any. They aren't needed if:
   // - This is a base ctor variant
   // - There are no vbases
@@ -1329,18 +1329,18 @@ void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
   }
 
   InitializeVTablePointers(ClassDecl);
-
   // And finally, initialize class members.
   FieldConstructionScope FCS(*this, LoadCXXThisAddress());
   ConstructorMemcpyizer CM(*this, CD, Args);
   for (; B != E; B++) {
+    ApplyAtomGroup Grp(getDebugInfo()); //... but not these?
     CXXCtorInitializer *Member = (*B);
     assert(!Member->isBaseInitializer());
     assert(Member->isAnyMemberInitializer() &&
            "Delegating initializer on non-delegating constructor");
-    ApplyAtomGroup Grp(getDebugInfo());
     CM.addMemberInitializer(Member);
   }
+  ApplyAtomGroup Grp(getDebugInfo()); //... or these?
   CM.finish();
 }
 
