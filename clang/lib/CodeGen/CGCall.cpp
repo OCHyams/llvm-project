@@ -3006,6 +3006,7 @@ namespace {
 void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
                                          llvm::Function *Fn,
                                          const FunctionArgList &Args) {
+  ApplyNoAtoms NoGrp(getDebugInfo());
   if (CurCodeDecl && CurCodeDecl->hasAttr<NakedAttr>())
     // Naked functions don't have prologues.
     return;
@@ -6116,6 +6117,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         if (!isEmptyRecord(getContext(), RetTy, true)) {
           // If the value is offset in memory, apply the offset now. //xxx 2nd store here
           //ApplyAtomGroup Grp(getDebugInfo()); // Ignore coerced stores.
+          ApplyNoAtoms NoGrp(getDebugInfo(), true); // mark ignored ones
           Address StorePtr = emitAddressAtOffset(*this, DestPtr, RetAI);
           CreateCoercedStore(
               CI, StorePtr,
