@@ -5542,7 +5542,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           if (SrcSize < DstSize) {
             Address TempAlloca = CreateTempAlloca(STy, Src.getAlignment(),
                                                   Src.getName() + ".coerce");
-            Builder.CreateMemCpy(TempAlloca, Src, SrcSize);
+            auto *S = Builder.CreateMemCpy(TempAlloca, Src, SrcSize);
+            setInstIsNotKey(S);
             Src = TempAlloca;
           } else {
             Src = Src.withElementType(STy);
