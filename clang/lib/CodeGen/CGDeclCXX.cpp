@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CGCXXABI.h"
+#include "CGDebugInfo.h"
 #include "CGHLSLRuntime.h"
 #include "CGObjCRuntime.h"
 #include "CGOpenMPRuntime.h"
@@ -175,6 +176,7 @@ void CodeGenFunction::EmitInvariantStart(llvm::Constant *Addr, CharUnits Size) {
 void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
                                                llvm::GlobalVariable *GV,
                                                bool PerformInit) {
+  ApplyAtomGroup Grp(getDebugInfo());
 
   const Expr *Init = D.getInit();
   QualType T = D.getType();
@@ -1047,7 +1049,7 @@ void CodeGenFunction::GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
     DebugInfo = nullptr; // disable debug info indefinitely for this function
 
   CurEHLocation = D->getBeginLoc();
-
+  ApplyNoAtoms NoGrp(getDebugInfo());
   StartFunction(GlobalDecl(D, DynamicInitKind::Initializer),
                 getContext().VoidTy, Fn, getTypes().arrangeNullaryFunction(),
                 FunctionArgList());
