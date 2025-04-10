@@ -282,7 +282,8 @@ RawAddress CodeGenFunction::createCleanupActiveFlag() {
   setBeforeOutermostConditional(Builder.getFalse(), active, *this);
 
   // Initialize it to true at the current location.
-  Builder.CreateStore(Builder.getTrue(), active);
+  auto *I = Builder.CreateStore(Builder.getTrue(), active);
+  setInstIsNotKey(I);
 
   return active;
 }
