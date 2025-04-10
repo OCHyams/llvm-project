@@ -5145,7 +5145,7 @@ void Verifier::visitInstruction(Instruction &I) {
   BasicBlock *BB = I.getParent();
   Check(BB, "Instruction not embedded in basic block!", &I);
 
-  if (auto &DL = I.getDebugLoc()) {
+  if (auto &DL = I.getDebugLoc(); DL && DL.getLine()) {
     if (isa<StoreInst>(I) || isa<MemTransferInst>(I))
       CheckDI(DL->getAtomGroup(), "Store missing atom", I, DL);
   }
