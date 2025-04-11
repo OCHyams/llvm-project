@@ -5427,6 +5427,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         CallLifetimeEndAfterCall.emplace_back(AI, LifetimeSize);
 
       // Generate the copy.
+      ApplyNoAtoms NoGrp(DebugInfo);
       I->copyInto(*this, AI);
       break;
     }
