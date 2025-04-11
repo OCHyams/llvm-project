@@ -1049,7 +1049,7 @@ void CodeGenFunction::GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
     DebugInfo = nullptr; // disable debug info indefinitely for this function
 
   CurEHLocation = D->getBeginLoc();
-  ApplyNoAtoms NoGrp(getDebugInfo());
+  ApplyNoAtoms NoGrp(DebugInfo);
   StartFunction(GlobalDecl(D, DynamicInitKind::Initializer),
                 getContext().VoidTy, Fn, getTypes().arrangeNullaryFunction(),
                 FunctionArgList());

@@ -405,7 +405,7 @@ void CodeGenFunction::EmitAnyExprToExn(const Expr *e, Address addr) {
   llvm::Type *ty = ConvertTypeForMem(e->getType());
   Address typedAddr = addr.withElementType(ty);
 
-  ApplyNoAtoms NoGrp(getDebugInfo());
+  ApplyNoAtoms NoGrp(DebugInfo);
   // FIXME: this isn't quite right!  If there's a final unelided call
   // to a copy constructor, then according to [except.terminate]p1 we
   // must call std::terminate() if that constructor throws, because
@@ -824,7 +824,7 @@ llvm::BasicBlock *CodeGenFunction::getInvokeDestImpl() {
 }
 
 llvm::BasicBlock *CodeGenFunction::EmitLandingPad() {
-  ApplyNoAtoms NoGrp(getDebugInfo());
+  ApplyNoAtoms NoGrp(DebugInfo);
   assert(EHStack.requiresLandingPad());
   assert(!CGM.getLangOpts().IgnoreExceptions &&
          "LandingPad should not be emitted when -fignore-exceptions are in "
