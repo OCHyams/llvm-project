@@ -4566,7 +4566,7 @@ void CodeGenFunction::EmitCallArgs(
     llvm::iterator_range<CallExpr::const_arg_iterator> ArgRange,
     AbstractCallee AC, unsigned ParamsToSkip, EvaluationOrder Order) {
   SmallVector<QualType, 16> ArgTypes;
-
+  ApplyNoAtoms NoGrp(DebugInfo);
   assert((ParamsToSkip == 0 || Prototype.P) &&
          "Can't skip parameters if type info is not provided");
 
