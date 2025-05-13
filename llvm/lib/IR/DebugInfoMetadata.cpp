@@ -63,9 +63,10 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
     : DebugVariable(DVI->getVariable(), std::nullopt,
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
-DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-                       unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
-                       ArrayRef<Metadata *> MDs, bool ImplicitCode)
+DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
+                       unsigned Line, unsigned Column, uint64_t AtomGroup,
+                       uint8_t AtomRank, ArrayRef<Metadata *> MDs,
+                       bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs)
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
       ,
@@ -75,8 +76,15 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
-  if (AtomGroup)
-    C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
+  // OCH huurrrr
+
+  // if (AtomGroup)
+  //   C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
+  if (AtomGroup) {
+    assert(Fn);
+    assert(Fn->isDefinition());
+    Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
+  }
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&
          "Expected a scope and optional inlined-at");
@@ -117,10 +125,13 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
 
   SmallVector<Metadata *, 2> Ops;
   Ops.push_back(Scope);
-  if (InlinedAt)
+  DISubprogram *SP = cast<DILocalScope>(Scope)->getSubprogram();
+  if (InlinedAt) {
     Ops.push_back(InlinedAt);
+    SP = cast<DILocation>(InlinedAt)->getInlinedAtScope()->getSubprogram();
+  }
   return storeImpl(new (Ops.size(), Storage)
-                       DILocation(Context, Storage, Line, Column, AtomGroup,
+                       DILocation(Context, Storage, SP, Line, Column, AtomGroup,
                                   AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
@@ -387,7 +398,8 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
       // atom group. This essentially regresses to non-key-instructions
       // behaviour (now that it's the only instruction in its group it'll
       // probably get is_stmt applied).
-      Group = C.incNextDILocationAtomGroup();
+      Group = 54321;
+      ; // use special number? OCH// C.incNextDILocationAtomGroup();
       Rank = 1;
     }
     return DILocation::get(C, Line, Col, Scope, InlinedAt, IsImplicitCode,

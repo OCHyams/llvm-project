@@ -298,10 +298,9 @@ static void buildPartialInvariantUnswitchConditionalBranch(
     Instruction *Inst = cast<Instruction>(Val);
     Instruction *NewInst = Inst->clone();
 
-    if (const DebugLoc &DL = Inst->getDebugLoc())
-      mapAtomInstance(DL, VMap);
-
     NewInst->insertInto(&BB, BB.end());
+    if (const DebugLoc &DL = Inst->getDebugLoc())
+      mapAtomInstance(Inst->getFunction()->getSubprogram(), DL, VMap);
     RemapInstruction(NewInst, VMap,
                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     VMap[Val] = NewInst;

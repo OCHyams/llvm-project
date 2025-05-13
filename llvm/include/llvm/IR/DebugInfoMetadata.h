@@ -1976,6 +1976,9 @@ class DISubprogram : public DILocalScope {
   /// negative.
   int ThisAdjustment;
 
+  /// Not serialised.
+  uint32_t NextAtomGroup = 0; // set to 1 to mark as "has key insts"
+
 public:
   /// Debug info subprogram flags.
   enum DISPFlags : uint32_t {
@@ -2002,6 +2005,24 @@ public:
                                       bool IsOptimized,
                                       unsigned Virtuality = SPFlagNonvirtual,
                                       bool IsMainSubprogram = false);
+
+  uint32_t incNextDILocationAtomGroup() {
+    assert(isDefinition());
+    return NextAtomGroup++;
+  }
+  void setKeyInstructionsEnabled(bool F) {
+    if (!F)
+      NextAtomGroup = 0;
+    else if (F && !getKeyInstructionsEnabled())
+      NextAtomGroup = 1;
+  }
+  bool getKeyInstructionsEnabled() const { return NextAtomGroup; }
+  /// Key Instructions: update the highest number atom group emitted for any
+  /// function.
+  void updateDILocationAtomGroupWaterline(uint32_t G) {
+    // FIXME: should really be G+1, if the waterline is "current max".
+    NextAtomGroup = std::max(NextAtomGroup, G);
+  }
 
 private:
   DIFlags Flags;
@@ -2249,9 +2270,9 @@ class DILocation : public MDNode {
   uint64_t AtomRank : 3;
 #endif
 
-  DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-             unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
-             ArrayRef<Metadata *> MDs, bool ImplicitCode);
+  DILocation(LLVMContext &C, StorageType Storage, DISubprogram *SP,
+             unsigned Line, unsigned Column, uint64_t AtomGroup,
+             uint8_t AtomRank, ArrayRef<Metadata *> MDs, bool ImplicitCode);
   ~DILocation() { dropAllReferences(); }
 
   LLVM_ABI static DILocation *

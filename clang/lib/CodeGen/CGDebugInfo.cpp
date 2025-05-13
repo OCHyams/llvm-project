@@ -4703,6 +4703,12 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
       FlagsForDef, SPFlagsForDef, TParamsArray.get(), Decl, nullptr,
       Annotations);
   Fn->setSubprogram(SP);
+
+  // If we're building with Key Instructions we have to let the function know.
+  if (SPFlags & llvm::DISubprogram::SPFlagDefinition &&
+      CGM.getCodeGenOpts().DebugKeyInstructions)
+    SP->setKeyInstructionsEnabled(true);
+
   // We might get here with a VarDecl in the case we're generating
   // code for the initialization of globals. Do not record these decls
   // as they will overwrite the actual VarDecl Decl in the cache.

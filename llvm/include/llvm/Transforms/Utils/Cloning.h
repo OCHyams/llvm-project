@@ -134,7 +134,8 @@ BasicBlock *CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
 
 /// Mark a cloned instruction as a new instance so that its source loc can
 /// be updated when remapped.
-void mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap);
+void mapAtomInstance(DISubprogram *Target, const DebugLoc &DL,
+                     ValueToValueMapTy &VMap);
 
 /// Return a copy of the specified function and add it to that
 /// function's module.  Also, any references specified in the VMap are changed
