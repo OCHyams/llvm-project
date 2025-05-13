@@ -341,14 +341,6 @@ public:
   LLVM_ABI StringRef getDefaultTargetFeatures();
   LLVM_ABI void setDefaultTargetFeatures(StringRef Features);
 
-  /// Key Instructions: update the highest number atom group emitted for any
-  /// function.
-  LLVM_ABI void updateDILocationAtomGroupWaterline(uint64_t G);
-
-  /// Key Instructions: get the next free atom group number and increment
-  /// the global tracker.
-  LLVM_ABI uint64_t incNextDILocationAtomGroup();
-
 private:
   // Module needs access to the add/removeModule methods.
   friend class Module;

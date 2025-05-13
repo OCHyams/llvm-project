@@ -934,14 +934,14 @@ DISubprogram *DIBuilder::createFunction(
     unsigned LineNo, DISubroutineType *Ty, unsigned ScopeLine,
     DINode::DIFlags Flags, DISubprogram::DISPFlags SPFlags,
     DITemplateParameterArray TParams, DISubprogram *Decl,
-    DITypeArray ThrownTypes, DINodeArray Annotations,
-    StringRef TargetFuncName) {
+    DITypeArray ThrownTypes, DINodeArray Annotations, StringRef TargetFuncName,
+    bool UseKeyInstructions) {
   bool IsDefinition = SPFlags & DISubprogram::SPFlagDefinition;
   auto *Node = getSubprogram(
       /*IsDistinct=*/IsDefinition, VMContext, getNonCompileUnitScope(Context),
       Name, LinkageName, File, LineNo, Ty, ScopeLine, nullptr, 0, 0, Flags,
       SPFlags, IsDefinition ? CUNode : nullptr, TParams, Decl, nullptr,
-      ThrownTypes, Annotations, TargetFuncName);
+      ThrownTypes, Annotations, TargetFuncName, UseKeyInstructions);
 
   AllSubprograms.push_back(Node);
   trackIfUnresolved(Node);

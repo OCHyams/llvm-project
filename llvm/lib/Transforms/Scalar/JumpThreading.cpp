@@ -2084,7 +2084,7 @@ void JumpThreadingPass::cloneInstructions(ValueToValueMapTy &ValueMapping,
     NewPN->addIncoming(PN->getIncomingValueForBlock(PredBB), PredBB);
     ValueMapping[PN] = NewPN;
     if (const DebugLoc &DL = PN->getDebugLoc())
-      mapAtomInstance(DL, ValueMapping);
+      mapAtomInstance(PN->getFunction()->getSubprogram(), DL, ValueMapping);
   }
 
   // Clone noalias scope declarations in the threaded block. When threading a
@@ -2114,7 +2114,7 @@ void JumpThreadingPass::cloneInstructions(ValueToValueMapTy &ValueMapping,
 
     CloneAndRemapDbgInfo(New, &*BI);
     if (const DebugLoc &DL = New->getDebugLoc())
-      mapAtomInstance(DL, ValueMapping);
+      mapAtomInstance(New->getFunction()->getSubprogram(), DL, ValueMapping);
 
     if (RetargetDbgValueIfPossible(New))
       continue;
@@ -2723,7 +2723,7 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
     // Remap debug variable operands.
     remapDebugVariable(ValueMapping, New);
     if (const DebugLoc &DL = New->getDebugLoc())
-      mapAtomInstance(DL, ValueMapping);
+      mapAtomInstance(New->getFunction()->getSubprogram(), DL, ValueMapping);
 
     // If this instruction can be simplified after the operands are updated,
     // just use the simplified value instead.  This frequently happens due to

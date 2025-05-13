@@ -848,7 +848,8 @@ static void cloneLoopBlocks(
   // For each block in the original loop, create a new copy,
   // and update the value map with the newly created values.
   for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
-    BasicBlock *NewBB = CloneBasicBlock(*BB, VMap, ".peel", F);
+    BasicBlock *NewBB =
+        CloneBasicBlock(*BB, VMap, F->getSubprogram(), ".peel", F);
     NewBlocks.push_back(NewBB);
 
     // If an original block is an immediate child of the loop L, its copy

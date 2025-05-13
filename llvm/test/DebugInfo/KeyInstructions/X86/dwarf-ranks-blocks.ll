@@ -35,18 +35,18 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define hidden noundef i32 @_Z1fPiii(ptr %a, i32 %b, i32 %c, i1 %cond) local_unnamed_addr !dbg !11 {
 entry:
-  tail call void @_Z12prologue_endv(), !dbg !DILocation(line: 1, scope: !11)
-  %add = add nsw i32 %c, %b,           !dbg !DILocation(line: 2, scope: !11, atomGroup: 1, atomRank: 2)
-  br i1 %cond, label %bb1, label %bb2, !dbg !DILocation(line: 1, scope: !11)
+  tail call void @_Z12prologue_endv(), !dbg !14 ; !DILocation(line: 1, scope: !11)
+  %add = add nsw i32 %c, %b,           !dbg !15 ; !DILocation(line: 2, scope: !11, atomGroup: 1, atomRank: 2)
+  br i1 %cond, label %bb1, label %bb2, !dbg !16 ; !DILocation(line: 1, scope: !11)
 
 bb1:
-  store i32 %add, ptr %a, align 4,     !dbg !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
-  ret i32 %add,                        !dbg !DILocation(line: 1, scope: !11)
+  store i32 %add, ptr %a, align 4,     !dbg !17 ; !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
+  ret i32 %add,                        !dbg !18 ; !DILocation(line: 1, scope: !11)
 
 bb2:
-  store i32 %b, ptr %a, align 4,       !dbg !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
-  store i32 %c, ptr %a, align 4,       !dbg !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
-  ret i32 %add,                        !dbg !DILocation(line: 1, scope: !11)
+  store i32 %b, ptr %a, align 4,       !dbg !19 ; !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
+  store i32 %c, ptr %a, align 4,       !dbg !20 ; !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
+  ret i32 %add,                        !dbg !21 ; !DILocation(line: 1, scope: !11)
 }
 
 declare void @_Z12prologue_endv() local_unnamed_addr #1
@@ -60,6 +60,14 @@ declare void @_Z12prologue_endv() local_unnamed_addr #1
 !2 = !{i32 7, !"Dwarf Version", i32 5}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
 !10 = !{!"clang version 19.0.0"}
-!11 = distinct !DISubprogram(name: "f", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!11 = distinct !DISubprogram(name: "f", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 3)
 !12 = !DISubroutineType(types: !13)
 !13 = !{}
+!14 = !DILocation(line: 1, scope: !11)
+!15 = !DILocation(line: 2, scope: !11, atomGroup: 1, atomRank: 2)
+!16 = !DILocation(line: 1, scope: !11)
+!17 = !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
+!18 = !DILocation(line: 1, scope: !11)
+!19 = !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
+!20 = !DILocation(line: 3, scope: !11, atomGroup: 1, atomRank: 1)
+!21 = !DILocation(line: 1, scope: !11)

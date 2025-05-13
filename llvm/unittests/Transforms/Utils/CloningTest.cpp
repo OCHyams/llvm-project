@@ -1223,7 +1223,7 @@ TEST_F(CloneInstruction, cloneKeyInstructions) {
   ValueToValueMapTy VM;
   // Store1 and Store2 have the same atomGroup number, but have different
   // inlining scopes, so only Store1 should change group.
-  mapAtomInstance(Store1->getDebugLoc(), VM);
+  mapAtomInstance(F->getSubprogram(), Store1->getDebugLoc(), VM);
   for (Instruction &I : *BB)
     RemapSourceAtom(&I, VM);
   EXPECT_ATOM(Store1, 3);
@@ -1233,7 +1233,7 @@ TEST_F(CloneInstruction, cloneKeyInstructions) {
   VM.clear();
 
   // Store2 and Store3 have the same group number; both should get remapped.
-  mapAtomInstance(Store2->getDebugLoc(), VM);
+  mapAtomInstance(F->getSubprogram(), Store2->getDebugLoc(), VM);
   for (Instruction &I : *BB)
     RemapSourceAtom(&I, VM);
   EXPECT_ATOM(Store1, 3);
@@ -1243,8 +1243,8 @@ TEST_F(CloneInstruction, cloneKeyInstructions) {
   VM.clear();
 
   // Cloning BB with MapAtoms=false should clone the atom numbers.
-  BasicBlock *BB2 =
-      CloneBasicBlock(BB, VM, "", nullptr, nullptr, /*MapAtoms*/ false);
+  BasicBlock *BB2 = CloneBasicBlock(BB, VM, F->getSubprogram(), "", nullptr,
+                                    nullptr, /*MapAtoms*/ false);
   for (Instruction &I : *BB2)
     RemapSourceAtom(&I, VM);
   Store1 = &*BB2->begin();
@@ -1259,8 +1259,8 @@ TEST_F(CloneInstruction, cloneKeyInstructions) {
   delete BB2;
 
   // Cloning BB with MapAtoms=true should map the atom numbers.
-  BasicBlock *BB3 =
-      CloneBasicBlock(BB, VM, "", nullptr, nullptr, /*MapAtoms*/ true);
+  BasicBlock *BB3 = CloneBasicBlock(BB, VM, F->getSubprogram(), "", nullptr,
+                                    nullptr, /*MapAtoms*/ true);
   for (Instruction &I : *BB3)
     RemapSourceAtom(&I, VM);
   Store1 = &*BB3->begin();

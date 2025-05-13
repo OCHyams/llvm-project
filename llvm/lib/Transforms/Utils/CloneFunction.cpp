@@ -43,10 +43,19 @@ using namespace llvm;
 
 STATISTIC(RemappedAtomMax, "Highest global NextAtomGroup (after mapping)");
 
-void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
-  auto CurGroup = DL->getAtomGroup();
+void llvm::mapAtomInstance(DISubprogram *Target, const DebugLoc &DL,
+                           ValueToValueMapTy &VMap) {
+  assert(!Target || Target->isDefinition());
+  if (!Target || !Target->getKeyInstructionsEnabled())
+    return;
+
+  auto CurGroup = DL.get()->getAtomGroup();
   if (!CurGroup)
     return;
+
+#ifdef EXPENSIVE_CHECKS
+  assert(Target == DL->getInlinedAtScope()->getSubprogram());
+#endif
 
   // Try inserting a new entry. If there's already a mapping for this atom
   // then there's nothing to do.
@@ -55,7 +64,7 @@ void llvm::mapAtomInstance(const DebugLoc &DL, ValueToValueMapTy &VMap) {
     return;
 
   // Map entry to a new atom group.
-  uint64_t NewGroup = DL->getContext().incNextDILocationAtomGroup();
+  uint32_t NewGroup = Target->incNextDILocationAtomGroup();
   assert(NewGroup > CurGroup && "Next should always be greater than current");
   It->second = NewGroup;
 
@@ -111,8 +120,9 @@ MetadataPredicate createIdentityMDPredicate(const Function &F,
 
 /// See comments in Cloning.h.
 BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
-                                  const Twine &NameSuffix, Function *F,
-                                  ClonedCodeInfo *CodeInfo, bool MapAtoms) {
+                                  DISubprogram *SP, const Twine &NameSuffix,
+                                  Function *F, ClonedCodeInfo *CodeInfo,
+                                  bool MapAtoms) {
   BasicBlock *NewBB = BasicBlock::Create(BB->getContext(), "", F);
   NewBB->IsNewDbgInfoFormat = BB->IsNewDbgInfoFormat;
   if (BB->hasName())
@@ -133,7 +143,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
 
     if (MapAtoms) {
       if (const DebugLoc &DL = NewInst->getDebugLoc())
-        mapAtomInstance(DL.get(), VMap);
+        mapAtomInstance(SP, DL.get(), VMap);
     }
 
     if (isa<CallInst>(I) && !I.isDebugOrPseudoInst()) {
@@ -238,8 +248,8 @@ void llvm::CloneFunctionBodyInto(Function &NewFunc, const Function &OldFunc,
   for (const BasicBlock &BB : OldFunc) {
 
     // Create a new basic block and copy instructions into it!
-    BasicBlock *CBB =
-        CloneBasicBlock(&BB, VMap, NameSuffix, &NewFunc, CodeInfo);
+    BasicBlock *CBB = CloneBasicBlock(&BB, VMap, NewFunc.getSubprogram(),
+                                      NameSuffix, &NewFunc, CodeInfo);
 
     // Add basic block mapping.
     VMap[&BB] = CBB;
@@ -1057,7 +1067,8 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
 
   BasicBlock *OrigPH = OrigLoop->getLoopPreheader();
   assert(OrigPH && "No preheader");
-  BasicBlock *NewPH = CloneBasicBlock(OrigPH, VMap, NameSuffix, F);
+  BasicBlock *NewPH =
+      CloneBasicBlock(OrigPH, VMap, F->getSubprogram(), NameSuffix, F);
   // To rename the loop PHIs.
   VMap[OrigPH] = NewPH;
   Blocks.push_back(NewPH);
@@ -1089,7 +1100,8 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
     Loop *&NewLoop = LMap[CurLoop];
     assert(NewLoop && "Expecting new loop to be allocated");
 
-    BasicBlock *NewBB = CloneBasicBlock(BB, VMap, NameSuffix, F);
+    BasicBlock *NewBB =
+        CloneBasicBlock(BB, VMap, F->getSubprogram(), NameSuffix, F);
     VMap[BB] = NewBB;
 
     // Update LoopInfo.

@@ -77,24 +77,24 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define hidden i32 @fun() local_unnamed_addr !dbg !11 {
 entry:
-  %b = load i32, ptr @a,   !dbg !DILocation(line: 2, scope: !11)
+  %b = load i32, ptr @a,   !dbg !14 ; !DILocation(line: 2, scope: !11)
 ;; Test A:
-  tail call void @f(),     !dbg !DILocation(line: 3, scope: !11)
+  tail call void @f(),     !dbg !15 ; !DILocation(line: 3, scope: !11)
 ;; Test B:
-  %x = tail call i32 @g(), !dbg !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 2)
-  %y = add i32 %x, %b,     !dbg !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 1)
+  %x = tail call i32 @g(), !dbg !16 ; !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 2)
+  %y = add i32 %x, %b,     !dbg !17 ; !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 1)
 ;; Test C:
-  store i32 1, ptr @z,     !dbg !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 2)
-  tail call void @f(),     !dbg !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 1)
+  store i32 1, ptr @z,     !dbg !18 ; !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 2)
+  tail call void @f(),     !dbg !19 ; !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 1)
 ;; Test D:
-  store i32 2, ptr @z,     !dbg !DILocation(line: 6, scope: !11, atomGroup: 3, atomRank: 2)
-  tail call void @f(),     !dbg !DILocation(line: 7, scope: !11, atomGroup: 3, atomRank: 1)
+  store i32 2, ptr @z,     !dbg !20 ; !DILocation(line: 6, scope: !11, atomGroup: 3, atomRank: 2)
+  tail call void @f(),     !dbg !21 ; !DILocation(line: 7, scope: !11, atomGroup: 3, atomRank: 1)
 ;; Test E:
-  store i32 3, ptr @z,     !dbg !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 2)
-  tail call void @f(),     !dbg !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 1)
-  store i32 4, ptr @z,     !dbg !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
-  tail call void @f(),     !dbg !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
-  ret i32 %y,              !dbg !DILocation(line: 10, scope: !11)
+  store i32 3, ptr @z,     !dbg !22 ; !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 2)
+  tail call void @f(),     !dbg !23 ; !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 1)
+  store i32 4, ptr @z,     !dbg !24 ; !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
+  tail call void @f(),     !dbg !25 ; !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
+  ret i32 %y,              !dbg !26 ; !DILocation(line: 10, scope: !11)
 }
 
 declare void @f() local_unnamed_addr
@@ -109,6 +109,19 @@ declare i32  @g() local_unnamed_addr
 !2 = !{i32 7, !"Dwarf Version", i32 5}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
 !10 = !{!"clang version 19.0.0"}
-!11 = distinct !DISubprogram(name: "fun", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!11 = distinct !DISubprogram(name: "fun", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 6)
 !12 = !DISubroutineType(types: !13)
 !13 = !{}
+!14 = !DILocation(line: 2, scope: !11)
+!15 = !DILocation(line: 3, scope: !11)
+!16 = !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 2)
+!17 = !DILocation(line: 4, scope: !11, atomGroup: 1, atomRank: 1)
+!18 = !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 2)
+!19 = !DILocation(line: 5, scope: !11, atomGroup: 2, atomRank: 1)
+!20 = !DILocation(line: 6, scope: !11, atomGroup: 3, atomRank: 2)
+!21 = !DILocation(line: 7, scope: !11, atomGroup: 3, atomRank: 1)
+!22 = !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 2)
+!23 = !DILocation(line: 8, scope: !11, atomGroup: 4, atomRank: 1)
+!24 = !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
+!25 = !DILocation(line: 9, scope: !11, atomGroup: 5, atomRank: 1)
+!26 = !DILocation(line: 10, scope: !11)

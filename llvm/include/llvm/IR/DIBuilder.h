@@ -905,7 +905,8 @@ namespace llvm {
         DISubprogram::DISPFlags SPFlags = DISubprogram::SPFlagZero,
         DITemplateParameterArray TParams = nullptr,
         DISubprogram *Decl = nullptr, DITypeArray ThrownTypes = nullptr,
-        DINodeArray Annotations = nullptr, StringRef TargetFuncName = "");
+        DINodeArray Annotations = nullptr, StringRef TargetFuncName = "",
+        bool UseKeyInstructions = false);
 
     /// Identical to createFunction,
     /// except that the resulting DbgNode is meant to be RAUWed.
