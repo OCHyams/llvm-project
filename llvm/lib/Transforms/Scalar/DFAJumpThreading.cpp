@@ -1085,8 +1085,8 @@ private:
                                              DomTreeUpdater *DTU) {
     ValueToValueMapTy VMap;
     BasicBlock *NewBB = CloneBasicBlock(
-        BB, VMap, ".jt" + std::to_string(NextState.getLimitedValue()),
-        BB->getParent());
+        BB, VMap, BB->getParent()->getSubprogram(),
+        ".jt" + std::to_string(NextState.getLimitedValue()), BB->getParent());
     NewBB->moveAfter(BB);
     NumCloned++;
 

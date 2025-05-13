@@ -92,9 +92,10 @@ protected:
                                          getNode(nullptr));
   }
   DISubprogram *getSubprogram(DIFile *F = nullptr) {
-    return DISubprogram::getDistinct(Context, nullptr, "", "", F, 0, nullptr, 0,
-                                     nullptr, 0, 0, DINode::FlagZero,
-                                     DISubprogram::SPFlagZero, nullptr);
+    return DISubprogram::getDistinct(
+        Context, nullptr, "", "", F, 0, nullptr, 0, nullptr, 0, 0,
+        DINode::FlagZero, DISubprogram::SPFlagDefinition, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, "", /*UseKeyInstructions*/ true);
   }
   DIFile *getFile() {
     return DIFile::getDistinct(Context, "file.c", "/path/to/dir");
@@ -1596,13 +1597,15 @@ TEST_F(DILocationTest, Merge) {
   // a sentinel that indicates the instruction is in its own undefined atom
   // group.
   {
-    // Reset global counter to ensure EXPECT numbers line up.
-    Context.pImpl->NextAtomGroup = 1;
     // x1 -> y2 -> z4
     //       y3 -> z4
     auto *FX = getSubprogram();
     auto *FY = getSubprogram();
     auto *FZ = getSubprogram();
+    EXPECT_EQ(FX->getNextDILocationAtomGroup(), 1);
+    EXPECT_EQ(FY->getNextDILocationAtomGroup(), 1);
+    EXPECT_EQ(FZ->getNextDILocationAtomGroup(), 1);
+
     auto *Z4 = DILocation::get(Context, 1, 4, FZ);
     auto *Y3IntoZ4 = DILocation::get(Context, 1, 3, FY, Z4, false,
                                      /*AtomGroup*/ 1, /*AtomRank*/ 1);
@@ -1750,11 +1753,11 @@ TEST_F(DILocationTest, discriminatorSpecialCases) {
 }
 
 TEST_F(DILocationTest, KeyInstructions) {
-  Context.pImpl->NextAtomGroup = 1;
+  DISubprogram *SP = getSubprogram();
+  uint32_t NextGroup = SP->getNextDILocationAtomGroup();
+  EXPECT_EQ(NextGroup, 1u);
 
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 1u);
-  DILocation *A1 =
-      DILocation::get(Context, 1, 0, getSubprogram(), nullptr, false, 1, 2);
+  DILocation *A1 = DILocation::get(Context, 1, 0, SP, nullptr, false, 1, 2);
   // The group is only applied to the DILocation if we've built LLVM with
   // EXPERIMENTAL_KEY_INSTRUCTIONS.
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
@@ -1766,26 +1769,26 @@ TEST_F(DILocationTest, KeyInstructions) {
 #endif
 
   // Group number 1 has been "used" so next available is 2.
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 2u);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 2u);
 
   // Set a group number higher than current + 1, then check the waterline.
-  DILocation::get(Context, 2, 0, getSubprogram(), nullptr, false, 5, 1);
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 6u);
+  DILocation::get(Context, 2, 0, SP, nullptr, false, 5, 1);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 6u);
 
   // The waterline should be unchanged (group <= next).
-  DILocation::get(Context, 3, 0, getSubprogram(), nullptr, false, 4, 1);
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 6u);
-  DILocation::get(Context, 3, 0, getSubprogram(), nullptr, false, 5, 1);
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 6u);
+  DILocation::get(Context, 3, 0, SP, nullptr, false, 4, 1);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 6u);
+  DILocation::get(Context, 3, 0, SP, nullptr, false, 5, 1);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 6u);
 
   // Check the waterline gets incremented by 1.
-  EXPECT_EQ(Context.incNextDILocationAtomGroup(), 6u);
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 7u);
+  EXPECT_EQ(SP->incNextDILocationAtomGroup(), 6u);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 7u);
 
-  Context.updateDILocationAtomGroupWaterline(8);
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 8u);
-  Context.updateDILocationAtomGroupWaterline(7);
-  EXPECT_EQ(Context.pImpl->NextAtomGroup, 8u);
+  SP->updateDILocationAtomGroupWaterline(8);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 8u);
+  SP->updateDILocationAtomGroupWaterline(7);
+  EXPECT_EQ(SP->getNextDILocationAtomGroup(), 8u);
 }
 
 typedef MetadataTest GenericDINodeTest;

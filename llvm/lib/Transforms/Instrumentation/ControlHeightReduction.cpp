@@ -1765,7 +1765,8 @@ void CHR::cloneScopeBlocks(CHRScope *Scope,
     for (BasicBlock *BB : RI.R->blocks()) { // This includes the blocks in the
                                             // sub-Scopes.
       assert(BB != PreEntryBlock && "Don't copy the preetntry block");
-      BasicBlock *NewBB = CloneBasicBlock(BB, VMap, ".nonchr", &F);
+      BasicBlock *NewBB =
+          CloneBasicBlock(BB, VMap, F.getSubprogram(), ".nonchr", &F);
       NewBlocks.push_back(NewBB);
       VMap[BB] = NewBB;
 

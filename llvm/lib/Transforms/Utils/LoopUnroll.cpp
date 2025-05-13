@@ -717,7 +717,8 @@ llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
 
     for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
       ValueToValueMapTy VMap;
-      BasicBlock *New = CloneBasicBlock(*BB, VMap, "." + Twine(It));
+      BasicBlock *New = CloneBasicBlock(
+          *BB, VMap, Header->getParent()->getSubprogram(), "." + Twine(It));
       Header->getParent()->insert(BlockInsertPt, New);
 
       assert((*BB != Header || LI->getLoopFor(*BB) == L) &&

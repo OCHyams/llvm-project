@@ -943,8 +943,8 @@ bool WinEHPrepareImpl::cloneCommonBlocks(Function &F) {
                              << "\'.\n");
 
       // Create a new basic block and copy instructions into it!
-      BasicBlock *CBB =
-          CloneBasicBlock(BB, VMap, Twine(".for.", FuncletPadBB->getName()));
+      BasicBlock *CBB = CloneBasicBlock(
+          BB, VMap, F.getSubprogram(), Twine(".for.", FuncletPadBB->getName()));
       // Insert the clone immediately after the original to ensure determinism
       // and to keep the same relative ordering of any funclet's blocks.
       CBB->insertInto(&F, BB->getNextNode());

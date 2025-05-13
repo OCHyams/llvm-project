@@ -9,6 +9,7 @@
 ; CHECK: while.body.clone:
 ; CHECK-NEXT: %dest.sroa.clone = phi i32 [ %1, %.split ], [ poison, %if.else ], !dbg [[G2R1:!.*]]
 
+; CHECK: distinct !DISubprogram(name: "test", {{.*}}nextAtomGroup: 3)
 ; CHECK: [[G1R1]] = !DILocation(line: 1, column: 1, scope: !5, atomGroup: 1, atomRank: 1)
 ; CHECK: [[G2R1]] = !DILocation(line: 1, column: 1, scope: !5, atomGroup: 2, atomRank: 1)
 
@@ -46,7 +47,7 @@ if.else1:                                         ; preds = %if.else1, %preheade
 !2 = !{i32 11}
 !3 = !{i32 0}
 !4 = !{i32 2, !"Debug Info Version", i32 3}
-!5 = distinct !DISubprogram(name: "test", linkageName: "test", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!5 = distinct !DISubprogram(name: "test", linkageName: "test", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 2)
 !6 = !DISubroutineType(types: !7)
 !7 = !{}
 !12 = !DILocation(line: 1, column: 1, scope: !5, atomGroup: 1, atomRank: 1)

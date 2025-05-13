@@ -1139,7 +1139,7 @@ static void cloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
         // dead code caused by folding dead branches.
         NewBonusInst->setDebugLoc(DebugLoc());
       } else if (const DebugLoc &DL = NewBonusInst->getDebugLoc()) {
-        mapAtomInstance(DL, VMap);
+        mapAtomInstance(BonusInst.getFunction()->getSubprogram(), DL, VMap);
       }
     }
 
@@ -3606,7 +3606,7 @@ foldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
       // Update operands due to translation.
       // Key Instructions: Remap all the atom groups.
       if (const DebugLoc &DL = BBI->getDebugLoc())
-        mapAtomInstance(DL, TranslateMap);
+        mapAtomInstance(BBI->getFunction()->getSubprogram(), DL, TranslateMap);
       RemapInstruction(N, TranslateMap,
                        RF_IgnoreMissingLocals | RF_NoModuleLevelChanges);
 

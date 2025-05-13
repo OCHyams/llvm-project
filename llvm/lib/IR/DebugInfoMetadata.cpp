@@ -19,8 +19,10 @@
 #include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 
@@ -63,9 +65,10 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
     : DebugVariable(DVI->getVariable(), std::nullopt,
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
-DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-                       unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
-                       ArrayRef<Metadata *> MDs, bool ImplicitCode)
+DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
+                       unsigned Line, unsigned Column, uint32_t AtomGroup,
+                       uint8_t AtomRank, ArrayRef<Metadata *> MDs,
+                       bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs)
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
       ,
@@ -75,8 +78,23 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
-  if (AtomGroup)
-    C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
+  // OCH huurrrr
+
+  // if (AtomGroup)
+  //   C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
+  if (AtomGroup) {
+    // assert(Fn);
+    // assert(Fn->isDefinition());
+    if (Fn) {
+      // Fn might be a temporary during parsing, which sucks but there we go.
+      // allow null for now - probably need to verify somewhere?
+      // this occurs e.g.
+      //    !1 = ... inlinedAt !2 // < temporary
+      //    !2 = ...
+      assert(Fn->isDefinition());
+      Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
+    }
+  }
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&
          "Expected a scope and optional inlined-at");
@@ -98,7 +116,7 @@ static void adjustColumn(unsigned &Column) {
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
                                 unsigned Column, Metadata *Scope,
                                 Metadata *InlinedAt, bool ImplicitCode,
-                                uint64_t AtomGroup, uint8_t AtomRank,
+                                uint32_t AtomGroup, uint8_t AtomRank,
                                 StorageType Storage, bool ShouldCreate) {
   // Fixup column.
   adjustColumn(Column);
@@ -117,10 +135,38 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
 
   SmallVector<Metadata *, 2> Ops;
   Ops.push_back(Scope);
+
   if (InlinedAt)
     Ops.push_back(InlinedAt);
+
+  DISubprogram *SP = nullptr;
+  // all this BS should go away, we should just delay checks to verifier and add
+  // comments explaining why! (or keep checks but streamline)
+  // gotta keep checks because obvs optimisations + FE need to update thru this.
+  // TODO: Prettify, and verify.
+  if (isa_and_nonnull<MDNode>(Scope) && cast<MDNode>(Scope)->isResolved()) {
+    if (auto *LS = dyn_cast_or_null<DILocalScope>(Scope)) {
+      if (LS->isResolved()) {
+        if (!isa<DILexicalBlockBase>(LS) ||
+            (cast<DILexicalBlockBase>(LS)->getRawScope() &&
+             cast<MDNode>(cast<DILexicalBlockBase>(LS)->getRawScope())
+                 ->isResolved())) {
+          SP = LS->getSubprogram();
+          if (InlinedAt) {
+            assert(SP);
+            if (!cast<MDNode>(InlinedAt)->isResolved())
+              SP = nullptr;
+            else {
+              auto *X = cast<DILocation>(InlinedAt)->getInlinedAtScope();
+              SP = X->getSubprogram();
+            }
+          }
+        }
+      }
+    }
+  }
   return storeImpl(new (Ops.size(), Storage)
-                       DILocation(Context, Storage, Line, Column, AtomGroup,
+                       DILocation(Context, Storage, SP, Line, Column, AtomGroup,
                                   AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
@@ -1395,10 +1441,11 @@ DISubprogram *DISubprogram::getImpl(
     int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
     Metadata *TemplateParams, Metadata *Declaration, Metadata *RetainedNodes,
     Metadata *ThrownTypes, Metadata *Annotations, MDString *TargetFuncName,
-    StorageType Storage, bool ShouldCreate) {
+    uint32_t NextAtomGroup, StorageType Storage, bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
   assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
+  // TODO: Key on UseKeyInstructions???
   DEFINE_GETIMPL_LOOKUP(DISubprogram,
                         (Scope, Name, LinkageName, File, Line, Type, ScopeLine,
                          ContainingType, VirtualIndex, ThisAdjustment, Flags,
@@ -1424,10 +1471,17 @@ DISubprogram *DISubprogram::getImpl(
       }
     }
   }
-  DEFINE_GETIMPL_STORE_N(
-      DISubprogram,
-      (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
-      Ops.size());
+  DISubprogram *SP = [&]() {
+    DEFINE_GETIMPL_STORE_N(
+        DISubprogram,
+        (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
+        Ops.size());
+  }();
+  if (NextAtomGroup) {
+    assert(SP->isDistinct());
+    SP->NextAtomGroup = NextAtomGroup;
+  }
+  return SP;
 }
 
 bool DISubprogram::describes(const Function *F) const {

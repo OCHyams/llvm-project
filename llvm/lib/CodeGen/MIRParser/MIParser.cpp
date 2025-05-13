@@ -2332,8 +2332,8 @@ bool MIParser::parseDILocation(MDNode *&Loc) {
   MDNode *Scope = nullptr;
   MDNode *InlinedAt = nullptr;
   bool ImplicitCode = false;
-  uint64_t AtomGroup = 0;
-  uint64_t AtomRank = 0;
+  uint32_t AtomGroup = 0;
+  uint32_t AtomRank = 0;
 
   if (expectAndConsume(MIToken::lparen))
     return true;

@@ -154,7 +154,7 @@ TEST(BasicBlockDbgInfoTest, DropSourceAtomOnSplit) {
   std::unique_ptr<Module> M = parseIR(C, R"---(
     define dso_local void @func() !dbg !10 {
       %1 = alloca i32, align 4
-      ret void, !dbg !DILocation(line: 3, column: 2, scope: !10, atomGroup: 1, atomRank: 1)
+      ret void, !dbg !16
     }
 
     !llvm.dbg.cu = !{!0}
@@ -164,12 +164,13 @@ TEST(BasicBlockDbgInfoTest, DropSourceAtomOnSplit) {
     !1 = !DIFile(filename: "dummy", directory: "dummy")
     !2 = !{i32 7, !"Dwarf Version", i32 5}
     !3 = !{i32 2, !"Debug Info Version", i32 3}
-    !10 = distinct !DISubprogram(name: "func", scope: !1, file: !1, line: 1, type: !11, scopeLine: 1, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !13)
+    !10 = distinct !DISubprogram(name: "func", scope: !1, file: !1, line: 1, type: !11, scopeLine: 1, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !13, nextAtomGroup: 2)
     !11 = !DISubroutineType(types: !12)
     !12 = !{null}
     !13 = !{}
     !14 = !DILocalVariable(name: "a", scope: !10, file: !1, line: 2, type: !15)
     !15 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+    !16 = !DILocation(line: 3, column: 2, scope: !10, atomGroup: 1, atomRank: 1)
   )---");
   ASSERT_TRUE(M);
 
