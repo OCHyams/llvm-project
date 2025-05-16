@@ -2010,6 +2010,7 @@ public:
     assert(isDefinition());
     return NextAtomGroup++;
   }
+  uint32_t getNextDILocationAtomGroup() const { return NextAtomGroup; }
   void setKeyInstructionsEnabled(bool F) {
     if (!F)
       NextAtomGroup = 0;
