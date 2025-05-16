@@ -1917,10 +1917,20 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
     DVR->setDebugLoc(IDL);
   };
 
+  // Update the atomGroup waterline (from inlined instructions) if this
+  // function was built with Key Instructions.
+  bool CallerKeyInstructions = Fn->getSubprogram()->getKeyInstructionsEnabled();
+  uint32_t MaxInlineAtom = 0;
+
   // Iterate over all instructions, updating metadata and debug-info records.
   for (; FI != Fn->end(); ++FI) {
     for (Instruction &I : *FI) {
       UpdateInst(I);
+
+      if (CallerKeyInstructions)
+        if (auto &DL = I.getDebugLoc())
+          MaxInlineAtom = std::max<uint32_t>(MaxInlineAtom, DL->getAtomGroup());
+
       for (DbgRecord &DVR : I.getDbgRecordRange()) {
         UpdateDVR(&DVR);
       }
@@ -1940,6 +1950,9 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
       }
     }
   }
+
+  if (CallerKeyInstructions)
+    Fn->getSubprogram()->updateDILocationAtomGroupWaterline(MaxInlineAtom + 1);
 }
 
 #undef DEBUG_TYPE
