@@ -1182,7 +1182,9 @@ static BasicBlock *buildClonedLoopBlocks(
   // a helper.
   auto CloneBlock = [&](BasicBlock *OldBB) {
     // Clone the basic block and insert it before the new preheader.
-    BasicBlock *NewBB = CloneBasicBlock(OldBB, VMap, ".us", OldBB->getParent());
+    BasicBlock *NewBB =
+        CloneBasicBlock(OldBB, VMap, LoopPH->getParent()->getSubprogram(),
+                        ".us", OldBB->getParent());
     NewBB->moveBefore(LoopPH);
 
     // Record this block and the mapping.

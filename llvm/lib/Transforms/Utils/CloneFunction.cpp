@@ -120,8 +120,9 @@ MetadataPredicate createIdentityMDPredicate(const Function &F,
 
 /// See comments in Cloning.h.
 BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
-                                  const Twine &NameSuffix, Function *F,
-                                  ClonedCodeInfo *CodeInfo, bool MapAtoms) {
+                                  DISubprogram *SP, const Twine &NameSuffix,
+                                  Function *F, ClonedCodeInfo *CodeInfo,
+                                  bool MapAtoms) {
   BasicBlock *NewBB = BasicBlock::Create(BB->getContext(), "", F);
   NewBB->IsNewDbgInfoFormat = BB->IsNewDbgInfoFormat;
   if (BB->hasName())
@@ -142,8 +143,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
 
     if (MapAtoms) {
       if (const DebugLoc &DL = NewInst->getDebugLoc())
-        mapAtomInstance(NewInst->getFunction()->getSubprogram(), DL.get(),
-                        VMap);
+        mapAtomInstance(SP, DL.get(), VMap);
     }
 
     if (isa<CallInst>(I) && !I.isDebugOrPseudoInst()) {
@@ -248,8 +248,8 @@ void llvm::CloneFunctionBodyInto(Function &NewFunc, const Function &OldFunc,
   for (const BasicBlock &BB : OldFunc) {
 
     // Create a new basic block and copy instructions into it!
-    BasicBlock *CBB =
-        CloneBasicBlock(&BB, VMap, NameSuffix, &NewFunc, CodeInfo);
+    BasicBlock *CBB = CloneBasicBlock(&BB, VMap, NewFunc.getSubprogram(),
+                                      NameSuffix, &NewFunc, CodeInfo);
 
     // Add basic block mapping.
     VMap[&BB] = CBB;
@@ -1067,7 +1067,8 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
 
   BasicBlock *OrigPH = OrigLoop->getLoopPreheader();
   assert(OrigPH && "No preheader");
-  BasicBlock *NewPH = CloneBasicBlock(OrigPH, VMap, NameSuffix, F);
+  BasicBlock *NewPH =
+      CloneBasicBlock(OrigPH, VMap, F->getSubprogram(), NameSuffix, F);
   // To rename the loop PHIs.
   VMap[OrigPH] = NewPH;
   Blocks.push_back(NewPH);
@@ -1099,7 +1100,8 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
     Loop *&NewLoop = LMap[CurLoop];
     assert(NewLoop && "Expecting new loop to be allocated");
 
-    BasicBlock *NewBB = CloneBasicBlock(BB, VMap, NameSuffix, F);
+    BasicBlock *NewBB =
+        CloneBasicBlock(BB, VMap, F->getSubprogram(), NameSuffix, F);
     VMap[BB] = NewBB;
 
     // Update LoopInfo.

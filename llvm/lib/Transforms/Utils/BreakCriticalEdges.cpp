@@ -405,7 +405,8 @@ bool llvm::SplitIndirectBrCriticalEdges(Function &F,
     // block's body. Create a copy of Target that will be used by the "direct"
     // preds.
     ValueToValueMapTy VMap;
-    BasicBlock *DirectSucc = CloneBasicBlock(Target, VMap, ".clone", &F);
+    BasicBlock *DirectSucc =
+        CloneBasicBlock(Target, VMap, F.getSubprogram(), ".clone", &F);
     if (!VMap.AtomMap.empty())
       for (Instruction &I : *DirectSucc)
         RemapSourceAtom(&I, VMap);

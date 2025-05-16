@@ -1243,8 +1243,8 @@ TEST_F(CloneInstruction, cloneKeyInstructions) {
   VM.clear();
 
   // Cloning BB with MapAtoms=false should clone the atom numbers.
-  BasicBlock *BB2 =
-      CloneBasicBlock(BB, VM, "", nullptr, nullptr, /*MapAtoms*/ false);
+  BasicBlock *BB2 = CloneBasicBlock(BB, VM, F->getSubprogram(), "", nullptr,
+                                    nullptr, /*MapAtoms*/ false);
   for (Instruction &I : *BB2)
     RemapSourceAtom(&I, VM);
   Store1 = &*BB2->begin();
@@ -1259,8 +1259,8 @@ TEST_F(CloneInstruction, cloneKeyInstructions) {
   delete BB2;
 
   // Cloning BB with MapAtoms=true should map the atom numbers.
-  BasicBlock *BB3 =
-      CloneBasicBlock(BB, VM, "", nullptr, nullptr, /*MapAtoms*/ true);
+  BasicBlock *BB3 = CloneBasicBlock(BB, VM, F->getSubprogram(), "", nullptr,
+                                    nullptr, /*MapAtoms*/ true);
   for (Instruction &I : *BB3)
     RemapSourceAtom(&I, VM);
   Store1 = &*BB3->begin();

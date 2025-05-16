@@ -40,9 +40,9 @@ entry:
 
 for.cond:                                         ; preds = %for.body, %entry
   %i.0 = phi i32 [ 0, %entry ], [ %inc, %for.body ]
-  store i32 %i.0, ptr @glob, align 16,         !dbg !DILocation(line: 4, scope: !5, atomGroup: 1, atomRank: 1)
-  %cmp = icmp slt i32 %i.0, 100,               !dbg !DILocation(line: 5, scope: !5, atomGroup: 2, atomRank: 2)
-  br i1 %cmp, label %for.body, label %for.end, !dbg !DILocation(line: 6, scope: !5, atomGroup: 2, atomRank: 1)
+  store i32 %i.0, ptr @glob, align 16,         !dbg !8
+  %cmp = icmp slt i32 %i.0, 100,               !dbg !9
+  br i1 %cmp, label %for.body, label %for.end, !dbg !10
 
 for.body:                                         ; preds = %for.cond
   %inc = add nsw i32 %i.0, 1
@@ -72,3 +72,6 @@ attributes #1 = { noduplicate }
 !5 = distinct !DISubprogram(name: "test1", linkageName: "test1", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
 !6 = !DISubroutineType(types: !7)
 !7 = !{}
+!8 = !DILocation(line: 4, scope: !5, atomGroup: 1, atomRank: 1)
+!9 = !DILocation(line: 5, scope: !5, atomGroup: 2, atomRank: 2)
+!10 = !DILocation(line: 6, scope: !5, atomGroup: 2, atomRank: 1)

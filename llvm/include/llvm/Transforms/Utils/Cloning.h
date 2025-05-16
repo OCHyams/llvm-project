@@ -128,7 +128,8 @@ struct ClonedCodeInfo {
 /// but is sometimes unnecessary, causing extra work that could be avoided by
 /// setting the parameter to false.
 BasicBlock *CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
-                            const Twine &NameSuffix = "", Function *F = nullptr,
+                            DISubprogram *SP, const Twine &NameSuffix = "",
+                            Function *F = nullptr,
                             ClonedCodeInfo *CodeInfo = nullptr,
                             bool MapAtoms = true);
 
