@@ -2007,20 +2007,24 @@ public:
                                       bool IsMainSubprogram = false);
 
   uint32_t incNextDILocationAtomGroup() {
-    assert(isDefinition());
+    assert(isDefinition() && getKeyInstructionsEnabled());
+    // NOTE: This may wrap, which effectively disables Key Instructions for
+    // this function (as long as getNextDILocationAtomGroup is checked before
+    // the next call). As a result, instances that have already been inlined
+    // will also have Key Instructions disabled for them, since we look back
+    // to this DISubprogram to check if it's enabled during DWARF emission.
+    // A quirk of the implementation that only shows up in extreme edge cases.
     return NextAtomGroup++;
   }
-  uint32_t getNextDILocationAtomGroup() const { return NextAtomGroup; }
-  void setKeyInstructionsEnabled(bool F) {
-    if (!F)
-      NextAtomGroup = 0;
-    else if (F && !getKeyInstructionsEnabled())
-      NextAtomGroup = 1;
+  uint32_t getNextDILocationAtomGroup() const {
+    assert(getKeyInstructionsEnabled());
+    return NextAtomGroup;
   }
   bool getKeyInstructionsEnabled() const { return NextAtomGroup; }
   /// Key Instructions: update the highest number atom group emitted for any
   /// function.
   void updateDILocationAtomGroupWaterline(uint32_t G) {
+    assert(getKeyInstructionsEnabled());
     // FIXME: should really be G+1, if the waterline is "current max".
     NextAtomGroup = std::max(NextAtomGroup, G);
   }

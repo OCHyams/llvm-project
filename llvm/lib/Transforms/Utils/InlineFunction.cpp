@@ -1931,8 +1931,6 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
   // `getKeyInstructionsEnabled` is implemented, and because it would be
   // expensive to assume all functions may contain Key Instructions if none
   // do.
-  // TODO: Remove ability to set/unset, assert if num increases when unset,
-  // make it set at instantiation time.
   bool KeyInstructions = Fn->getSubprogram()->getKeyInstructionsEnabled();
   uint32_t MaxInlineAtom = 0;
 
