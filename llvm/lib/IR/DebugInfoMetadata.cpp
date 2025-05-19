@@ -1408,10 +1408,11 @@ DISubprogram *DISubprogram::getImpl(
     int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
     Metadata *TemplateParams, Metadata *Declaration, Metadata *RetainedNodes,
     Metadata *ThrownTypes, Metadata *Annotations, MDString *TargetFuncName,
-    StorageType Storage, bool ShouldCreate) {
+    bool UseKeyInstructions, StorageType Storage, bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
   assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
+  // TODO: Key on UseKeyInstructions???
   DEFINE_GETIMPL_LOOKUP(DISubprogram,
                         (Scope, Name, LinkageName, File, Line, Type, ScopeLine,
                          ContainingType, VirtualIndex, ThisAdjustment, Flags,
@@ -1437,10 +1438,17 @@ DISubprogram *DISubprogram::getImpl(
       }
     }
   }
-  DEFINE_GETIMPL_STORE_N(
-      DISubprogram,
-      (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
-      Ops.size());
+  DISubprogram *SP = [&]() {
+    DEFINE_GETIMPL_STORE_N(
+        DISubprogram,
+        (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
+        Ops.size());
+  }();
+  if (UseKeyInstructions) {
+    assert(SP->isDistinct());
+    SP->NextAtomGroup = 1;
+  }
+  return SP;
 }
 
 bool DISubprogram::describes(const Function *F) const {

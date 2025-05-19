@@ -1919,7 +1919,8 @@ CGDebugInfo::createInlinedSubprogram(StringRef FuncName,
         /*ScopeLine=*/0,
         /*Flags=*/llvm::DINode::FlagArtificial,
         /*SPFlags=*/llvm::DISubprogram::SPFlagDefinition,
-        /*TParams=*/nullptr, /*ThrownTypes=*/nullptr, /*Annotations=*/nullptr);
+        /*TParams=*/nullptr, /*ThrownTypes=*/nullptr, /*Annotations=*/nullptr,
+        nullptr, StringRef(), CGM.getCodeGenOpts().DebugKeyInstructions);
   }
 
   return SP;
@@ -4701,13 +4702,8 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
   llvm::DISubprogram *SP = DBuilder.createFunction(
       FDContext, Name, LinkageName, Unit, LineNo, DIFnType, ScopeLine,
       FlagsForDef, SPFlagsForDef, TParamsArray.get(), Decl, nullptr,
-      Annotations);
+      Annotations, "", CGM.getCodeGenOpts().DebugKeyInstructions);
   Fn->setSubprogram(SP);
-
-  // If we're building with Key Instructions we have to let the function know.
-  if (SPFlags & llvm::DISubprogram::SPFlagDefinition &&
-      CGM.getCodeGenOpts().DebugKeyInstructions)
-    SP->setKeyInstructionsEnabled(true);
 
   // We might get here with a VarDecl in the case we're generating
   // code for the initialization of globals. Do not record these decls
