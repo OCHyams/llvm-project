@@ -92,9 +92,10 @@ protected:
                                          getNode(nullptr));
   }
   DISubprogram *getSubprogram(DIFile *F = nullptr) {
-    return DISubprogram::getDistinct(Context, nullptr, "", "", F, 0, nullptr, 0,
-                                     nullptr, 0, 0, DINode::FlagZero,
-                                     DISubprogram::SPFlagZero, nullptr);
+    return DISubprogram::getDistinct(
+        Context, nullptr, "", "", F, 0, nullptr, 0, nullptr, 0, 0,
+        DINode::FlagZero, DISubprogram::SPFlagZero, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, "", /*UseKeyInstructions*/ true);
   }
   DIFile *getFile() {
     return DIFile::getDistinct(Context, "file.c", "/path/to/dir");
