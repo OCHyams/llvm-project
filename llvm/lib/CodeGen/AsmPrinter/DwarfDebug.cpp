@@ -2082,11 +2082,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // Not-Key-Instructions functions inlined into Key Instructions functions
   // should fall back to default is_stmt handling.
   bool ScopeUsesKeyInstructions =
-      KeyInstructionsAreStmts && MI->getParent()
-                                     ->getParent()
-                                     ->getFunction()
-                                     .getSubprogram()
-                                     ->getKeyInstructionsEnabled();
+      KeyInstructionsAreStmts && SP->getKeyInstructionsEnabled();
   if (ScopeUsesKeyInstructions && DL && DL.getInlinedAt())
     ScopeUsesKeyInstructions =
         DL->getScope()->getSubprogram()->getKeyInstructionsEnabled();
