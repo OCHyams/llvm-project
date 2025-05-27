@@ -1408,7 +1408,7 @@ DISubprogram *DISubprogram::getImpl(
     int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
     Metadata *TemplateParams, Metadata *Declaration, Metadata *RetainedNodes,
     Metadata *ThrownTypes, Metadata *Annotations, MDString *TargetFuncName,
-    bool UseKeyInstructions, StorageType Storage, bool ShouldCreate) {
+    uint32_t NextAtomGroup, StorageType Storage, bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
   assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
@@ -1444,9 +1444,9 @@ DISubprogram *DISubprogram::getImpl(
         (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
         Ops.size());
   }();
-  if (UseKeyInstructions) {
+  if (NextAtomGroup) {
     assert(SP->isDistinct());
-    SP->NextAtomGroup = 1;
+    SP->NextAtomGroup = NextAtomGroup;
   }
   return SP;
 }

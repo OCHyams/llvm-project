@@ -2047,6 +2047,26 @@ private:
           DITemplateParameterArray TemplateParams, DISubprogram *Declaration,
           DINodeArray RetainedNodes, DITypeArray ThrownTypes,
           DINodeArray Annotations, StringRef TargetFuncName,
+          uint32_t NextAtomGroup, StorageType Storage,
+          bool ShouldCreate = true) {
+    return getImpl(Context, Scope, getCanonicalMDString(Context, Name),
+                   getCanonicalMDString(Context, LinkageName), File, Line, Type,
+                   ScopeLine, ContainingType, VirtualIndex, ThisAdjustment,
+                   Flags, SPFlags, Unit, TemplateParams.get(), Declaration,
+                   RetainedNodes.get(), ThrownTypes.get(), Annotations.get(),
+                   getCanonicalMDString(Context, TargetFuncName), NextAtomGroup,
+                   Storage, ShouldCreate);
+  }
+
+  static DISubprogram *
+  getImpl(LLVMContext &Context, DIScope *Scope, StringRef Name,
+          StringRef LinkageName, DIFile *File, unsigned Line,
+          DISubroutineType *Type, unsigned ScopeLine, DIType *ContainingType,
+          unsigned VirtualIndex, int ThisAdjustment, DIFlags Flags,
+          DISPFlags SPFlags, DICompileUnit *Unit,
+          DITemplateParameterArray TemplateParams, DISubprogram *Declaration,
+          DINodeArray RetainedNodes, DITypeArray ThrownTypes,
+          DINodeArray Annotations, StringRef TargetFuncName,
           bool UseKeyInstructions, StorageType Storage,
           bool ShouldCreate = true) {
     return getImpl(Context, Scope, getCanonicalMDString(Context, Name),
@@ -2055,7 +2075,8 @@ private:
                    Flags, SPFlags, Unit, TemplateParams.get(), Declaration,
                    RetainedNodes.get(), ThrownTypes.get(), Annotations.get(),
                    getCanonicalMDString(Context, TargetFuncName),
-                   UseKeyInstructions, Storage, ShouldCreate);
+                   static_cast<uint32_t>(UseKeyInstructions), Storage,
+                   ShouldCreate);
   }
   LLVM_ABI static DISubprogram *
   getImpl(LLVMContext &Context, Metadata *Scope, MDString *Name,
@@ -2064,8 +2085,8 @@ private:
           int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
           Metadata *TemplateParams, Metadata *Declaration,
           Metadata *RetainedNodes, Metadata *ThrownTypes, Metadata *Annotations,
-          MDString *TargetFuncName, bool UseKeyInstructions,
-          StorageType Storage, bool ShouldCreate = true);
+          MDString *TargetFuncName, uint32_t NextAtomGroup, StorageType Storage,
+          bool ShouldCreate = true);
 
   TempDISubprogram cloneImpl() const {
     return getTemporary(getContext(), getScope(), getName(), getLinkageName(),
