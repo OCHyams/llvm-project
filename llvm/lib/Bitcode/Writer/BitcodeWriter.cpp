@@ -1821,7 +1821,6 @@ void ModuleBitcodeWriter::writeDILocation(const DILocation *N,
   Record.push_back(VE.getMetadataID(N->getScope()));
   Record.push_back(VE.getMetadataOrNullID(N->getInlinedAt()));
   Record.push_back(N->isImplicitCode());
-
   Stream.EmitRecord(bitc::METADATA_LOCATION, Record, Abbrev);
   Record.clear();
 }

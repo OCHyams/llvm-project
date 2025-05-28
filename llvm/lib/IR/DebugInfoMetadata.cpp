@@ -19,8 +19,10 @@
 #include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 
@@ -81,9 +83,17 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
   // if (AtomGroup)
   //   C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
   if (AtomGroup) {
-    assert(Fn);
-    assert(Fn->isDefinition());
-    Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
+    // assert(Fn);
+    // assert(Fn->isDefinition());
+    if (Fn) {
+      // Fn might be a temporary during parsing, which sucks but there we go.
+      // allow null for now - probably need to verify somewhere?
+      // this occurs e.g.
+      //    !1 = ... inlinedAt !2 // < temporary
+      //    !2 = ...
+      assert(Fn->isDefinition());
+      Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
+    }
   }
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&
@@ -125,10 +135,35 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
 
   SmallVector<Metadata *, 2> Ops;
   Ops.push_back(Scope);
-  DISubprogram *SP = cast<DILocalScope>(Scope)->getSubprogram();
-  if (InlinedAt) {
+
+  if (InlinedAt)
     Ops.push_back(InlinedAt);
-    SP = cast<DILocation>(InlinedAt)->getInlinedAtScope()->getSubprogram();
+
+  DISubprogram *SP = nullptr;
+  // all this BS should go away, we should just delay checks to verifier and add
+  // comments explaining why! (or keep checks but streamline)
+  // gotta keep checks because obvs optimisations + FE need to update thru this.
+  // TODO: Prettify, and verify.
+  if (isa_and_nonnull<MDNode>(Scope) && cast<MDNode>(Scope)->isResolved()) {
+    if (auto *LS = dyn_cast_or_null<DILocalScope>(Scope)) {
+      if (LS->isResolved()) {
+        if (!isa<DILexicalBlockBase>(LS) ||
+            (cast<DILexicalBlockBase>(LS)->getRawScope() &&
+             cast<MDNode>(cast<DILexicalBlockBase>(LS)->getRawScope())
+                 ->isResolved())) {
+          SP = LS->getSubprogram();
+          if (InlinedAt) {
+            assert(SP);
+            if (!cast<MDNode>(InlinedAt)->isResolved())
+              SP = nullptr;
+            else {
+              auto *X = cast<DILocation>(InlinedAt)->getInlinedAtScope();
+              SP = X->getSubprogram();
+            }
+          }
+        }
+      }
+    }
   }
   return storeImpl(new (Ops.size(), Storage)
                        DILocation(Context, Storage, SP, Line, Column, AtomGroup,
