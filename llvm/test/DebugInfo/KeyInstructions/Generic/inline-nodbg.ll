@@ -36,7 +36,7 @@ entry:
 !2 = !{i32 7, !"Dwarf Version", i32 5}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
 !10 = !{!"clang version 19.0.0"}
-!15 = distinct !DISubprogram(name: "b", scope: !1, file: !1, line: 3, type: !16, scopeLine: 3, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!15 = distinct !DISubprogram(name: "b", scope: !1, file: !1, line: 3, type: !16, scopeLine: 3, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 3)
 !16 = !DISubroutineType(types: !17)
 !17 = !{}
 !18 = !DILocation(line: 3, scope: !15, atomGroup: 1, atomRank: 1)

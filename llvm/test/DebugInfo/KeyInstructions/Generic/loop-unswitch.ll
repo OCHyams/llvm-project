@@ -125,7 +125,7 @@ declare void @clobber()
 !2 = !{i32 13}
 !3 = !{i32 0}
 !4 = !{i32 2, !"Debug Info Version", i32 3}
-!5 = distinct !DISubprogram(name: "partial_unswitch_true_successor_hoist_invariant", linkageName: "partial_unswitch_true_successor_hoist_invariant", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!5 = distinct !DISubprogram(name: "partial_unswitch_true_successor_hoist_invariant", linkageName: "partial_unswitch_true_successor_hoist_invariant", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 14)
 !6 = !DISubroutineType(types: !7)
 !7 = !{}
 !8 = !DILocation(line: 1, scope: !5, atomGroup: 1, atomRank: 1)

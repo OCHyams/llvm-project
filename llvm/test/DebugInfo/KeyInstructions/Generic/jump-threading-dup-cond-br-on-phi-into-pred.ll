@@ -79,7 +79,7 @@ declare void @f3()
 !2 = !{i32 12}
 !3 = !{i32 0}
 !4 = !{i32 2, !"Debug Info Version", i32 3}
-!5 = distinct !DISubprogram(name: "test5", linkageName: "test5", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!5 = distinct !DISubprogram(name: "test5", linkageName: "test5", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 3)
 !6 = !DISubroutineType(types: !7)
 !7 = !{}
 !8 = !DILocation(line: 1, column: 1, scope: !5, atomGroup: 1, atomRank: 1)
