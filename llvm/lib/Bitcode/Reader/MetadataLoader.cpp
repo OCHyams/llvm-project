@@ -1424,10 +1424,12 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     unsigned Column = Record[2];
     Metadata *Scope = getMD(Record[3]);
     Metadata *InlinedAt = getMDOrNull(Record[4]);
-    bool ImplicitCode = Record.size() == 6 && Record[5];
+    bool ImplicitCode = Record.size() >= 5 && Record[4];
+    uint32_t AtomGroup = Record.size() >= 6 && Record[5];
+    uint32_t AtomRank = Record.size() == 7 && Record[6];
     MetadataList.assignValue(
         GET_OR_DISTINCT(DILocation, (Context, Line, Column, Scope, InlinedAt,
-                                     ImplicitCode)),
+                                     ImplicitCode, AtomGroup, AtomRank)),
         NextMetadataNo);
     NextMetadataNo++;
     break;
