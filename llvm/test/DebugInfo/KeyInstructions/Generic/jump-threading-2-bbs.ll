@@ -27,6 +27,7 @@
 ; CHECK: bb.f2:
 ; CHECK-NEXT: store ptr @a, ptr %p, align 4, !dbg [[G4R1:!.*]]
 
+; CHECK: distinct !DISubprogram(name: "foo", {{.*}}nextAtomGroup: 5)
 ; CHECK: [[G1R2]] = !DILocation(line: 1, column: 1, scope: ![[#]], atomGroup: 1, atomRank: 2)
 ; CHECK: [[G1R1]] = !DILocation(line: 1, column: 1, scope: ![[#]], atomGroup: 1, atomRank: 1)
 ; CHECK: [[G3R2]] = !DILocation(line: 1, column: 1, scope: ![[#]], atomGroup: 3, atomRank: 2)

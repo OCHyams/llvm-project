@@ -2,6 +2,7 @@
 
 ## Check the MIR parser understands atomGroup and atomRank.
 
+# CHECK: distinct !DISubprogram(name: "p", {{.*}}nextAtomGroup: 2)
 # CHECK: RET64 $eax, debug-location !DILocation(line: 2, scope: ![[#]], atomGroup: 1, atomRank: 2)
 
 --- |

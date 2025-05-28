@@ -13,6 +13,8 @@
 ; CHECK:   store i32 1{{.*}}, !dbg [[DBG1:!.*]]
 ; CHECK: if.end.1.critedge:
 ; CHECK:   store i32 1{{.*}}, !dbg [[DBG2:!.*]]
+;
+; CHECK: distinct !DISubprogram(name: "bar", {{.*}}nextAtomGroup: 3)
 ; CHECK: [[DBG1]] = !DILocation(line: 1{{.*}}, atomGroup: 1
 ; CHECK: [[DBG2]] = !DILocation(line: 1{{.*}}, atomGroup: 2
 

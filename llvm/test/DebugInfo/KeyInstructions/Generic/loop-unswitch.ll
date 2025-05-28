@@ -142,6 +142,7 @@ declare void @clobber()
 !19 = !DILocation(line: 12, scope: !5, atomGroup: 12, atomRank: 1)
 !20 = !DILocation(line: 13, scope: !5, atomGroup: 13, atomRank: 1)
 ;.
+; CHECK: distinct !DISubprogram(name: "partial_unswitch_true_successor_hoist_invariant", {{.*}}nextAtomGroup: 27)
 ; CHECK: [[DBG8]] = !DILocation(line: 3{{.*}}, atomGroup: 24, atomRank: 1)
 ; CHECK: [[DBG9]] = !DILocation(line: 4{{.*}}, atomGroup: 25, atomRank: 1)
 ; CHECK: [[DBG10]] = !DILocation(line: 5{{.*}}, atomGroup: 26, atomRank: 1)

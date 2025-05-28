@@ -25,6 +25,7 @@
 ; CHECK-NEXT: store i64 %indvars.iv.next.2, ptr %p, align 4, !dbg [[G7R1:!.*]]
 ; CHECK-NEXT: %indvars.iv.next.3 = add nuw nsw i64 %indvars.iv, 4
 
+; CHECK: distinct !DISubprogram(name: "unroll", {{.*}}nextAtomGroup: 8)
 ; CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 ; CHECK: [[G3R1]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 1)
 ; CHECK: [[G4R1]] = !DILocation({{.*}}, atomGroup: 4, atomRank: 1)

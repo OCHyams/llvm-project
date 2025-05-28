@@ -1,5 +1,6 @@
 ; RUN: opt %s -o - -S| FileCheck %s
 
+; CHECK: distinct !DISubprogram(name: "f", {{.*}}nextAtomGroup: 2)
 ; CHECK: !DILocation(line: 1, column: 11, scope: ![[#]], atomGroup: 1, atomRank: 1)
 
 define dso_local void @f() !dbg !10 {

@@ -26,6 +26,7 @@
 ; CHECK-NEXT: %C = add i32 %v2, 1, !dbg [[G1R2:!.*]]
 ; CHECK-NEXT: store i32 %C, ptr %p, align 4, !dbg [[G1R1:!.*]]
 
+; CHECK: distinct !DISubprogram(name: "test1", {{.*}}nextAtomGroup: 3)
 ; CHECK: [[G2R2]] = !DILocation(line: 8, column: 1, scope: ![[#]], atomGroup: 2, atomRank: 2)
 ; CHECK: [[G2R1]] = !DILocation(line: 8, column: 1, scope: ![[#]], atomGroup: 2, atomRank: 1)
 ; CHECK: [[G1R2]] = !DILocation(line: 8, column: 1, scope: ![[#]], atomGroup: 1, atomRank: 2)

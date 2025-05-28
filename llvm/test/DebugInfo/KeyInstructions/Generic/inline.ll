@@ -8,6 +8,7 @@
 ; CHECK: %add.i = add nsw i32 %mul.i, 1, !dbg [[G1R2:!.*]]
 ; CHECK-NEXT: store i32 %add.i, ptr %x.i, align 4, !dbg [[G1R1:!.*]]
 
+; CHECK: distinct !DISubprogram(name: "g", {{.*}}nextAtomGroup: 2)
 ; CHECK: [[G1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 ; CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 

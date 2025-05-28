@@ -25,6 +25,7 @@
 ; CHECK:    [[CMP:%.*]] = icmp slt i32 {{.*}}, 100, !dbg [[G2R2:![0-9]+]]
 ; CHECK:    br i1 [[CMP]], label %for.body, label %for.end, !dbg [[G2R1:![0-9]+]]
 ;
+; CHECK: distinct !DISubprogram(name: "test1", {{.*}}nextAtomGroup: 5)
 ; CHECK: [[G3R1]] = !DILocation(line: 4{{.*}}, atomGroup: 3, atomRank: 1)
 ; CHECK: [[G4R1]] = !DILocation(line: 6{{.*}}, atomGroup: 4, atomRank: 1)
 ; CHECK: [[G1R1]] = !DILocation(line: 4{{.*}}, atomGroup: 1, atomRank: 1)

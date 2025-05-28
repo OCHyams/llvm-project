@@ -9,6 +9,7 @@
 ; CHECK: while.body.clone:
 ; CHECK-NEXT: %dest.sroa.clone = phi i32 [ %1, %.split ], [ poison, %if.else ], !dbg [[G2R1:!.*]]
 
+; CHECK: distinct !DISubprogram(name: "test", {{.*}}nextAtomGroup: 3)
 ; CHECK: [[G1R1]] = !DILocation(line: 1, column: 1, scope: !5, atomGroup: 1, atomRank: 1)
 ; CHECK: [[G2R1]] = !DILocation(line: 1, column: 1, scope: !5, atomGroup: 2, atomRank: 1)
 

@@ -11,6 +11,8 @@
 
 ; CHECK: _Z1bv()
 ; CHECK: store i32 1, ptr @g, align 4, !dbg [[DBG:!.*]]
+
+; CHECK: distinct !DISubprogram(name: "b", {{.*}}nextAtomGroup: 3)
 ; CHECK: [[DBG]] = !DILocation(line: 3, scope: ![[#]])
 
 @g = hidden global i32 0, align 4
