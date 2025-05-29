@@ -66,7 +66,7 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
 DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
-                       unsigned Line, unsigned Column, uint64_t AtomGroup,
+                       unsigned Line, unsigned Column, uint32_t AtomGroup,
                        uint8_t AtomRank, ArrayRef<Metadata *> MDs,
                        bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs)
@@ -116,7 +116,7 @@ static void adjustColumn(unsigned &Column) {
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
                                 unsigned Column, Metadata *Scope,
                                 Metadata *InlinedAt, bool ImplicitCode,
-                                uint64_t AtomGroup, uint8_t AtomRank,
+                                uint32_t AtomGroup, uint8_t AtomRank,
                                 StorageType Storage, bool ShouldCreate) {
   // Fixup column.
   adjustColumn(Column);

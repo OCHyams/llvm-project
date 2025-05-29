@@ -2296,23 +2296,23 @@ class DILocation : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-  uint64_t AtomGroup : 61;
-  uint64_t AtomRank : 3;
+  uint32_t AtomGroup : 29;
+  uint32_t AtomRank : 3;
 #endif
 
   DILocation(LLVMContext &C, StorageType Storage, DISubprogram *SP,
-             unsigned Line, unsigned Column, uint64_t AtomGroup,
+             unsigned Line, unsigned Column, uint32_t AtomGroup,
              uint8_t AtomRank, ArrayRef<Metadata *> MDs, bool ImplicitCode);
   ~DILocation() { dropAllReferences(); }
 
   LLVM_ABI static DILocation *
   getImpl(LLVMContext &Context, unsigned Line, unsigned Column, Metadata *Scope,
-          Metadata *InlinedAt, bool ImplicitCode, uint64_t AtomGroup,
+          Metadata *InlinedAt, bool ImplicitCode, uint32_t AtomGroup,
           uint8_t AtomRank, StorageType Storage, bool ShouldCreate = true);
   static DILocation *getImpl(LLVMContext &Context, unsigned Line,
                              unsigned Column, DILocalScope *Scope,
                              DILocation *InlinedAt, bool ImplicitCode,
-                             uint64_t AtomGroup, uint8_t AtomRank,
+                             uint32_t AtomGroup, uint8_t AtomRank,
                              StorageType Storage, bool ShouldCreate = true) {
     return getImpl(Context, Line, Column, static_cast<Metadata *>(Scope),
                    static_cast<Metadata *>(InlinedAt), ImplicitCode, AtomGroup,
@@ -2356,13 +2356,13 @@ public:
   DEFINE_MDNODE_GET(DILocation,
                     (unsigned Line, unsigned Column, Metadata *Scope,
                      Metadata *InlinedAt = nullptr, bool ImplicitCode = false,
-                     uint64_t AtomGroup = 0, uint8_t AtomRank = 0),
+                     uint32_t AtomGroup = 0, uint8_t AtomRank = 0),
                     (Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
                      AtomRank))
   DEFINE_MDNODE_GET(DILocation,
                     (unsigned Line, unsigned Column, DILocalScope *Scope,
                      DILocation *InlinedAt = nullptr, bool ImplicitCode = false,
-                     uint64_t AtomGroup = 0, uint8_t AtomRank = 0),
+                     uint32_t AtomGroup = 0, uint8_t AtomRank = 0),
                     (Line, Column, Scope, InlinedAt, ImplicitCode, AtomGroup,
                      AtomRank))
 

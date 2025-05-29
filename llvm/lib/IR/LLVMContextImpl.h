@@ -316,12 +316,12 @@ template <> struct MDNodeKeyImpl<DILocation> {
   Metadata *InlinedAt;
   bool ImplicitCode;
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-  uint64_t AtomGroup : 61;
-  uint64_t AtomRank : 3;
+  uint32_t AtomGroup : 29;
+  uint32_t AtomRank : 3;
 #endif
 
   MDNodeKeyImpl(unsigned Line, unsigned Column, Metadata *Scope,
-                Metadata *InlinedAt, bool ImplicitCode, uint64_t AtomGroup,
+                Metadata *InlinedAt, bool ImplicitCode, uint32_t AtomGroup,
                 uint8_t AtomRank)
       : Line(Line), Column(Column), Scope(Scope), InlinedAt(InlinedAt),
         ImplicitCode(ImplicitCode)
