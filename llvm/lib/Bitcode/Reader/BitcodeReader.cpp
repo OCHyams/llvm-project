@@ -5089,8 +5089,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       unsigned Line = Record[0], Col = Record[1];
       unsigned ScopeID = Record[2], IAID = Record[3];
       bool isImplicitCode = Record.size() >= 5 && Record[4];
-      uint32_t AtomGroup = Record.size() >= 6 && Record[5];
-      uint32_t AtomRank = Record.size() == 7 && Record[6];
+      uint32_t AtomGroup = Record.size() == 7 ? Record[5] : 0;
+      uint8_t AtomRank = Record.size() == 7 ? Record[6] : 0;
 
       MDNode *Scope = nullptr, *IA = nullptr;
       if (ScopeID) {

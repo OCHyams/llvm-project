@@ -1426,8 +1426,8 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     Metadata *Scope = getMD(Record[3]);
     Metadata *InlinedAt = getMDOrNull(Record[4]);
     bool ImplicitCode = Record.size() >= 6 && Record[5];
-    uint32_t AtomGroup = Record.size() >= 7 && Record[6];
-    uint32_t AtomRank = Record.size() == 8 && Record[7];
+    uint32_t AtomGroup = Record.size() == 8 ? Record[6] : 0;
+    uint8_t AtomRank = Record.size() == 8 ? Record[7] : 0;
     MetadataList.assignValue(
         GET_OR_DISTINCT(DILocation, (Context, Line, Column, Scope, InlinedAt,
                                      ImplicitCode, AtomGroup, AtomRank)),

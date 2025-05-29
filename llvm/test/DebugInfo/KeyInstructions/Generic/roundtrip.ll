@@ -20,7 +20,7 @@ define dso_local void @g() !dbg !10 {
 ; CHECK-NEXT:    ret void, !dbg [[DBG10:![0-9]+]]
 ;
 entry:
-  ret void, !dbg !9  ; atomGroup: 2, atomRank: 1
+  ret void, !dbg !9  ; atomGroup: 2, atomRank: 2
 }
 
 ; Key Instructions not enabled.
@@ -58,7 +58,7 @@ entry:
 !6 = !DISubroutineType(types: !7)
 !7 = !{}
 !8 = !DILocation(line: 1, scope: !5, atomGroup: 1, atomRank: 1)
-!9 = !DILocation(line: 2, scope: !10, atomGroup: 2, atomRank: 1) ; fwd-ref scope.
+!9 = !DILocation(line: 2, scope: !10, atomGroup: 2, atomRank: 2) ; fwd-ref scope.
 !10 = distinct !DISubprogram(name: "g", linkageName: "g", scope: null, file: !1, line: 2, type: !6, scopeLine: 2, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 3)
 !11 = distinct !DISubprogram(name: "h", linkageName: "h", scope: null, file: !1, line: 3, type: !6, scopeLine: 3, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
 !12 = !DILocation(line: 3, scope: !11)
@@ -73,7 +73,7 @@ entry:
 ; CHECK: [[META7]] = !{}
 ; CHECK: [[DBG8]] = !DILocation(line: 1, scope: [[DBG5]], atomGroup: 1, atomRank: 1)
 ; CHECK: [[DBG9]] = distinct !DISubprogram(name: "g", linkageName: "g", scope: null, file: [[META1]], line: 2, type: [[META6]], scopeLine: 2, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]], nextAtomGroup: 3)
-; CHECK: [[DBG10]] = !DILocation(line: 2, scope: [[DBG9]], atomGroup: 2, atomRank: 1)
+; CHECK: [[DBG10]] = !DILocation(line: 2, scope: [[DBG9]], atomGroup: 2, atomRank: 2)
 ; CHECK: [[DBG11]] = distinct !DISubprogram(name: "h", linkageName: "h", scope: null, file: [[META1]], line: 3, type: [[META6]], scopeLine: 3, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]])
 ; CHECK: [[DBG12]] = !DILocation(line: 3, scope: [[DBG11]])
 ; CHECK: [[DBG13]] = distinct !DISubprogram(name: "i", linkageName: "i", scope: null, file: [[META1]], line: 4, type: [[META6]], scopeLine: 4, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]], nextAtomGroup: 3)
