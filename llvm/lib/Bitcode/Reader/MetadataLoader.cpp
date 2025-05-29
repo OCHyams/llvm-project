@@ -1924,6 +1924,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       HasAnnotations = Record.size() >= 19;
       HasTargetFuncName = Record.size() >= 20;
     }
+    uint32_t NextAtomGroup = Record.size() >= 21 ? Record[20] : 0;
     Metadata *CUorFn = getMDOrNull(Record[12 + OffsetB]);
     DISubprogram *SP = GET_OR_DISTINCT(
         DISubprogram,
@@ -1949,8 +1950,8 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
          HasAnnotations ? getMDOrNull(Record[18 + OffsetB])
                         : nullptr, // annotations
          HasTargetFuncName ? getMDString(Record[19 + OffsetB])
-                           : nullptr // targetFuncName
-         ));
+                           : nullptr, // targetFuncName
+         NextAtomGroup));
     MetadataList.assignValue(SP, NextMetadataNo);
     NextMetadataNo++;
 
