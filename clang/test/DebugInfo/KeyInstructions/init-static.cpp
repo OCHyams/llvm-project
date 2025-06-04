@@ -10,6 +10,7 @@ void g(int *a) {
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 }
 
+// CHECK: DISubprogram(name: "g"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[G1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[RET]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)

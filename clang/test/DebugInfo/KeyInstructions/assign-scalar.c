@@ -61,6 +61,7 @@ void fun() {
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 }
 
+// CHECK: DISubprogram({{.*}}, nextAtomGroup: 13)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G2R2]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 2)
 // CHECK: [[G3R1]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 1)

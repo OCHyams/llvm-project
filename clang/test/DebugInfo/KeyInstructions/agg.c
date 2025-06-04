@@ -28,6 +28,7 @@ void fun(Struct a) {
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 }
 
+// CHECK: DISubprogram({{.*}}, nextAtomGroup: 6)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[G3R2]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 2)

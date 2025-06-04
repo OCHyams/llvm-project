@@ -32,9 +32,12 @@ void test2() {
   Int i = getInt();
 }
 
+// CHECK: DISubprogram(name: "test"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[G1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[RET]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
+
+// CHECK: DISubprogram(name: "test2"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[T2_G1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 // CHECK: [[T2_G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[T2_RET]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)

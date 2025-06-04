@@ -15,10 +15,10 @@ void a() { g = 0; }
 // CHECK: ret{{.*}}, !dbg [[BRET:!.*]]
 void b() { g = 0; }
 
-// CHECK: [[A:!.*]] = distinct !DISubprogram(name: "a",
+// CHECK: [[A:!.*]] = distinct !DISubprogram(name: "a"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[AG]] = !DILocation(line: 12, scope: [[A]], atomGroup: 1, atomRank: 1)
 // CHECK: [[ARET]] = !DILocation(line: 12, scope: [[A]], atomGroup: 2, atomRank: 1)
 
-// CHECK: [[B:!.*]] = distinct !DISubprogram(name: "b",
+// CHECK: [[B:!.*]] = distinct !DISubprogram(name: "b"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[BG]] = !DILocation(line: 16, scope: [[B]], atomGroup: 1, atomRank: 1)
 // CHECK: [[BRET]] = !DILocation(line: 16, scope: [[B]], atomGroup: 2, atomRank: 1)

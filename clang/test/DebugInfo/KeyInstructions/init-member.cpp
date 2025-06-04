@@ -19,6 +19,7 @@ void fun() {
 // CHECK: store float 5.000000e+00, ptr %y{{.*}}, !dbg [[G2R1:!.*]]
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 
+// CHECK: DISubprogram(name: "Cls"{{.*}}, nextAtomGroup: 4)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[RET]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 1)

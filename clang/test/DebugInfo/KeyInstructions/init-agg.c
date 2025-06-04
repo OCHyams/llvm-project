@@ -41,6 +41,7 @@ void a() {
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 }
 
+// CHECK: DISubprogram(name: "a"{{.*}}, nextAtomGroup: 7)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[B_LINE]] = !DILocation(line: 22, scope: ![[#]])

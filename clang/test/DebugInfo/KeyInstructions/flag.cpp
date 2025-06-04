@@ -12,4 +12,9 @@
 
 // NO-KEY-INSTRUCTIONS-NOT: key-instructions
 
-//// TODO: Add smoke test once some functionality has been added.
+//// Smoketest.
+// RUN: %clang -target x86_64 -c -gdwarf -gkey-instructions %s -emit-llvm -S -o - | FileCheck %s --check-prefixes=SMOKETEST-ON
+// RUN: %clang -target x86_64 -c -gdwarf %s -emit-llvm -S -o - | FileCheck %s --check-prefixes=SMOKETEST-OFF
+void f() {}
+// SMOKETEST-ON: DISubprogram({{.*}}, nextAtomGroup: 2)
+// SMOKETEST-OFF-NOT: atom

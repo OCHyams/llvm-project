@@ -21,5 +21,6 @@ s1 f(int z, ...) {
   return __builtin_va_arg(list, s1);
 }
 
+// CHECK: DISubprogram(name: "f"{{.*}}, nextAtomGroup: 2)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)

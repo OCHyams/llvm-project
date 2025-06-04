@@ -21,6 +21,7 @@ void f(int x) {
 // CHECK: ret{{.*}}, !dbg [[RET:!.*]]
 }
 
+// CHECK: DISubprogram(name: "f"{{.*}}, nextAtomGroup: 5)
 // CHECK: [[G1R2_C12]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 // CHECK: [[G1R2_C20]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 // CHECK: [[G1R1_C12]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
