@@ -383,12 +383,11 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
       Group = UseL1Atom ? L1->getAtomGroup() : L2->getAtomGroup();
       Rank = UseL1Atom ? L1->getAtomRank() : L2->getAtomRank();
     } else {
-      // If either instruction is part of a source atom, reassign it a new
-      // atom group. This essentially regresses to non-key-instructions
-      // behaviour (now that it's the only instruction in its group it'll
-      // probably get is_stmt applied).
-      Group = C.incNextDILocationAtomGroup();
-      Rank = 1;
+      // If either instruction is part of a source atom, reassign it a sentinel
+      // atom rank. This causes the instruction to get is_stmt, ignoring other
+      // instructions in the group (and the other instructions ignore this one).
+      Group = L1->getAtomGroup() ? L1->getAtomGroup() : L2->getAtomGroup();
+      Rank = 0;
     }
     return DILocation::get(C, Line, Col, Scope, InlinedAt, IsImplicitCode,
                            Group, Rank);
