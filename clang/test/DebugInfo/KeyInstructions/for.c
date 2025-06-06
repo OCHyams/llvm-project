@@ -144,6 +144,7 @@ void g() {
 // CHECK: ret{{.*}}, !dbg [[gRET:!.*]]
 }
 
+// CHECK: DISubprogram(name: "a"{{.*}}, nextAtomGroup: 7)
 // CHECK: [[G1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[G2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[G3R1]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 1)
@@ -152,6 +153,7 @@ void g() {
 // CHECK: [[G4R1]] = !DILocation({{.*}}, atomGroup: 4, atomRank: 1)
 // CHECK: [[RET]] = !DILocation({{.*}}, atomGroup: 6, atomRank: 1)
 
+// CHECK: DISubprogram(name: "b"{{.*}}, nextAtomGroup: 8)
 // CHECK: [[bG1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[bG2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[bG3R1]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 1)
@@ -162,14 +164,19 @@ void g() {
 // CHECK: [[bG5R1]] = !DILocation({{.*}}, atomGroup: 5, atomRank: 1)
 // CHECK: [[bRET]] = !DILocation({{.*}}, atomGroup: 7, atomRank: 1)
 
+// - nextAtomGroup is 5 because the ret was atom 4 before it was removed.
+// CHECK: DISubprogram(name: "c"{{.*}}, nextAtomGroup: 5)
 // CHECK: [[cG1R2]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 2)
 // CHECK: [[cG1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[cG3R1]] = !DILocation(line: 83,{{.*}} atomGroup: 3, atomRank: 1)
 // CHECK: [[cG2R2]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 2)
 // CHECK: [[cG2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 
+// - nextAtomGroup is 3 because the ret was atom 2 before it was removed.
+// CHECK: DISubprogram(name: "d"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[dG1R1]] = !DILocation(line: 93, column: 3, scope: ![[#]], atomGroup: 1, atomRank: 1)
 
+// CHECK: DISubprogram(name: "e"{{.*}}, nextAtomGroup: 6)
 // CHECK: [[eG1R1]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[eG2R1]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
 // CHECK: [[eG3R2]] = !DILocation({{.*}}, atomGroup: 3, atomRank: 2)
@@ -177,7 +184,10 @@ void g() {
 // CHECK: [[eG4R1]] = !DILocation(line: 115, column: 5, scope: ![[#]], atomGroup: 4, atomRank: 1)
 // CHECK: [[eRET]] = !DILocation({{.*}}, atomGroup: 5, atomRank: 1)
 
+// - nextAtomGroup is 3 because the ret was atom 2 before it was removed.
+// CHECK: DISubprogram(name: "f"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[fG1R1]] = !DILocation(line: 129, column: 5, scope: ![[#]], atomGroup: 1, atomRank: 1)
 
+// CHECK: DISubprogram(name: "g"{{.*}}, nextAtomGroup: 3)
 // CHECK: [[gG1R1]] = !DILocation(line: 142, column: 5, scope: ![[#]], atomGroup: 1, atomRank: 1)
 // CHECK: [[gRET]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)

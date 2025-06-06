@@ -78,6 +78,7 @@ void c() {
 }
 
 //.
+// CHECK: DISubprogram(name: "a"{{.*}}, nextAtomGroup: 10)
 // CHECK: [[DBG14]] = !DILocation({{.*}}, atomGroup: 1, atomRank: 1)
 // CHECK: [[DBG15]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 2)
 // CHECK: [[DBG16]] = !DILocation({{.*}}, atomGroup: 2, atomRank: 1)
@@ -91,9 +92,11 @@ void c() {
 // CHECK: [[DBG24]] = !DILocation({{.*}} atomGroup: 8, atomRank: 1)
 // CHECK: [[DBG25]] = !DILocation({{.*}}, atomGroup: 7, atomRank: 2)
 // CHECK: [[DBG26]] = !DILocation({{.*}}, atomGroup: 7, atomRank: 1)
-// CHECK: [[DBG30]] = !DILocation({{.*}})
+// CHECK: [[DBG30]] = !DILocation({{.*}}, atomGroup: 9, atomRank: 1)
 //
+// CHECK: DISubprogram(name: "b"{{.*}}, nextAtomGroup: [[#]])
 // CHECK: [[b_br]] = !DILocation({{.*}}, atomGroup: [[#]], atomRank: [[#]])
 //
+// CHECK: DISubprogram(name: "c"{{.*}}, nextAtomGroup: [[#]])
 // CHECK: [[c_br]] = !DILocation({{.*}}, atomGroup: [[#]], atomRank: [[#]])
 //.
