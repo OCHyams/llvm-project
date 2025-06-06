@@ -2415,15 +2415,19 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
       const auto &TII =
           *MI.getParent()->getParent()->getSubtarget().getInstrInfo();
       bool IsCallLike = MI.isCall() || TII.isTailCall(MI);
-      if (IsCallLike) {
+      // (Group: n, Rank: 0) is a sentinel that means disregard AtomGroup and
+      // emit as is_stmt, typically generated while merging instructions.
+      bool IsKeySentinel =
+          MI.getDebugLoc()->getAtomGroup() && !MI.getDebugLoc()->getAtomRank();
+      if (IsKeySentinel || IsCallLike) {
         assert(MI.getDebugLoc() && "Unexpectedly missing DL");
 
-        // Calls are always key. Put the buoy (may not be the call) into
+        // These are always key. Put the buoy (may not be this inst) into
         // KeyInstructions directly rather than the candidate map to avoid it
-        // being erased (and we may not have a group number for the call).
+        // being erased (and we may not have a group number for a call inst).
         KeyInstructions.insert(Buoy);
 
-        // Avoid floating any future is_stmts up to the call.
+        // Avoid floating any future is_stmts up to this instruction.
         Buoy = nullptr;
         BuoyAtom = 0;
 
@@ -2435,7 +2439,7 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
       auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
       uint64_t Group = MI.getDebugLoc()->getAtomGroup();
       uint8_t Rank = MI.getDebugLoc()->getAtomRank();
-      if (!Group || !Rank)
+      if (!Group)
         continue;
 
       // Don't let is_stmts float past instructions from different source atoms.

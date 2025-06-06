@@ -1592,7 +1592,9 @@ TEST_F(DILocationTest, Merge) {
 
   // Partially equal inlined-at chain but different atoms. Generate a new atom
   // group (if either have a group number). This configuration seems unlikely
-  // to occur as line numbers must match, but isn't impossible.
+  // to occur as line numbers must match, but isn't impossible. AtomRank=0 is
+  // a sentinel that indicates the instruction is in its own undefined atom
+  // group.
   {
     // Reset global counter to ensure EXPECT numbers line up.
     Context.pImpl->NextAtomGroup = 1;
@@ -1609,7 +1611,7 @@ TEST_F(DILocationTest, Merge) {
     auto *M = DILocation::getMergedLocation(X1IntoY2, Y3IntoZ4);
     EXPECT_EQ(M->getScope(), FY);
     EXPECT_EQ(M->getInlinedAt()->getScope(), FZ);
-    EXPECT_ATOM(M, /*AtomGroup*/ 2u, /*AtomRank*/ 1u);
+    EXPECT_ATOM(M, /*AtomGroup*/ 1u, /*AtomRank*/ 0u);
 
     // This swapped merge will produce a new atom group too.
     M = DILocation::getMergedLocation(Y3IntoZ4, X1IntoY2);
@@ -1618,9 +1620,9 @@ TEST_F(DILocationTest, Merge) {
     auto *X1IntoY2SameAtom = DILocation::get(Context, 1, 1, FX, Y2IntoZ4, false,
                                              /*AtomGroup*/ 1, /*AtomRank*/ 1);
     M = DILocation::getMergedLocation(X1IntoY2SameAtom, Y3IntoZ4);
-    EXPECT_ATOM(M, /*AtomGroup*/ 4u, /*AtomRank*/ 1u);
+    EXPECT_ATOM(M, /*AtomGroup*/ 1u, /*AtomRank*/ 0u);
     M = DILocation::getMergedLocation(Y3IntoZ4, X1IntoY2SameAtom);
-    EXPECT_ATOM(M, /*AtomGroup*/ 5u, /*AtomRank*/ 1u);
+    EXPECT_ATOM(M, /*AtomGroup*/ 1u, /*AtomRank*/ 0u);
   }
 #undef EXPECT_ATOM
 }
