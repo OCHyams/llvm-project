@@ -65,10 +65,10 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
     : DebugVariable(DVI->getVariable(), std::nullopt,
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
-DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
-                       unsigned Line, unsigned Column, uint32_t AtomGroup,
-                       uint8_t AtomRank, ArrayRef<Metadata *> MDs,
-                       bool ImplicitCode)
+DILocation::DILocation(LLVMContext &C, StorageType Storage,
+                       DISubprogram *SPForKeyInstructions, unsigned Line,
+                       unsigned Column, uint32_t AtomGroup, uint8_t AtomRank,
+                       ArrayRef<Metadata *> MDs, bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs)
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
       ,
@@ -78,22 +78,17 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
-  // OCH huurrrr
 
-  // if (AtomGroup)
-  //   C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
-  if (AtomGroup) {
-    // assert(Fn);
-    // assert(Fn->isDefinition());
-    if (Fn) {
-      // Fn might be a temporary during parsing, which sucks but there we go.
-      // allow null for now - probably need to verify somewhere?
-      // this occurs e.g.
-      //    !1 = ... inlinedAt !2 // < temporary
-      //    !2 = ...
-      assert(Fn->isDefinition());
-      Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
-    }
+  if (AtomGroup && SPForKeyInstructions) {
+    // Fn might be a temporary during parsing, which sucks but there we go.
+    // allow null for now - probably need to verify somewhere?
+    // this occurs e.g.
+    //    !1 = ... inlinedAt !2 // < temporary
+    //    !2 = ...
+    // TODO: Accept temporaries, so we can work that out in here?
+    assert(false);
+    assert(SPForKeyInstructions->isDefinition());
+    SPForKeyInstructions->updateDILocationAtomGroupWaterline(AtomGroup + 1);
   }
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&
@@ -111,6 +106,27 @@ static void adjustColumn(unsigned &Column) {
   // Set to unknown on overflow.  We only have 16 bits to play with here.
   if (Column >= (1u << 16))
     Column = 0;
+}
+
+static DISubprogram *getResolvedInlinedAtSubprogram(Metadata *Scope,
+                                                    Metadata *InlinedAt) {
+  auto *InlinedAtNode = dyn_cast_or_null<MDNode>(InlinedAt);
+  if (InlinedAt && (!InlinedAtNode || !InlinedAtNode->isResolved()))
+    return nullptr;
+
+  auto *LS = dyn_cast<DILocalScope>(Scope);
+  if (!LS || !LS->isResolved())
+    return nullptr;
+
+  auto *LexicalBlockBase = dyn_cast<DILexicalBlockBase>(LS);
+  if (LexicalBlockBase &&
+      !cast<MDNode>(LexicalBlockBase->getRawScope())->isResolved())
+    return nullptr;
+
+  if (!InlinedAt)
+    return LS->getSubprogram();
+
+  return cast<DILocation>(InlinedAt)->getInlinedAtScope()->getSubprogram();
 }
 
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
@@ -139,35 +155,12 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   if (InlinedAt)
     Ops.push_back(InlinedAt);
 
-  DISubprogram *SP = nullptr;
-  // all this BS should go away, we should just delay checks to verifier and add
-  // comments explaining why! (or keep checks but streamline)
-  // gotta keep checks because obvs optimisations + FE need to update thru this.
-  // TODO: Prettify, and verify.
-  if (isa_and_nonnull<MDNode>(Scope) && cast<MDNode>(Scope)->isResolved()) {
-    if (auto *LS = dyn_cast_or_null<DILocalScope>(Scope)) {
-      if (LS->isResolved()) {
-        if (!isa<DILexicalBlockBase>(LS) ||
-            (cast<DILexicalBlockBase>(LS)->getRawScope() &&
-             cast<MDNode>(cast<DILexicalBlockBase>(LS)->getRawScope())
-                 ->isResolved())) {
-          SP = LS->getSubprogram();
-          if (InlinedAt) {
-            assert(SP);
-            if (!cast<MDNode>(InlinedAt)->isResolved())
-              SP = nullptr;
-            else {
-              auto *X = cast<DILocation>(InlinedAt)->getInlinedAtScope();
-              SP = X->getSubprogram();
-            }
-          }
-        }
-      }
-    }
-  }
-  return storeImpl(new (Ops.size(), Storage)
-                       DILocation(Context, Storage, SP, Line, Column, AtomGroup,
-                                  AtomRank, Ops, ImplicitCode),
+  DISubprogram *SPForKeyInstructions = nullptr;
+  // AtomGroup ? getResolvedInlinedAtSubprogram(Scope, InlinedAt) : nullptr;
+  //  What about don't, and just verify this :---)
+  return storeImpl(new (Ops.size(), Storage) DILocation(
+                       Context, Storage, SPForKeyInstructions, Line, Column,
+                       AtomGroup, AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
 
@@ -1445,7 +1438,6 @@ DISubprogram *DISubprogram::getImpl(
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
   assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
-  // TODO: Key on UseKeyInstructions???
   DEFINE_GETIMPL_LOOKUP(DISubprogram,
                         (Scope, Name, LinkageName, File, Line, Type, ScopeLine,
                          ContainingType, VirtualIndex, ThisAdjustment, Flags,
@@ -1477,6 +1469,10 @@ DISubprogram *DISubprogram::getImpl(
         (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
         Ops.size());
   }();
+  // Key Instructions: As per DISubprogram::NextAtomGroup's doc-comment,
+  // NextAtomGroup doesn't contribute to the identity of the DISubprogram; it's
+  // not represented in MDNodeKeyImpl<DISubprogram>. Set it now, after the
+  // (distinct) DISubprogram has been created.
   if (NextAtomGroup) {
     assert(SP->isDistinct());
     SP->NextAtomGroup = NextAtomGroup;

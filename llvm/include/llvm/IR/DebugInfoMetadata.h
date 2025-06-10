@@ -1976,8 +1976,20 @@ class DISubprogram : public DILocalScope {
   /// negative.
   int ThisAdjustment;
 
-  /// Not serialised.
-  uint32_t NextAtomGroup = 0; // set to 1 to mark as "has key insts"
+  /// Key Instructions: The next available atom group number for this function.
+  /// The front end is responsible for assigning source atom numbers, but
+  /// certain optimisations need to assign new group numbers to a set of
+  /// instructions. Most often code duplication optimisations like loop unroll.
+  ///
+  /// NOTE: This field doesn't contribute to the identity of the DISubprogram;
+  /// it's not represented in MDNodeKeyImpl<DISubprogram>. This is intentional.
+  /// It SHOULD ONLY be written to by distinct DISubprograms.
+  ///
+  /// Zero indicates the function doesn't use Key Instructions
+  /// There may be Key Instruction metadata on its instructions, e.g. from
+  /// inlined instructions, that's all going to be ignored for this function
+  /// at DWARF emission time.
+  uint32_t NextAtomGroup = 0;
 
 public:
   /// Debug info subprogram flags.
@@ -2006,27 +2018,31 @@ public:
                                       unsigned Virtuality = SPFlagNonvirtual,
                                       bool IsMainSubprogram = false);
 
+  /// Key Instructions: get the next available atom group number and increment
+  /// the function-local tracker.
   uint32_t incNextDILocationAtomGroup() {
-    assert(isDefinition() && getKeyInstructionsEnabled());
+    assert(isDistinct() && getKeyInstructionsEnabled());
     // NOTE: This may wrap, which effectively disables Key Instructions for
-    // this function (as long as getNextDILocationAtomGroup is checked before
-    // the next call). As a result, instances that have already been inlined
+    // this function. As a result, instances that have already been inlined
     // will also have Key Instructions disabled for them, since we look back
     // to this DISubprogram to check if it's enabled during DWARF emission.
     // A quirk of the implementation that only shows up in extreme edge cases.
     return NextAtomGroup++;
   }
+
+  /// Key Instructions: get the next available atom group number.
   uint32_t getNextDILocationAtomGroup() const {
-    assert(getKeyInstructionsEnabled());
+    assert(isDistinct() && getKeyInstructionsEnabled());
     return NextAtomGroup;
   }
+
   bool getKeyInstructionsEnabled() const { return NextAtomGroup; }
+
   /// Key Instructions: update the highest number atom group emitted for any
   /// function.
-  void updateDILocationAtomGroupWaterline(uint32_t G) {
-    assert(getKeyInstructionsEnabled());
-    // FIXME: should really be G+1, if the waterline is "current max".
-    NextAtomGroup = std::max(NextAtomGroup, G);
+  void updateDILocationAtomGroupWaterline(uint32_t NewNextGroup) {
+    assert(isDistinct() && getKeyInstructionsEnabled());
+    NextAtomGroup = std::max(NextAtomGroup, NewNextGroup);
   }
 
 private:
@@ -2047,27 +2063,7 @@ private:
           DITemplateParameterArray TemplateParams, DISubprogram *Declaration,
           DINodeArray RetainedNodes, DITypeArray ThrownTypes,
           DINodeArray Annotations, StringRef TargetFuncName,
-          uint32_t NextAtomGroup, StorageType Storage,
-          bool ShouldCreate = true) {
-    return getImpl(Context, Scope, getCanonicalMDString(Context, Name),
-                   getCanonicalMDString(Context, LinkageName), File, Line, Type,
-                   ScopeLine, ContainingType, VirtualIndex, ThisAdjustment,
-                   Flags, SPFlags, Unit, TemplateParams.get(), Declaration,
-                   RetainedNodes.get(), ThrownTypes.get(), Annotations.get(),
-                   getCanonicalMDString(Context, TargetFuncName), NextAtomGroup,
-                   Storage, ShouldCreate);
-  }
-
-  static DISubprogram *
-  getImpl(LLVMContext &Context, DIScope *Scope, StringRef Name,
-          StringRef LinkageName, DIFile *File, unsigned Line,
-          DISubroutineType *Type, unsigned ScopeLine, DIType *ContainingType,
-          unsigned VirtualIndex, int ThisAdjustment, DIFlags Flags,
-          DISPFlags SPFlags, DICompileUnit *Unit,
-          DITemplateParameterArray TemplateParams, DISubprogram *Declaration,
-          DINodeArray RetainedNodes, DITypeArray ThrownTypes,
-          DINodeArray Annotations, StringRef TargetFuncName,
-          bool UseKeyInstructions, StorageType Storage,
+          uint32_t KeyInstNextAtomGroup, StorageType Storage,
           bool ShouldCreate = true) {
     return getImpl(Context, Scope, getCanonicalMDString(Context, Name),
                    getCanonicalMDString(Context, LinkageName), File, Line, Type,
@@ -2075,9 +2071,9 @@ private:
                    Flags, SPFlags, Unit, TemplateParams.get(), Declaration,
                    RetainedNodes.get(), ThrownTypes.get(), Annotations.get(),
                    getCanonicalMDString(Context, TargetFuncName),
-                   static_cast<uint32_t>(UseKeyInstructions), Storage,
-                   ShouldCreate);
+                   KeyInstNextAtomGroup, Storage, ShouldCreate);
   }
+
   LLVM_ABI static DISubprogram *
   getImpl(LLVMContext &Context, Metadata *Scope, MDString *Name,
           MDString *LinkageName, Metadata *File, unsigned Line, Metadata *Type,
@@ -2085,17 +2081,16 @@ private:
           int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
           Metadata *TemplateParams, Metadata *Declaration,
           Metadata *RetainedNodes, Metadata *ThrownTypes, Metadata *Annotations,
-          MDString *TargetFuncName, uint32_t NextAtomGroup, StorageType Storage,
-          bool ShouldCreate = true);
+          MDString *TargetFuncName, uint32_t KeyInstNextAtomGroup,
+          StorageType Storage, bool ShouldCreate = true);
 
   TempDISubprogram cloneImpl() const {
-    return getTemporary(getContext(), getScope(), getName(), getLinkageName(),
-                        getFile(), getLine(), getType(), getScopeLine(),
-                        getContainingType(), getVirtualIndex(),
-                        getThisAdjustment(), getFlags(), getSPFlags(),
-                        getUnit(), getTemplateParams(), getDeclaration(),
-                        getRetainedNodes(), getThrownTypes(), getAnnotations(),
-                        getTargetFuncName()); // TODO: Key Instructions Stuff!
+    return getTemporary(
+        getContext(), getScope(), getName(), getLinkageName(), getFile(),
+        getLine(), getType(), getScopeLine(), getContainingType(),
+        getVirtualIndex(), getThisAdjustment(), getFlags(), getSPFlags(),
+        getUnit(), getTemplateParams(), getDeclaration(), getRetainedNodes(),
+        getThrownTypes(), getAnnotations(), getTargetFuncName(), NextAtomGroup);
   }
 
 public:
@@ -2108,7 +2103,7 @@ public:
        DITemplateParameterArray TemplateParams = nullptr,
        DISubprogram *Declaration = nullptr, DINodeArray RetainedNodes = nullptr,
        DITypeArray ThrownTypes = nullptr, DINodeArray Annotations = nullptr,
-       StringRef TargetFuncName = "", uint32_t UseKeyInstructions = false),
+       StringRef TargetFuncName = "", uint32_t UseKeyInstructions = 0),
       (Scope, Name, LinkageName, File, Line, Type, ScopeLine, ContainingType,
        VirtualIndex, ThisAdjustment, Flags, SPFlags, Unit, TemplateParams,
        Declaration, RetainedNodes, ThrownTypes, Annotations, TargetFuncName,
@@ -2300,9 +2295,10 @@ class DILocation : public MDNode {
   uint32_t AtomRank : 3;
 #endif
 
-  DILocation(LLVMContext &C, StorageType Storage, DISubprogram *SP,
-             unsigned Line, unsigned Column, uint32_t AtomGroup,
-             uint8_t AtomRank, ArrayRef<Metadata *> MDs, bool ImplicitCode);
+  DILocation(LLVMContext &C, StorageType Storage,
+             DISubprogram *SPForKeyInstructions, unsigned Line, unsigned Column,
+             uint32_t AtomGroup, uint8_t AtomRank, ArrayRef<Metadata *> MDs,
+             bool ImplicitCode);
   ~DILocation() { dropAllReferences(); }
 
   LLVM_ABI static DILocation *
