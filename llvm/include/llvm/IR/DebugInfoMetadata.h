@@ -2295,9 +2295,10 @@ class DILocation : public MDNode {
   uint32_t AtomRank : 3;
 #endif
 
-  DILocation(LLVMContext &C, StorageType Storage, DISubprogram *SP,
-             unsigned Line, unsigned Column, uint32_t AtomGroup,
-             uint8_t AtomRank, ArrayRef<Metadata *> MDs, bool ImplicitCode);
+  DILocation(LLVMContext &C, StorageType Storage,
+             DISubprogram *SPForKeyInstructions, unsigned Line, unsigned Column,
+             uint32_t AtomGroup, uint8_t AtomRank, ArrayRef<Metadata *> MDs,
+             bool ImplicitCode);
   ~DILocation() { dropAllReferences(); }
 
   LLVM_ABI static DILocation *
