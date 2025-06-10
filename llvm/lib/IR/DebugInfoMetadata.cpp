@@ -78,22 +78,16 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, DISubprogram *Fn,
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
-  // OCH huurrrr
 
-  // if (AtomGroup)
-  //   C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
-  if (AtomGroup) {
-    // assert(Fn);
-    // assert(Fn->isDefinition());
-    if (Fn) {
-      // Fn might be a temporary during parsing, which sucks but there we go.
-      // allow null for now - probably need to verify somewhere?
-      // this occurs e.g.
-      //    !1 = ... inlinedAt !2 // < temporary
-      //    !2 = ...
-      assert(Fn->isDefinition());
-      Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
-    }
+  if (AtomGroup && Fn) {
+    // Fn might be a temporary during parsing, which sucks but there we go.
+    // allow null for now - probably need to verify somewhere?
+    // this occurs e.g.
+    //    !1 = ... inlinedAt !2 // < temporary
+    //    !2 = ...
+    // TODO: Accept temporaries, so we can work that out in here?
+    assert(Fn->isDefinition());
+    Fn->updateDILocationAtomGroupWaterline(AtomGroup + 1);
   }
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&
@@ -1445,7 +1439,6 @@ DISubprogram *DISubprogram::getImpl(
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
   assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
-  // TODO: Key on UseKeyInstructions???
   DEFINE_GETIMPL_LOOKUP(DISubprogram,
                         (Scope, Name, LinkageName, File, Line, Type, ScopeLine,
                          ContainingType, VirtualIndex, ThisAdjustment, Flags,
@@ -1477,6 +1470,10 @@ DISubprogram *DISubprogram::getImpl(
         (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
         Ops.size());
   }();
+  // Key Instructions: As per DISubprogram::NextAtomGroup's doc-comment,
+  // NextAtomGroup doesn't contribute to the identity of the DISubprogram; it's
+  // not represented in MDNodeKeyImpl<DISubprogram>. Set it now, after the
+  // (distinct) DISubprogram has been created.
   if (NextAtomGroup) {
     assert(SP->isDistinct());
     SP->NextAtomGroup = NextAtomGroup;
