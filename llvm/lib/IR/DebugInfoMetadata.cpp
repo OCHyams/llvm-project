@@ -113,16 +113,12 @@ static DISubprogram *getResolvedInlinedAtSubprogram(Metadata *Scope,
   if (InlinedAt && (!InlinedAtNode || !InlinedAtNode->isResolved()))
     return nullptr;
 
-  auto *Node = dyn_cast_or_null<MDNode>(Scope);
-  if (!Node || !cast<MDNode>(Scope)->isResolved())
-    return nullptr;
-
-  auto *LS = dyn_cast<DILocalScope>(Node);
+  auto *LS = dyn_cast<DILocalScope>(Scope);
   if (!LS || !LS->isResolved())
     return nullptr;
 
   auto *LexicalBlockBase = dyn_cast<DILexicalBlockBase>(LS);
-  if (!LexicalBlockBase || !LexicalBlockBase->getRawScope() ||
+  if (LexicalBlockBase &&
       !cast<MDNode>(LexicalBlockBase->getRawScope())->isResolved())
     return nullptr;
 
