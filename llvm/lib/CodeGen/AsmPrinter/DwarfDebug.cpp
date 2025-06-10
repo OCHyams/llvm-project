@@ -169,8 +169,10 @@ static cl::opt<DwarfDebug::MinimizeAddrInV5> MinimizeAddrInV5Option(
                           "Stuff")),
     cl::init(DwarfDebug::MinimizeAddrInV5::Default));
 
+/// Chicken-bit that can be set to false to disable the interpretation of Key
+/// Instructions metadata for is_stmt placement.
 static cl::opt<bool> KeyInstructionsAreStmts("dwarf-use-key-instructions",
-                                             cl::Hidden, cl::init(false));
+                                             cl::Hidden, cl::init(true));
 
 static constexpr unsigned ULEB128PadSize = 4;
 
@@ -2077,8 +2079,16 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   unsigned LastAsmLine =
       Asm->OutStreamer->getContext().getCurrentDwarfLoc().getLine();
 
+  // Not-Key-Instructions functions inlined into Key Instructions functions
+  // should fall back to default is_stmt handling.
+  bool ScopeUsesKeyInstructions =
+      KeyInstructionsAreStmts && SP->getKeyInstructionsEnabled();
+  if (ScopeUsesKeyInstructions && DL && DL.getInlinedAt())
+    ScopeUsesKeyInstructions =
+        DL->getScope()->getSubprogram()->getKeyInstructionsEnabled();
+
   bool IsKey = false;
-  if (KeyInstructionsAreStmts && DL && DL.getLine())
+  if (ScopeUsesKeyInstructions && DL && DL.getLine())
     IsKey = KeyInstructions.contains(MI);
 
   if (!DL && MI == PrologEndLoc) {
@@ -2158,7 +2168,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     PrologEndLoc = nullptr;
   }
 
-  if (KeyInstructionsAreStmts) {
+  if (ScopeUsesKeyInstructions) {
     if (IsKey)
       Flags |= DWARF2_FLAG_IS_STMT;
   } else {
@@ -2437,7 +2447,7 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
       }
 
       auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
-      uint64_t Group = MI.getDebugLoc()->getAtomGroup();
+      uint32_t Group = MI.getDebugLoc()->getAtomGroup();
       uint8_t Rank = MI.getDebugLoc()->getAtomRank();
       if (!Group)
         continue;
@@ -2655,7 +2665,13 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   PrologEndLoc = emitInitialLocDirective(
       *MF, Asm->OutStreamer->getContext().getDwarfCompileUnitID());
 
-  if (KeyInstructionsAreStmts)
+  // If this function wasn't built with Key Instructions but has a function
+  // inlined into it that was, we treat the inlined instance as if it wasn't
+  // built with Key Instructions. If this function was built with Key
+  // Instructions but a function inlined into it wasn't then we continue to use
+  // Key Instructions for this function and fall back to non-key behaviour for
+  // the inlined function (except it doesn't beneit from findForceIsStmtInstrs).
+  if (KeyInstructionsAreStmts && SP->getKeyInstructionsEnabled())
     computeKeyInstructions(MF);
   else
     findForceIsStmtInstrs(MF);
