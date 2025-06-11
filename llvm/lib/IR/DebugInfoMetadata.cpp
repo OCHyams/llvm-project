@@ -76,6 +76,8 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage,
 #endif
 {
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
+  assert(AtomGroup <= ((1 << 27) - 1) &&
+         "AtomGroup number should fit in 27 bits");
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
 
