@@ -1823,8 +1823,8 @@ static DebugLoc inlineDebugLoc(DebugLoc OrigDL, DILocation *InlinedAt,
                                LLVMContext &Ctx,
                                DenseMap<const MDNode *, MDNode *> &IANodes) {
   auto IA = DebugLoc::appendInlinedAt(OrigDL, InlinedAt, Ctx, IANodes);
-  return DILocation::get(Ctx, OrigDL.getLine(), OrigDL.getCol(),
-                         OrigDL.getScope(), IA, OrigDL.isImplicitCode(),
+  return DILocation::get(Ctx, OrigDL->getLine(), OrigDL->getColumn(),
+                         OrigDL->getScope(), IA, OrigDL->isImplicitCode(),
                          OrigDL->getAtomGroup(), OrigDL->getAtomRank());
 }
 

@@ -1250,7 +1250,7 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
     // number, the scope and non-zero column and line number is same with that
     // branch instruction so we can safely use it.
     DebugLoc DL, MergedDL = findBranchDebugLoc();
-    if (MergedDL && (MergedDL.getLine() || MergedDL.getCol()))
+    if (MergedDL && (MergedDL->getLine() || MergedDL->getColumn()))
       DL = MergedDL;
     TII->insertBranch(*NMBB, Succ, nullptr, Cond, DL);
   }

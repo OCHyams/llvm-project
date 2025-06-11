@@ -1313,7 +1313,7 @@ void llvm::RemapSourceAtom(Instruction *I, ValueToValueMapTy &VM) {
 
   // Remap the atom group and copy all other fields.
   DILocation *New = DILocation::get(
-      I->getContext(), DL.getLine(), DL.getCol(), DL.getScope(),
-      DL.getInlinedAt(), DL.isImplicitCode(), AtomGroup, DL->getAtomRank());
+      I->getContext(), DL->getLine(), DL->getColumn(), DL->getScope(),
+      DL->getInlinedAt(), DL->isImplicitCode(), AtomGroup, DL->getAtomRank());
   I->setDebugLoc(New);
 }

@@ -3440,7 +3440,7 @@ void InstrRefBasedLDV::initialSetup(MachineFunction &MF) {
 
   auto hasNonArtificialLocation = [](const MachineInstr &MI) -> bool {
     if (const DebugLoc &DL = MI.getDebugLoc())
-      return DL.getLine() != 0;
+      return DL->getLine() != 0;
     return false;
   };
 
