@@ -978,7 +978,7 @@ DISubprogram *DIBuilder::createMethod(
       /*IsDistinct=*/IsDefinition, VMContext, cast<DIScope>(Context), Name,
       LinkageName, F, LineNo, Ty, LineNo, VTableHolder, VIndex, ThisAdjustment,
       Flags, SPFlags, IsDefinition ? CUNode : nullptr, TParams, nullptr,
-      nullptr, ThrownTypes, nullptr, "", UseKeyInstructions);
+      nullptr, ThrownTypes, nullptr, "", IsDefinition && UseKeyInstructions);
 
   AllSubprograms.push_back(SP);
   trackIfUnresolved(SP);

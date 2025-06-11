@@ -86,6 +86,7 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage,
     //    !1 = ... inlinedAt !2 // < temporary
     //    !2 = ...
     // TODO: Accept temporaries, so we can work that out in here?
+    assert(false);
     assert(SPForKeyInstructions->isDefinition());
     SPForKeyInstructions->updateDILocationAtomGroupWaterline(AtomGroup + 1);
   }
@@ -154,8 +155,9 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   if (InlinedAt)
     Ops.push_back(InlinedAt);
 
-  DISubprogram *SPForKeyInstructions =
-      AtomGroup ? getResolvedInlinedAtSubprogram(Scope, InlinedAt) : nullptr;
+  DISubprogram *SPForKeyInstructions = nullptr;
+  // AtomGroup ? getResolvedInlinedAtSubprogram(Scope, InlinedAt) : nullptr;
+  //  What about don't, and just verify this :---)
   return storeImpl(new (Ops.size(), Storage) DILocation(
                        Context, Storage, SPForKeyInstructions, Line, Column,
                        AtomGroup, AtomRank, Ops, ImplicitCode),

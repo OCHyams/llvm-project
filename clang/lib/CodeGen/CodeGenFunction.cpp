@@ -1512,9 +1512,9 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     DebugInfo = nullptr;
   }
   // Finalize function debug info on exit.
-  auto Cleanup = llvm::make_scope_exit([this] {
+  auto Cleanup = llvm::make_scope_exit([this, Fn] {
     if (CGDebugInfo *DI = getDebugInfo())
-      DI->completeFunction();
+      DI->completeFunction(Fn);
   });
 
   // The function might not have a body if we're generating thunks for a

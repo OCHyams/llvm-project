@@ -193,8 +193,12 @@ void CGDebugInfo::addInstToSpecificSourceAtom(llvm::Instruction *KeyInstruction,
   }
 }
 
-void CGDebugInfo::completeFunction() {
-  // Reset the atom group number tracker as the numbers are function-local.
+void CGDebugInfo::completeFunction(llvm::Function *Fn) {
+  // Set DISubprogram::NextAtomGroup.
+  if (Fn->getSubprogram()->isDefinition())
+    Fn->getSubprogram()->updateDILocationAtomGroupWaterline(
+        KeyInstructionsInfo.HighestEmittedAtom + 1);
+
   KeyInstructionsInfo.NextAtom = 1;
   KeyInstructionsInfo.HighestEmittedAtom = 0;
   KeyInstructionsInfo.CurrentAtom = 0;
