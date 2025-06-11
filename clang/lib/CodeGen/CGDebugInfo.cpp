@@ -195,7 +195,8 @@ void CGDebugInfo::addInstToSpecificSourceAtom(llvm::Instruction *KeyInstruction,
 
 void CGDebugInfo::completeFunction(llvm::Function *Fn) {
   // Set DISubprogram::NextAtomGroup.
-  if (Fn->getSubprogram()->isDefinition())
+  if (CGM.getCodeGenOpts().DebugKeyInstructions &&
+      Fn->getSubprogram()->isDefinition())
     Fn->getSubprogram()->updateDILocationAtomGroupWaterline(
         KeyInstructionsInfo.HighestEmittedAtom + 1);
 
