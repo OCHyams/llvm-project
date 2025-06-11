@@ -2505,9 +2505,9 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
     }
   }
 
-  KeyInstructions.reserve(GroupCandidates.size());
+  KeyInstructions.reserve(KeyInstructions.size() + GroupCandidates.size());
   for (const auto &[_, Insts] : GroupCandidates.values()) {
-    KeyInstructions.reserve(Insts.size());
+    KeyInstructions.reserve(KeyInstructions.size() + Insts.size());
     for (auto *I : Insts)
       KeyInstructions.insert(I);
   }
