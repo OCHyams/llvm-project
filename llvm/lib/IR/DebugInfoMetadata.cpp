@@ -65,8 +65,7 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
     : DebugVariable(DVI->getVariable(), std::nullopt,
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
-DILocation::DILocation(LLVMContext &C, StorageType Storage,
-                       DISubprogram *SPForKeyInstructions, unsigned Line,
+DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
                        unsigned Column, uint32_t AtomGroup, uint8_t AtomRank,
                        ArrayRef<Metadata *> MDs, bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs)
@@ -98,27 +97,6 @@ static void adjustColumn(unsigned &Column) {
     Column = 0;
 }
 
-static DISubprogram *getResolvedInlinedAtSubprogram(Metadata *Scope,
-                                                    Metadata *InlinedAt) {
-  auto *InlinedAtNode = dyn_cast_or_null<MDNode>(InlinedAt);
-  if (InlinedAt && (!InlinedAtNode || !InlinedAtNode->isResolved()))
-    return nullptr;
-
-  auto *LS = dyn_cast<DILocalScope>(Scope);
-  if (!LS || !LS->isResolved())
-    return nullptr;
-
-  auto *LexicalBlockBase = dyn_cast<DILexicalBlockBase>(LS);
-  if (LexicalBlockBase &&
-      !cast<MDNode>(LexicalBlockBase->getRawScope())->isResolved())
-    return nullptr;
-
-  if (!InlinedAt)
-    return LS->getSubprogram();
-
-  return cast<DILocation>(InlinedAt)->getInlinedAtScope()->getSubprogram();
-}
-
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
                                 unsigned Column, Metadata *Scope,
                                 Metadata *InlinedAt, bool ImplicitCode,
@@ -145,12 +123,9 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   if (InlinedAt)
     Ops.push_back(InlinedAt);
 
-  DISubprogram *SPForKeyInstructions = nullptr;
-  // AtomGroup ? getResolvedInlinedAtSubprogram(Scope, InlinedAt) : nullptr;
-  //  What about don't, and just verify this :---)
-  return storeImpl(new (Ops.size(), Storage) DILocation(
-                       Context, Storage, SPForKeyInstructions, Line, Column,
-                       AtomGroup, AtomRank, Ops, ImplicitCode),
+  return storeImpl(new (Ops.size(), Storage)
+                       DILocation(Context, Storage, Line, Column, AtomGroup,
+                                  AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
 
