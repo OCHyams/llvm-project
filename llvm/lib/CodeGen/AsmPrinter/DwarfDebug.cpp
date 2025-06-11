@@ -2502,9 +2502,12 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
     }
   }
 
-  for (const auto &[_, Insts] : GroupCandidates.values())
+  KeyInstructions.reserve(GroupCandidates.size());
+  for (const auto &[_, Insts] : GroupCandidates.values()) {
+    KeyInstructions.reserve(Insts.size());
     for (auto *I : Insts)
       KeyInstructions.insert(I);
+  }
 }
 
 /// For the function \p MF, finds the set of instructions which may represent a
