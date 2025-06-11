@@ -79,18 +79,6 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage,
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
 
-  if (AtomGroup && SPForKeyInstructions) {
-    // Fn might be a temporary during parsing, which sucks but there we go.
-    // allow null for now - probably need to verify somewhere?
-    // this occurs e.g.
-    //    !1 = ... inlinedAt !2 // < temporary
-    //    !2 = ...
-    // TODO: Accept temporaries, so we can work that out in here?
-    assert(false);
-    assert(SPForKeyInstructions->isDefinition());
-    SPForKeyInstructions->updateDILocationAtomGroupWaterline(AtomGroup + 1);
-  }
-
   assert((MDs.size() == 1 || MDs.size() == 2) &&
          "Expected a scope and optional inlined-at");
   // Set line and column.
