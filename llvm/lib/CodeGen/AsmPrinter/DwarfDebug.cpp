@@ -2070,7 +2070,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
       raw_svector_ostream OS(LocationString);
       DL.print(OS);
     }
-    recordSourceLine(DL.getLine(), DL.getCol(), DL.getScope(), Flags,
+    recordSourceLine(DL->getLine(), DL->getColumn(), DL->getScope(), Flags,
                      LocationString);
   };
 
@@ -2083,12 +2083,12 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // should fall back to default is_stmt handling.
   bool ScopeUsesKeyInstructions =
       KeyInstructionsAreStmts && SP->getKeyInstructionsEnabled();
-  if (ScopeUsesKeyInstructions && DL && DL.getInlinedAt())
+  if (ScopeUsesKeyInstructions && DL && DL->getInlinedAt())
     ScopeUsesKeyInstructions =
         DL->getScope()->getSubprogram()->getKeyInstructionsEnabled();
 
   bool IsKey = false;
-  if (ScopeUsesKeyInstructions && DL && DL.getLine())
+  if (ScopeUsesKeyInstructions && DL && DL->getLine())
     IsKey = KeyInstructions.contains(MI);
 
   if (!DL && MI == PrologEndLoc) {
@@ -2115,7 +2115,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     if (!IsKey) {
       // We have an explicit location, same as the previous location.
       // But we might be coming back to it after a line 0 record.
-      if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
+      if ((LastAsmLine == 0 && DL->getLine() != 0) || Flags) {
         // Reinstate the source location but not marked as a statement.
         RecordSourceLine(DL, Flags);
       }
@@ -2151,7 +2151,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
       unsigned Column = 0;
       if (PrevInstLoc) {
         Scope = PrevInstLoc.getScope();
-        Column = PrevInstLoc.getCol();
+        Column = PrevInstLoc->getColumn();
       }
       recordSourceLine(/*Line=*/0, Column, Scope, /*Flags=*/0);
     }
@@ -2161,7 +2161,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // We have an explicit location, different from the previous location.
   // Don't repeat a line-0 record, but otherwise emit the new location.
   // (The new location might be an explicit line 0, which we do emit.)
-  if (DL.getLine() == 0 && LastAsmLine == 0)
+  if (DL->getLine() == 0 && LastAsmLine == 0)
     return;
   if (MI == PrologEndLoc) {
     Flags |= DWARF2_FLAG_PROLOGUE_END | DWARF2_FLAG_IS_STMT;
@@ -2175,14 +2175,14 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     // If the line changed, we call that a new statement; unless we went to
     // line 0 and came back, in which case it is not a new statement.
     unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
-    if (DL.getLine() && (DL.getLine() != OldLine || ForceIsStmt))
+    if (DL->getLine() && (DL->getLine() != OldLine || ForceIsStmt))
       Flags |= DWARF2_FLAG_IS_STMT;
   }
 
   RecordSourceLine(DL, Flags);
 
   // If we're not at line 0, remember this location.
-  if (DL.getLine())
+  if (DL->getLine())
     PrevInstLoc = DL;
 }
 
