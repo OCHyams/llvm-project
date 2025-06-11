@@ -1989,7 +1989,7 @@ class DISubprogram : public DILocalScope {
   /// There may be Key Instruction metadata on its instructions, e.g. from
   /// inlined instructions, that's all going to be ignored for this function
   /// at DWARF emission time.
-  uint32_t NextAtomGroup = 0;
+  uint32_t NextAtomGroup : 27;
 
 public:
   /// Debug info subprogram flags.

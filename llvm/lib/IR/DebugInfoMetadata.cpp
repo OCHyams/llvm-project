@@ -1299,7 +1299,7 @@ DISubprogram::DISubprogram(LLVMContext &C, StorageType Storage, unsigned Line,
                            ArrayRef<Metadata *> Ops)
     : DILocalScope(C, DISubprogramKind, Storage, dwarf::DW_TAG_subprogram, Ops),
       Line(Line), ScopeLine(ScopeLine), VirtualIndex(VirtualIndex),
-      ThisAdjustment(ThisAdjustment), Flags(Flags), SPFlags(SPFlags) {
+      ThisAdjustment(ThisAdjustment), NextAtomGroup(0), Flags(Flags), SPFlags(SPFlags) {
   static_assert(dwarf::DW_VIRTUALITY_max < 4, "Virtuality out of range");
 }
 DISubprogram::DISPFlags
