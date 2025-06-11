@@ -2174,7 +2174,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   } else {
     // If the line changed, we call that a new statement; unless we went to
     // line 0 and came back, in which case it is not a new statement.
-    unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
+    unsigned OldLine = PrevInstLoc ? PrevInstLoc->getLine() : LastAsmLine;
     if (DL->getLine() && (DL->getLine() != OldLine || ForceIsStmt))
       Flags |= DWARF2_FLAG_IS_STMT;
   }
@@ -2214,7 +2214,7 @@ findPrologueEndLoc(const MachineFunction *MF) {
       // frame setup, and a compiler-generated line 0 location is not a
       // meaningful breakpoint. If none is found, return the first
       // location after the frame setup.
-      if (MI.getDebugLoc().getLine())
+      if (MI.getDebugLoc()->getLine())
         return std::make_pair(&MI, IsEmptyPrologue);
     }
 
