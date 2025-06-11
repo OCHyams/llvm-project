@@ -2394,6 +2394,8 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
   //
   // Then insert each GroupCandidates instruction into KeyInstructions.
 
+  const auto &TII = MF->getSubtarget().getInstrInfo();
+
   for (auto &MBB : *MF) {
     // Rather than apply is_stmt directly to Key Instructions, we "float"
     // is_stmt up to the 1st instruction with the same line number in a
@@ -2404,27 +2406,28 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
     // The atom group number associated with Buoy which may be 0 if we haven't
     // encountered an atom group yet in this blob of instructions with the same
     // line number.
-    uint64_t BuoyAtom = 0;
+    uint32_t BuoyAtom = 0;
 
     for (auto &MI : MBB) {
       if (MI.isMetaInstruction())
         continue;
 
-      if (!MI.getDebugLoc() || !MI.getDebugLoc().getLine())
+      if (!MI.getDebugLoc())
+        continue;
+
+      auto Line = MI.getDebugLoc()->getLine();
+      if (!Line)
         continue;
 
       // Reset the Buoy to this instruction if it has a different line number.
-      if (!Buoy ||
-          Buoy->getDebugLoc().getLine() != MI.getDebugLoc().getLine()) {
+      if (!Buoy || Buoy->getDebugLoc()->getLine() != Line) {
         Buoy = &MI;
         BuoyAtom = 0; // Set later when we know which atom the buoy is used by.
       }
 
       // Call instructions are handled specially - we always mark them as key
       // regardless of atom info.
-      const auto &TII =
-          *MI.getParent()->getParent()->getSubtarget().getInstrInfo();
-      bool IsCallLike = MI.isCall() || TII.isTailCall(MI);
+      bool IsCallLike = MI.isCall() || TII->isTailCall(MI);
       // (Group: n, Rank: 0) is a sentinel that means disregard AtomGroup and
       // emit as is_stmt, typically generated while merging instructions.
       bool IsKeySentinel =
@@ -2446,9 +2449,7 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
           continue;
       }
 
-      auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
       uint32_t Group = MI.getDebugLoc()->getAtomGroup();
-      uint8_t Rank = MI.getDebugLoc()->getAtomRank();
       if (!Group)
         continue;
 
@@ -2458,6 +2459,8 @@ void DwarfDebug::computeKeyInstructions(const MachineFunction *MF) {
         BuoyAtom = Group;
       }
 
+      uint8_t Rank = MI.getDebugLoc()->getAtomRank();
+      auto *InlinedAt = MI.getDebugLoc()->getInlinedAt();
       auto &[CandidateRank, CandidateInsts] =
           GroupCandidates[{InlinedAt, Group}];
 
