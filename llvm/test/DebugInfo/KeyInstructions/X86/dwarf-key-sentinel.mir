@@ -6,33 +6,32 @@
 # RUN: | llvm-dwarfdump - --debug-line \
 # RUN: | FileCheck %s --check-prefix=DBG
 
-# OBJ: 0000000000000000 <_Z1fPiii>:
-# OBJ-NEXT:  0:       movl    $0x1, %ebx
-# OBJ-NEXT:  5:       movl    $0x2, %eax
-# OBJ-NEXT:  a:       movl    $0x0, %eax
-# OBJ-NEXT:  f:       movl    $0x0, %eax
+# OBJ: 0000000000000000 <f>:
+# OBJ-NEXT:  0:       movl    $0x0, %eax
+# OBJ-NEXT:  5:       movl    $0x1, %eax
+# OBJ-NEXT:  a:       movl    $0x2, %eax
+# OBJ-NEXT:  f:       movl    $0x3, %eax
 # OBJ-NEXT: 14:       retq
 
 # DBG:      Address            Line   Column File   ISA Discriminator OpIndex Flags
 # DBG-NEXT: ------------------ ------ ------ ------ --- ------------- ------- -------------
 # DBG-NEXT: 0x0000000000000000      1      0      0   0             0       0  is_stmt prologue_end
 # DBG-NEXT: 0x0000000000000005      2      0      0   0             0       0  is_stmt
-# DBG-NEXT: 0x000000000000000a      0      0      0   0             0       0
-# DBG-NEXT: 0x0000000000000014      2      0      0   0             0       0
-# DBG-NEXT: 0x0000000000000015      2      0      0   0             0       0  end_sequence
+# DBG-NEXT: 0x000000000000000f      2      0      0   0             0       0  is_stmt
+# DBG-NEXT: 0x0000000000000014      2      0      0   0             0       0  is_stmt
 
-## The `RET64` is the only key instruction. The `MOV32ri 2` has the same line
-## number so the is_stmt should "float up" from the ret to the mov. Check this
-## happens; check that the DBG_VALUE wedged between them with a different line
-## number, the line zero, and missing DebugLoc, don't disrupt that; and check
-## the is_stmt doesn't float too far up onto the `MOV32ri 1`.
+## (atomGroup: n, atomRank: 0) is a sentinel that means "ignore the group and
+## this is always Key. Check the is_stmt for `MOV32ri 2` (0xa) floats up to
+## `MOV32ri 1` (0x5), and that the subsequent sentinel and normal key
+## instruction get is_stmt. As per usual, is_stmts can't float up past other
+## is_stmts.
 
 --- |
   target triple = "x86_64-unknown-linux-gnu"
 
-  define hidden noundef i32 @_Z1fPiii(ptr %a, i32 %b, i32 %c, i1 %cond) local_unnamed_addr !dbg !5 {
+  define hidden noundef i32 @f() local_unnamed_addr !dbg !5 {
   entry:
-    ret i32 2
+    ret i32 3
   }
 
   !llvm.dbg.cu = !{!0}
@@ -47,20 +46,18 @@
   !5 = distinct !DISubprogram(name: "f", scope: !1, file: !1, line: 1, type: !6, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 2)
   !6 = !DISubroutineType(types: !7)
   !7 = !{}
-  !8 = !DILocalVariable(name: "x", scope: !5, file: !1, line: 1, type: !7)
 
 ...
 ---
-name:            _Z1fPiii
+name:            f
 alignment:       16
 body:             |
   bb.0.entry:
 
-    $ebx = MOV32ri 1,                              debug-location !DILocation(line: 1, scope: !5)
-    $eax = MOV32ri 2,                              debug-location !DILocation(line: 2, scope: !5)
-    $eax = MOV32ri 0,                              debug-location !DILocation(line: 0, scope: !5)
-    $eax = MOV32ri 0
-    DBG_VALUE $noreg, $noreg, !8, !DIExpression(), debug-location !DILocation(line: 1, scope: !5)
-    RET64 $eax,                                    debug-location !DILocation(line: 2, scope: !5, atomGroup: 1, atomRank: 2)
+    $eax = MOV32ri 0, debug-location !DILocation(line: 1, scope: !5)
+    $eax = MOV32ri 1, debug-location !DILocation(line: 2, scope: !5)
+    $eax = MOV32ri 2, debug-location !DILocation(line: 2, scope: !5, atomGroup: 1, atomRank: 0)
+    $eax = MOV32ri 3, debug-location !DILocation(line: 2, scope: !5, atomGroup: 1, atomRank: 0)
+    RET64 $eax,       debug-location !DILocation(line: 2, scope: !5, atomGroup: 1, atomRank: 1)
 
 ...

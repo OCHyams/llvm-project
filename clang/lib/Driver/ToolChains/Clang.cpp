@@ -4627,7 +4627,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   }
 
   if (Args.hasFlag(options::OPT_gkey_instructions,
-                   options::OPT_gno_key_instructions, false)) {
+                   options::OPT_gno_key_instructions, true)) {
     CmdArgs.push_back("-gkey-instructions");
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-dwarf-use-key-instructions");

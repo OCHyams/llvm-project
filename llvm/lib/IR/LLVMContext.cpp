@@ -377,11 +377,3 @@ StringRef LLVMContext::getDefaultTargetFeatures() {
 void LLVMContext::setDefaultTargetFeatures(StringRef Features) {
   pImpl->DefaultTargetFeatures = Features;
 }
-
-void LLVMContext::updateDILocationAtomGroupWaterline(uint64_t V) {
-  pImpl->NextAtomGroup = std::max(pImpl->NextAtomGroup, V);
-}
-
-uint64_t LLVMContext::incNextDILocationAtomGroup() {
-  return pImpl->NextAtomGroup++;
-}

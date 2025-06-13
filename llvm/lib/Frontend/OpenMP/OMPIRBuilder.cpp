@@ -5407,7 +5407,7 @@ void OpenMPIRBuilder::createIfVersion(CanonicalLoopInfo *CanonicalLoop,
 
   VMap[CanonicalLoop->getPreheader()] = ElseBlock;
   for (BasicBlock *Block : L->getBlocks()) {
-    BasicBlock *NewBB = CloneBasicBlock(Block, VMap, "", F);
+    BasicBlock *NewBB = CloneBasicBlock(Block, VMap, F->getSubprogram(), "", F);
     NewBB->moveBefore(CanonicalLoop->getExit());
     VMap[Block] = NewBB;
     NewBlocks.push_back(NewBB);

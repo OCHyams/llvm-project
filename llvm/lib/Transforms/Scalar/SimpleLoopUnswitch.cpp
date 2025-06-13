@@ -299,10 +299,9 @@ static void buildPartialInvariantUnswitchConditionalBranch(
     Instruction *Inst = cast<Instruction>(Val);
     Instruction *NewInst = Inst->clone();
 
-    if (const DebugLoc &DL = Inst->getDebugLoc())
-      mapAtomInstance(DL, VMap);
-
     NewInst->insertInto(&BB, BB.end());
+    if (const DebugLoc &DL = Inst->getDebugLoc())
+      mapAtomInstance(Inst->getFunction()->getSubprogram(), DL, VMap);
     RemapInstruction(NewInst, VMap,
                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     VMap[Val] = NewInst;
@@ -1185,7 +1184,9 @@ static BasicBlock *buildClonedLoopBlocks(
   // a helper.
   auto CloneBlock = [&](BasicBlock *OldBB) {
     // Clone the basic block and insert it before the new preheader.
-    BasicBlock *NewBB = CloneBasicBlock(OldBB, VMap, ".us", OldBB->getParent());
+    BasicBlock *NewBB =
+        CloneBasicBlock(OldBB, VMap, LoopPH->getParent()->getSubprogram(),
+                        ".us", OldBB->getParent());
     NewBB->moveBefore(LoopPH);
 
     // Record this block and the mapping.

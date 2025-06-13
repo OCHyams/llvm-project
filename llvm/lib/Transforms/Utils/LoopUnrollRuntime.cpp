@@ -355,7 +355,8 @@ CloneLoopBlocks(Loop *L, Value *NewIter, const bool UseEpilogRemainder,
   // For each block in the original loop, create a new copy,
   // and update the value map with the newly created values.
   for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
-    BasicBlock *NewBB = CloneBasicBlock(*BB, VMap, "." + suffix, F);
+    BasicBlock *NewBB =
+        CloneBasicBlock(*BB, VMap, F->getSubprogram(), "." + suffix, F);
     NewBlocks.push_back(NewBB);
 
     addClonedBlockToLoopInfo(*BB, NewBB, LI, NewLoops);

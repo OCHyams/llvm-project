@@ -25,6 +25,7 @@
 ; CHECK:    [[CMP:%.*]] = icmp slt i32 {{.*}}, 100, !dbg [[G2R2:![0-9]+]]
 ; CHECK:    br i1 [[CMP]], label %for.body, label %for.end, !dbg [[G2R1:![0-9]+]]
 ;
+; CHECK: distinct !DISubprogram(name: "test1", {{.*}}nextAtomGroup: 5)
 ; CHECK: [[G3R1]] = !DILocation(line: 4{{.*}}, atomGroup: 3, atomRank: 1)
 ; CHECK: [[G4R1]] = !DILocation(line: 6{{.*}}, atomGroup: 4, atomRank: 1)
 ; CHECK: [[G1R1]] = !DILocation(line: 4{{.*}}, atomGroup: 1, atomRank: 1)
@@ -40,9 +41,9 @@ entry:
 
 for.cond:                                         ; preds = %for.body, %entry
   %i.0 = phi i32 [ 0, %entry ], [ %inc, %for.body ]
-  store i32 %i.0, ptr @glob, align 16,         !dbg !DILocation(line: 4, scope: !5, atomGroup: 1, atomRank: 1)
-  %cmp = icmp slt i32 %i.0, 100,               !dbg !DILocation(line: 5, scope: !5, atomGroup: 2, atomRank: 2)
-  br i1 %cmp, label %for.body, label %for.end, !dbg !DILocation(line: 6, scope: !5, atomGroup: 2, atomRank: 1)
+  store i32 %i.0, ptr @glob, align 16,         !dbg !8
+  %cmp = icmp slt i32 %i.0, 100,               !dbg !9
+  br i1 %cmp, label %for.body, label %for.end, !dbg !10
 
 for.body:                                         ; preds = %for.cond
   %inc = add nsw i32 %i.0, 1
@@ -69,6 +70,9 @@ attributes #1 = { noduplicate }
 !2 = !{i32 12}
 !3 = !{i32 0}
 !4 = !{i32 2, !"Debug Info Version", i32 3}
-!5 = distinct !DISubprogram(name: "test1", linkageName: "test1", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!5 = distinct !DISubprogram(name: "test1", linkageName: "test1", scope: null, file: !1, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 3)
 !6 = !DISubroutineType(types: !7)
 !7 = !{}
+!8 = !DILocation(line: 4, scope: !5, atomGroup: 1, atomRank: 1)
+!9 = !DILocation(line: 5, scope: !5, atomGroup: 2, atomRank: 2)
+!10 = !DILocation(line: 6, scope: !5, atomGroup: 2, atomRank: 1)

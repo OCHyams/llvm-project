@@ -3160,6 +3160,12 @@ void Verifier::visitFunction(const Function &F) {
     CheckDI(SP->describes(&F),
             "!dbg attachment points at wrong subprogram for function", N, &F,
             &I, DL, Scope, SP);
+
+    if (auto atomGroup = DL->getAtomGroup())
+      CheckDI(!SP->getKeyInstructionsEnabled() ||
+                  SP->getNextDILocationAtomGroup() > atomGroup,
+              "DbgLoc's atomGroup should be less than SP's nextAtomGroup", DL,
+              atomGroup, SP, SP->getNextDILocationAtomGroup());
   };
   for (auto &BB : F)
     for (auto &I : BB) {

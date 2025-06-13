@@ -313,15 +313,15 @@ template <> struct MDNodeKeyImpl<DILocation> {
   Metadata *Scope;
   Metadata *InlinedAt;
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-  uint64_t AtomGroup : 61;
-  uint64_t AtomRank : 3;
+  uint32_t AtomGroup : 29;
+  uint32_t AtomRank : 3;
 #endif
   unsigned Line;
   uint16_t Column;
   bool ImplicitCode;
 
   MDNodeKeyImpl(unsigned Line, uint16_t Column, Metadata *Scope,
-                Metadata *InlinedAt, bool ImplicitCode, uint64_t AtomGroup,
+                Metadata *InlinedAt, bool ImplicitCode, uint32_t AtomGroup,
                 uint8_t AtomRank)
       : Scope(Scope), InlinedAt(InlinedAt),
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
@@ -936,6 +936,7 @@ template <> struct MDNodeKeyImpl<DISubprogram> {
   Metadata *ThrownTypes;
   Metadata *Annotations;
   MDString *TargetFuncName;
+  // Key Instructions: Do not track NextAtomGroup. See DISubprogram for info.
 
   MDNodeKeyImpl(Metadata *Scope, MDString *Name, MDString *LinkageName,
                 Metadata *File, unsigned Line, Metadata *Type,
@@ -1883,16 +1884,6 @@ public:
 
   std::string DefaultTargetCPU;
   std::string DefaultTargetFeatures;
-
-  /// The next available source atom group number. The front end is responsible
-  /// for assigning source atom numbers, but certain optimisations need to
-  /// assign new group numbers to a set of instructions. Most often code
-  /// duplication optimisations like loop unroll. Tracking a global maximum
-  /// value means we can know (cheaply) we're never using a group number that's
-  /// already used within this function.
-  ///
-  /// Start a 1 because 0 means the source location isn't part of an atom group.
-  uint64_t NextAtomGroup = 1;
 };
 
 } // end namespace llvm

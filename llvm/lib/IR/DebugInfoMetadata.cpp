@@ -19,8 +19,10 @@
 #include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 
@@ -63,8 +65,9 @@ DebugVariableAggregate::DebugVariableAggregate(const DbgVariableIntrinsic *DVI)
     : DebugVariable(DVI->getVariable(), std::nullopt,
                     DVI->getDebugLoc()->getInlinedAt()) {}
 
-DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-                       unsigned Column, uint64_t AtomGroup, uint8_t AtomRank,
+DILocation::DILocation(LLVMContext &C, StorageType Storage,
+                       DISubprogram *SPForKeyInstructions, unsigned Line,
+                       unsigned Column, uint32_t AtomGroup, uint8_t AtomRank,
                        ArrayRef<Metadata *> MDs, bool ImplicitCode)
     : MDNode(C, DILocationKind, Storage, MDs)
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
@@ -75,8 +78,18 @@ DILocation::DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
 #ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
   assert(AtomRank <= 7 && "AtomRank number should fit in 3 bits");
 #endif
-  if (AtomGroup)
-    C.updateDILocationAtomGroupWaterline(AtomGroup + 1);
+
+  if (AtomGroup && SPForKeyInstructions) {
+    // Fn might be a temporary during parsing, which sucks but there we go.
+    // allow null for now - probably need to verify somewhere?
+    // this occurs e.g.
+    //    !1 = ... inlinedAt !2 // < temporary
+    //    !2 = ...
+    // TODO: Accept temporaries, so we can work that out in here?
+    assert(false);
+    assert(SPForKeyInstructions->isDefinition());
+    SPForKeyInstructions->updateDILocationAtomGroupWaterline(AtomGroup + 1);
+  }
 
   assert((MDs.size() == 1 || MDs.size() == 2) &&
          "Expected a scope and optional inlined-at");
@@ -95,10 +108,31 @@ static void adjustColumn(unsigned &Column) {
     Column = 0;
 }
 
+static DISubprogram *getResolvedInlinedAtSubprogram(Metadata *Scope,
+                                                    Metadata *InlinedAt) {
+  auto *InlinedAtNode = dyn_cast_or_null<MDNode>(InlinedAt);
+  if (InlinedAt && (!InlinedAtNode || !InlinedAtNode->isResolved()))
+    return nullptr;
+
+  auto *LS = dyn_cast<DILocalScope>(Scope);
+  if (!LS || !LS->isResolved())
+    return nullptr;
+
+  auto *LexicalBlockBase = dyn_cast<DILexicalBlockBase>(LS);
+  if (LexicalBlockBase &&
+      !cast<MDNode>(LexicalBlockBase->getRawScope())->isResolved())
+    return nullptr;
+
+  if (!InlinedAt)
+    return LS->getSubprogram();
+
+  return cast<DILocation>(InlinedAt)->getInlinedAtScope()->getSubprogram();
+}
+
 DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
                                 unsigned Column, Metadata *Scope,
                                 Metadata *InlinedAt, bool ImplicitCode,
-                                uint64_t AtomGroup, uint8_t AtomRank,
+                                uint32_t AtomGroup, uint8_t AtomRank,
                                 StorageType Storage, bool ShouldCreate) {
   // Fixup column.
   adjustColumn(Column);
@@ -117,11 +151,16 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
 
   SmallVector<Metadata *, 2> Ops;
   Ops.push_back(Scope);
+
   if (InlinedAt)
     Ops.push_back(InlinedAt);
-  return storeImpl(new (Ops.size(), Storage)
-                       DILocation(Context, Storage, Line, Column, AtomGroup,
-                                  AtomRank, Ops, ImplicitCode),
+
+  DISubprogram *SPForKeyInstructions = nullptr;
+  // AtomGroup ? getResolvedInlinedAtSubprogram(Scope, InlinedAt) : nullptr;
+  //  What about don't, and just verify this :---)
+  return storeImpl(new (Ops.size(), Storage) DILocation(
+                       Context, Storage, SPForKeyInstructions, Line, Column,
+                       AtomGroup, AtomRank, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
 
@@ -383,12 +422,11 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
       Group = UseL1Atom ? L1->getAtomGroup() : L2->getAtomGroup();
       Rank = UseL1Atom ? L1->getAtomRank() : L2->getAtomRank();
     } else {
-      // If either instruction is part of a source atom, reassign it a new
-      // atom group. This essentially regresses to non-key-instructions
-      // behaviour (now that it's the only instruction in its group it'll
-      // probably get is_stmt applied).
-      Group = C.incNextDILocationAtomGroup();
-      Rank = 1;
+      // If either instruction is part of a source atom, reassign it a sentinel
+      // atom rank. This causes the instruction to get is_stmt, ignoring other
+      // instructions in the group (and the other instructions ignore this one).
+      Group = L1->getAtomGroup() ? L1->getAtomGroup() : L2->getAtomGroup();
+      Rank = 0;
     }
     return DILocation::get(C, Line, Col, Scope, InlinedAt, IsImplicitCode,
                            Group, Rank);
@@ -1396,7 +1434,7 @@ DISubprogram *DISubprogram::getImpl(
     int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
     Metadata *TemplateParams, Metadata *Declaration, Metadata *RetainedNodes,
     Metadata *ThrownTypes, Metadata *Annotations, MDString *TargetFuncName,
-    StorageType Storage, bool ShouldCreate) {
+    uint32_t NextAtomGroup, StorageType Storage, bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
   assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
@@ -1425,10 +1463,21 @@ DISubprogram *DISubprogram::getImpl(
       }
     }
   }
-  DEFINE_GETIMPL_STORE_N(
-      DISubprogram,
-      (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
-      Ops.size());
+  DISubprogram *SP = [&]() {
+    DEFINE_GETIMPL_STORE_N(
+        DISubprogram,
+        (Line, ScopeLine, VirtualIndex, ThisAdjustment, Flags, SPFlags), Ops,
+        Ops.size());
+  }();
+  // Key Instructions: As per DISubprogram::NextAtomGroup's doc-comment,
+  // NextAtomGroup doesn't contribute to the identity of the DISubprogram; it's
+  // not represented in MDNodeKeyImpl<DISubprogram>. Set it now, after the
+  // (distinct) DISubprogram has been created.
+  if (NextAtomGroup) {
+    assert(SP->isDistinct());
+    SP->NextAtomGroup = NextAtomGroup;
+  }
+  return SP;
 }
 
 bool DISubprogram::describes(const Function *F) const {

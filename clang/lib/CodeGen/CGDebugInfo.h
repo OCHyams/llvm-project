@@ -657,8 +657,8 @@ public:
   llvm::DILocation *CreateSyntheticInlineAt(llvm::DebugLoc Location,
                                             StringRef FuncName);
 
-  /// Reset internal state.
-  void completeFunction();
+  /// Finalize some function debug info and reset per-function internal state.
+  void completeFunction(llvm::Function *Fn);
 
   /// Add \p KeyInstruction and an optional \p Backup instruction to the
   /// current atom group, created using ApplyAtomGroup.

@@ -36,14 +36,14 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define hidden noundef i32 @_Z1fi(i32 noundef %a) local_unnamed_addr !dbg !11 {
 entry:
-  %add = add nsw i32 %a, 1,   !dbg !DILocation(line: 2, scope: !11, atomGroup: 1, atomRank: 2)
-  ret i32 %add,               !dbg !DILocation(line: 3, scope: !11, atomGroup: 3, atomRank: 1)
+  %add = add nsw i32 %a, 1,   !dbg !19 ; !DILocation(line: 2, scope: !11, atomGroup: 1, atomRank: 2)
+  ret i32 %add,               !dbg !20 ; !DILocation(line: 3, scope: !11, atomGroup: 3, atomRank: 1)
 }
 
 define hidden noundef i32 @_Z1gi(i32 noundef %b) local_unnamed_addr !dbg !16 {
 entry:
-  %add.i = add nsw i32 %b, 1, !dbg !DILocation(line: 2, scope: !11, inlinedAt: !18, atomGroup: 1, atomRank: 2)
-  ret i32 %add.i,             !dbg !DILocation(line: 6, scope: !16, atomGroup: 1, atomRank: 1)
+  %add.i = add nsw i32 %b, 1, !dbg !21 ; !DILocation(line: 2, scope: !11, inlinedAt: !18, atomGroup: 1, atomRank: 2)
+  ret i32 %add.i,             !dbg !22 ; !DILocation(line: 6, scope: !16, atomGroup: 1, atomRank: 1)
 }
 
 !llvm.dbg.cu = !{!0}
@@ -55,8 +55,12 @@ entry:
 !2 = !{i32 7, !"Dwarf Version", i32 5}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
 !10 = !{!"clang version 19.0.0"}
-!11 = distinct !DISubprogram(name: "f", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!11 = distinct !DISubprogram(name: "f", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 4)
 !12 = !DISubroutineType(types: !13)
 !13 = !{}
-!16 = distinct !DISubprogram(name: "g", scope: !1, file: !1, line: 5, type: !12, scopeLine: 5, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!16 = distinct !DISubprogram(name: "g", scope: !1, file: !1, line: 5, type: !12, scopeLine: 5, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, nextAtomGroup: 2)
 !18 = distinct !DILocation(line: 6, scope: !16)
+!19 = !DILocation(line: 2, scope: !11, atomGroup: 1, atomRank: 2)
+!20 = !DILocation(line: 3, scope: !11, atomGroup: 3, atomRank: 1)
+!21 = !DILocation(line: 2, scope: !11, inlinedAt: !18, atomGroup: 1, atomRank: 2)
+!22 = !DILocation(line: 6, scope: !16, atomGroup: 1, atomRank: 1)

@@ -123,7 +123,9 @@ bool llvm::applyDebugifyMetadata(
     if (F.hasPrivateLinkage() || F.hasInternalLinkage())
       SPFlags |= DISubprogram::SPFlagLocalToUnit;
     auto SP = DIB.createFunction(CU, F.getName(), F.getName(), File, NextLine,
-                                 SPType, NextLine, DINode::FlagZero, SPFlags);
+                                 SPType, NextLine, DINode::FlagZero, SPFlags,
+                                 nullptr, nullptr, nullptr, nullptr, "",
+                                 /*UseKeyInstructions*/ ApplyAtomGroups);
     F.setSubprogram(SP);
 
     // Helper that inserts a dbg.value before \p InsertBefore, copying the
@@ -145,7 +147,7 @@ bool llvm::applyDebugifyMetadata(
     for (BasicBlock &BB : F) {
       // Attach debug locations.
       for (Instruction &I : BB) {
-        uint64_t AtomGroup = ApplyAtomGroups ? NextLine : 0;
+        uint32_t AtomGroup = ApplyAtomGroups ? NextLine : 0;
         uint8_t AtomRank = ApplyAtomGroups ? 1 : 0;
         uint64_t Line = NextLine++;
         I.setDebugLoc(DILocation::get(Ctx, Line, 1, SP, nullptr, false,
@@ -199,6 +201,7 @@ bool llvm::applyDebugifyMetadata(
     if (ApplyToMF)
       ApplyToMF(DIB, F);
     DIB.finalizeSubprogram(SP);
+    SP->updateDILocationAtomGroupWaterline(NextLine);
   }
   DIB.finalize();
 

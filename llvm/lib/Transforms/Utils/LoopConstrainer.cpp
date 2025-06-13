@@ -468,7 +468,8 @@ LoopConstrainer::LoopConstrainer(Loop &L, LoopInfo &LI,
 void LoopConstrainer::cloneLoop(LoopConstrainer::ClonedLoop &Result,
                                 const char *Tag) const {
   for (BasicBlock *BB : OriginalLoop.getBlocks()) {
-    BasicBlock *Clone = CloneBasicBlock(BB, Result.Map, Twine(".") + Tag, &F);
+    BasicBlock *Clone = CloneBasicBlock(BB, Result.Map, F.getSubprogram(),
+                                        Twine(".") + Tag, &F);
     Result.Blocks.push_back(Clone);
     Result.Map[BB] = Clone;
   }

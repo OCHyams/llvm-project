@@ -1918,10 +1918,32 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
     DVR->setDebugLoc(IDL);
   };
 
+  // Update the atomGroup waterline (from inlined instructions) if both
+  // functions were built with Key Instructions. The result at DWARF emission
+  // is:
+  //
+  // Key Instructions before -> after inlining
+  //         caller + callee -> caller + inlined callee
+  //         caller only     -> caller only
+  //         callee only     -> neither
+  //         neither         -> neither
+  //
+  // `callee only -> inlined callee only` isn't supported due to how
+  // `getKeyInstructionsEnabled` is implemented, and because it may be
+  // expensive to assume all functions may contain Key Instructions in
+  // a subset of nested scopes.
+  bool KeyInstructions = Fn->getSubprogram()->getKeyInstructionsEnabled();
+  uint32_t MaxInlineAtom = 0;
+
   // Iterate over all instructions, updating metadata and debug-info records.
   for (; FI != Fn->end(); ++FI) {
     for (Instruction &I : *FI) {
       UpdateInst(I);
+
+      if (KeyInstructions)
+        if (auto &DL = I.getDebugLoc())
+          MaxInlineAtom = std::max<uint32_t>(MaxInlineAtom, DL->getAtomGroup());
+
       for (DbgRecord &DVR : I.getDbgRecordRange()) {
         UpdateDVR(&DVR);
       }
@@ -1941,6 +1963,9 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
       }
     }
   }
+
+  if (KeyInstructions)
+    Fn->getSubprogram()->updateDILocationAtomGroupWaterline(MaxInlineAtom + 1);
 }
 
 #undef DEBUG_TYPE
