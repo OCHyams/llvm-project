@@ -2128,7 +2128,7 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     AssignmentTrackingLowering::UntaggedStoreAssignmentMap &UntaggedStoreVars,
     AssignmentTrackingLowering::UnknownStoreAssignmentMap &UnknownStoreVars,
     unsigned &TrackedVariablesVectorSize) {
-  DenseSet<DebugVariable> Seen;
+  SmallDenseSet<DebugVariable> Seen;
 
   // Map of Variable: [Fragments].
   DenseMap<DebugAggregate, SmallVector<DebugVariable, 8>> FragmentMap;
