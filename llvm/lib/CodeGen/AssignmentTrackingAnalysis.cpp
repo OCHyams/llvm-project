@@ -1272,6 +1272,7 @@ private:
   Function &Fn;
   const DataLayout &Layout;
   const DenseSet<DebugAggregate> *VarsWithStackSlot;
+  SmallVector<DbgVariableRecord *> PromotedVarMarkers;
   FunctionVarLocsBuilder *FnVarLocs;
   DenseMap<const BasicBlock *, BlockInfo> LiveIn;
   DenseMap<const BasicBlock *, BlockInfo> LiveOut;
@@ -1767,8 +1768,10 @@ void AssignmentTrackingLowering::processDbgAssign(DbgVariableRecord *DbgAssign,
                                                   BlockInfo *LiveSet) {
   // Only bother tracking variables that are at some point stack homed. Other
   // variables can be dealt with trivially later.
-  if (!VarsWithStackSlot->count(getAggregate(DbgAssign)))
+  if (!VarsWithStackSlot->count(getAggregate(DbgAssign))) {
+    PromotedVarMarkers.push_back(DbgAssign);
     return;
+  }
 
   VariableID Var = getVariableID(DebugVariable(DbgAssign));
   Assignment AV = Assignment::make(getIDFromMarker(*DbgAssign), DbgAssign);
@@ -1809,8 +1812,10 @@ void AssignmentTrackingLowering::processDbgValue(DbgVariableRecord *DbgValue,
                                                  BlockInfo *LiveSet) {
   // Only other tracking variables that are at some point stack homed.
   // Other variables can be dealt with trivally later.
-  if (!VarsWithStackSlot->count(getAggregate(DbgValue)))
+  if (!VarsWithStackSlot->count(getAggregate(DbgValue))) {
+    PromotedVarMarkers.push_back(DbgValue);
     return;
+  }
 
   VariableID Var = getVariableID(DebugVariable(DbgValue));
   // We have no ID to create an Assignment with so we mark this assignment as
@@ -2124,6 +2129,7 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     AssignmentTrackingLowering::UnknownStoreAssignmentMap &UnknownStoreVars,
     unsigned &TrackedVariablesVectorSize) {
   DenseSet<DebugVariable> Seen;
+
   // Map of Variable: [Fragments].
   DenseMap<DebugAggregate, SmallVector<DebugVariable, 8>> FragmentMap;
   // Iterate over all instructions:
@@ -2430,30 +2436,16 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
 
 bool AssignmentTrackingLowering::emitPromotedVarLocs(
     FunctionVarLocsBuilder *FnVarLocs) {
-  bool InsertedAnyIntrinsics = false;
-  // Go through every block, translating debug intrinsics for fully promoted
-  // variables into FnVarLocs location defs. No analysis required for these.
-  auto TranslateDbgRecord = [&](DbgVariableRecord *Record) {
-    // Skip variables that haven't been promoted - we've dealt with those
-    // already.
-    if (VarsWithStackSlot->contains(getAggregate(Record)))
-      return;
-    auto InsertBefore = getNextNode(Record);
+  for (auto *DVR : PromotedVarMarkers) {
+    assert((DVR->isDbgValue() || DVR->isDbgAssign()));
+    assert(!VarsWithStackSlot->contains(getAggregate(DVR)));
+    auto InsertBefore = getNextNode(DVR);
     assert(InsertBefore && "Unexpected: debug intrinsics after a terminator");
-    FnVarLocs->addVarLoc(InsertBefore, DebugVariable(Record),
-                         Record->getExpression(), Record->getDebugLoc(),
-                         RawLocationWrapper(Record->getRawLocation()));
-    InsertedAnyIntrinsics = true;
-  };
-  for (auto &BB : Fn) {
-    for (auto &I : BB) {
-      // Skip instructions other than dbg.values and dbg.assigns.
-      for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange()))
-        if (DVR.isDbgValue() || DVR.isDbgAssign())
-          TranslateDbgRecord(&DVR);
-    }
+    FnVarLocs->addVarLoc(InsertBefore, DebugVariable(DVR), DVR->getExpression(),
+                         DVR->getDebugLoc(),
+                         RawLocationWrapper(DVR->getRawLocation()));
   }
-  return InsertedAnyIntrinsics;
+  return PromotedVarMarkers.size() > 0;
 }
 
 /// Remove redundant definitions within sequences of consecutive location defs.
