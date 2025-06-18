@@ -572,7 +572,7 @@ static void shortenAssignment(Instruction *Inst, Value *OriginalDest,
 
     // Fragments overlap: insert a new dbg.assign for this dead part.
     auto *NewAssign = static_cast<decltype(Assign)>(Assign->clone());
-    NewAssign->insertAfter(Assign->getIterator());
+    NewAssign->insertAfter(Assign);
     NewAssign->setAssignId(GetDeadLink());
     if (NewFragment)
       SetDeadFragExpr(NewAssign, *NewFragment);

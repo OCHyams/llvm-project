@@ -483,7 +483,7 @@ static void migrateDebugInfo(AllocaInst *OldAlloca, bool IsSplit,
     // should have little effect on the debugging experience due to the fact
     // that all the split stores should get the same line number.
     if (NewAssign != DbgAssign) {
-      NewAssign->moveBefore(DbgAssign->getIterator());
+      NewAssign->moveBefore(DbgAssign);
       NewAssign->setDebugLoc(DbgAssign->getDebugLoc());
     }
     LLVM_DEBUG(dbgs() << "Created new assign: " << *NewAssign << "\n");
