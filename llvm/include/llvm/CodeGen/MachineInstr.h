@@ -60,6 +60,7 @@ class StringRef;
 class TargetInstrInfo;
 class TargetRegisterClass;
 class TargetRegisterInfo;
+class DbgMachineMarker;
 
 //===----------------------------------------------------------------------===//
 /// Representation of each machine instruction.
@@ -327,7 +328,9 @@ private:
 
   DebugLoc DbgLoc; // Source line information.
 
-  // Intrusive list support
+public:
+  DbgMachineMarker *DebugMarker; // "lol"
+private:  // Intrusive list support
   friend struct ilist_traits<MachineInstr>;
   friend struct ilist_callback_traits<MachineBasicBlock>;
   void setParent(MachineBasicBlock *P) { Parent = P; }
