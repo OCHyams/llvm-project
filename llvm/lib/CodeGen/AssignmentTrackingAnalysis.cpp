@@ -1272,7 +1272,7 @@ private:
   Function &Fn;
   const DataLayout &Layout;
   const DenseSet<DebugAggregate> *VarsWithStackSlot;
-  SmallVector<DbgVariableRecord *> PromotedVarMarkers;
+  SmallDenseSet<DbgVariableRecord *> PromotedVarMarkers;
   FunctionVarLocsBuilder *FnVarLocs;
   DenseMap<const BasicBlock *, BlockInfo> LiveIn;
   DenseMap<const BasicBlock *, BlockInfo> LiveOut;
@@ -1769,7 +1769,7 @@ void AssignmentTrackingLowering::processDbgAssign(DbgVariableRecord *DbgAssign,
   // Only bother tracking variables that are at some point stack homed. Other
   // variables can be dealt with trivially later.
   if (!VarsWithStackSlot->count(getAggregate(DbgAssign))) {
-    PromotedVarMarkers.push_back(DbgAssign);
+    PromotedVarMarkers.insert(DbgAssign);
     return;
   }
 
@@ -1813,7 +1813,7 @@ void AssignmentTrackingLowering::processDbgValue(DbgVariableRecord *DbgValue,
   // Only other tracking variables that are at some point stack homed.
   // Other variables can be dealt with trivally later.
   if (!VarsWithStackSlot->count(getAggregate(DbgValue))) {
-    PromotedVarMarkers.push_back(DbgValue);
+    PromotedVarMarkers.insert(DbgValue);
     return;
   }
 
