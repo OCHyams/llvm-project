@@ -297,7 +297,7 @@ uint64_t MCAssembler::computeFragmentSize(const MCFragment &F) const {
   case MCFragment::FT_DwarfFrame:
     return cast<MCDwarfCallFrameFragment>(F).getContents().size();
   case MCFragment::FT_DwarfLoclist:
-    return cast<MCDwarfLoclistFragment>(F).getContents().size();
+    return cast<MCDwarfLoclistOffsetPairFragment>(F).getContents().size();
   case MCFragment::FT_CVInlineLines:
     return cast<MCCVInlineLineTableFragment>(F).getContents().size();
   case MCFragment::FT_CVDefRange:
@@ -733,7 +733,8 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
     break;
   }
   case MCFragment::FT_DwarfLoclist: {
-    const MCDwarfLoclistFragment &OF = cast<MCDwarfLoclistFragment>(F);
+    const MCDwarfLoclistOffsetPairFragment &OF =
+        cast<MCDwarfLoclistOffsetPairFragment>(F);
     OS << OF.getContents();
     break;
   }
@@ -1162,8 +1163,8 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
 // Accumulate the expr into this -- it makes up 6% of memory, how much of that is fragment base?
 // Better customise to distribution of expr-sizes and num of fixups. 208 bytes in MCDataFragment!
 //   And we can just defer to MCDataFragment if there's a fixup in the expr!
-bool MCAssembler::relaxDwarfLoclist(MCDwarfLoclistFragment &DF) {
-//const MCExpr *foo = DF.Base->getVariableValue();
+bool MCAssembler::relaxDwarfLoclist(MCDwarfLoclistOffsetPairFragment &DF) {
+  // const MCExpr *foo = DF.Base->getVariableValue();
   uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
 
@@ -1179,7 +1180,7 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfLoclistFragment &DF) {
   unsigned OldSize = Data.size();
   Data.clear();
   // Do encoding,
-  Arr[0] = DF.OffsetPair;
+  Arr[0] = dwarf::DW_LLE_offset_pair;
   unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
   Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
   Data.append(Arr, Arr + Offs);
@@ -1244,7 +1245,7 @@ bool MCAssembler::relaxFragment(MCFragment &F) {
   case MCFragment::FT_DwarfFrame:
     return relaxDwarfCallFrameFragment(cast<MCDwarfCallFrameFragment>(F));
   case MCFragment::FT_DwarfLoclist:
-    return relaxDwarfLoclist(cast<MCDwarfLoclistFragment>(F));
+    return relaxDwarfLoclist(cast<MCDwarfLoclistOffsetPairFragment>(F));
   case MCFragment::FT_LEB:
     return relaxLEB(cast<MCLEBFragment>(F));
   case MCFragment::FT_BoundaryAlign:

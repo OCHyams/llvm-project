@@ -445,14 +445,15 @@ public:
 class MCContext;
 
 // XXX use base bytes for the expression, is 8 bytes a good number?
-class MCDwarfLoclistFragment : public MCEncodedFragmentWithFixups<16, 0> {
+class MCDwarfLoclistOffsetPairFragment
+    : public MCEncodedFragmentWithFixups<16, 0> {
 public:
   SmallVector<char, 16> ExprLol; // 1.8Mb in sqlite3.
   const MCExpr *DiffStart;
   const MCExpr *DiffEnd;
-  int8_t OffsetPair;
 
-  MCDwarfLoclistFragment(MCContext &Context, int8_t OffsetPair, const MCSymbol *Base, const MCSymbol *Begin, const MCSymbol *End);
+  MCDwarfLoclistOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
+                                   const MCSymbol *Begin, const MCSymbol *End);
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_DwarfLoclist;

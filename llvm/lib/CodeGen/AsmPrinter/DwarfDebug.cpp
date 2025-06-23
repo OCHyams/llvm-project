@@ -3019,7 +3019,8 @@ void DwarfDebug::emitDebugStr() {
 
 void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
                                    const DebugLocStream::Entry &Entry,
-                                   const DwarfCompileUnit *CU, MCDwarfLoclistFragment *beans) {
+                                   const DwarfCompileUnit *CU,
+                                   MCDwarfLoclistOffsetPairFragment *beans) {
   auto &&Comments = DebugLocs.getComments(Entry);
   auto Comment = Comments.begin();
   auto End = Comments.end();
@@ -3209,8 +3210,9 @@ void DebugLocEntry::finalize(const AsmPrinter &AP,
     List.setTagOffset(*DwarfExpr.TagOffset);
 }
 
-void DwarfDebug::emitDebugLocEntryLocation(const DebugLocStream::Entry &Entry,
-                                           const DwarfCompileUnit *CU, MCDwarfLoclistFragment *beans) {
+void DwarfDebug::emitDebugLocEntryLocation(
+    const DebugLocStream::Entry &Entry, const DwarfCompileUnit *CU,
+    MCDwarfLoclistOffsetPairFragment *beans) {
   if (beans) {
     assert(getDwarfVersion() >= 5);
     APByteStreamer Streamer(*Asm);
@@ -3338,7 +3340,7 @@ static void emitRangeList(
     }
 
     for (const auto *RS : P.second) {
-      MCDwarfLoclistFragment *beans = nullptr;
+      MCDwarfLoclistOffsetPairFragment *beans = nullptr;
       const MCSymbol *Begin = RS->Begin;
       const MCSymbol *End = RS->End;
       assert(Begin && "Range without a begin symbol?");
@@ -3389,7 +3391,8 @@ static void emitLocList(DwarfDebug &DD, AsmPrinter *Asm, const DebugLocStream::L
                 dwarf::DW_LLE_offset_pair, dwarf::DW_LLE_startx_length,
                 dwarf::DW_LLE_end_of_list, llvm::dwarf::LocListEncodingString,
                 /* ShouldUseBaseAddress */ true,
-                [&](const DebugLocStream::Entry &E, MCDwarfLoclistFragment *beans) {
+                [&](const DebugLocStream::Entry &E,
+                    MCDwarfLoclistOffsetPairFragment *beans) {
                   DD.emitDebugLocEntryLocation(E, List.CU, beans);
                 });
 }
