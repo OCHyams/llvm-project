@@ -448,7 +448,7 @@ class MCContext;
 class MCDwarfLoclistOffsetPairFragment
     : public MCEncodedFragmentWithFixups<16, 0> {
 public:
-  SmallVector<char, 16> ExprLol; // 1.8Mb in sqlite3.
+  SmallVector<char, 8> ExprLol;
   const MCExpr *DiffStart;
   const MCExpr *DiffEnd;
 
