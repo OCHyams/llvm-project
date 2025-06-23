@@ -1191,9 +1191,8 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfLoclistOffsetPairFragment &DF) {
     Offs = encodeULEB128(Sz, Arr);
     Data.append(Arr, Arr + Offs);
     Data.append(DF.ExprLol.begin(), DF.ExprLol.begin() + Sz);
-    errs() << Sz << "\n";
   }
-  errs() << "0\n";
+
   return OldSize != Data.size();
 }
 
