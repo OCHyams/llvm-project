@@ -3282,7 +3282,7 @@ static void emitRangeList(
     unsigned StartxLength, unsigned EndOfList,
     StringRef (*StringifyEnum)(unsigned),
     bool ShouldUseBaseAddress,
-    PayloadEmitter EmitPayload) {
+    PayloadEmitter EmitPayload, bool IsLocList) {
 
   auto Size = Asm->MAI->getCodePointerSize();
   bool UseDwarf5 = DD.getDwarfVersion() >= 5;
@@ -3348,13 +3348,17 @@ static void emitRangeList(
       if (Base) {
         if (UseDwarf5) {
           // Emit offset_pair when we have a base.
-          beans = Asm->emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
-//          Asm->OutStreamer->AddComment(StringifyEnum(OffsetPair));
-//          Asm->emitInt8(OffsetPair);
-//          Asm->OutStreamer->AddComment("  starting offset");
-//          Asm->emitLabelDifferenceAsULEB128(Begin, Base);
-//          Asm->OutStreamer->AddComment("  ending offset");
-//          Asm->emitLabelDifferenceAsULEB128(End, Base);
+          if (IsLocList)
+            beans = Asm->emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
+          else {
+            // handle range list!
+            Asm->OutStreamer->AddComment(StringifyEnum(OffsetPair));
+            Asm->emitInt8(OffsetPair);
+            Asm->OutStreamer->AddComment("  starting offset");
+            Asm->emitLabelDifferenceAsULEB128(Begin, Base);
+            Asm->OutStreamer->AddComment("  ending offset");
+            Asm->emitLabelDifferenceAsULEB128(End, Base);
+          }
         } else {
           Asm->emitLabelDifference(Begin, Base, Size);
           Asm->emitLabelDifference(End, Base, Size);
@@ -3394,7 +3398,7 @@ static void emitLocList(DwarfDebug &DD, AsmPrinter *Asm, const DebugLocStream::L
                 [&](const DebugLocStream::Entry &E,
                     MCDwarfLoclistOffsetPairFragment *beans) {
                   DD.emitDebugLocEntryLocation(E, List.CU, beans);
-                });
+                }, true);
 }
 
 void DwarfDebug::emitDebugLocImpl(MCSection *Sec) {
@@ -3620,7 +3624,7 @@ static void emitRangeList(DwarfDebug &DD, AsmPrinter *Asm,
                 llvm::dwarf::RangeListEncodingString,
                 List.CU->getCUNode()->getRangesBaseAddress() ||
                     DD.getDwarfVersion() >= 5,
-                [](auto, auto) {});
+                [](auto, auto) {}, false);
 }
 
 void DwarfDebug::emitDebugRangesImpl(const DwarfFile &Holder, MCSection *Section) {
