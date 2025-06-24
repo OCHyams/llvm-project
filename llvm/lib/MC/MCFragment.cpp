@@ -272,7 +272,7 @@ MCDwarfLoclistOffsetPairFragment::MCDwarfLoclistOffsetPairFragment(
 MCDwarfRangeListOffsetPairFragment::MCDwarfRangeListOffsetPairFragment(
     MCContext &Context, const MCSymbol *Base, const MCSymbol *Begin,
     const MCSymbol *End)
-    : MCEncodedFragmentWithFixups<0, 0>(FT_DwarfRnglist, false) {
+    : MCEncodedFragmentWithFixups<8, 0>(FT_DwarfRnglist, false) {
   const MCExpr *BaseSym = MCSymbolRefExpr::create(Base, Context);
   DiffStart = MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
                                       BaseSym, Context);

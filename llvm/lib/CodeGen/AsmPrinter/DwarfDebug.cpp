@@ -3351,13 +3351,14 @@ static void emitRangeList(
           if (IsLocList)
             beans = Asm->emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
           else {
-            // handle range list!
-            Asm->OutStreamer->AddComment(StringifyEnum(OffsetPair));
-            Asm->emitInt8(OffsetPair);
-            Asm->OutStreamer->AddComment("  starting offset");
-            Asm->emitLabelDifferenceAsULEB128(Begin, Base);
-            Asm->OutStreamer->AddComment("  ending offset");
-            Asm->emitLabelDifferenceAsULEB128(End, Base);
+            Asm->emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
+            // // handle range list!
+            // Asm->OutStreamer->AddComment(StringifyEnum(OffsetPair));
+            // Asm->emitInt8(OffsetPair);
+            // Asm->OutStreamer->AddComment("  starting offset");
+            // Asm->emitLabelDifferenceAsULEB128(Begin, Base);
+            // Asm->OutStreamer->AddComment("  ending offset");
+            // Asm->emitLabelDifferenceAsULEB128(End, Base);
           }
         } else {
           Asm->emitLabelDifference(Begin, Base, Size);
