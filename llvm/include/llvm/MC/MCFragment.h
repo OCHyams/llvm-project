@@ -480,8 +480,11 @@ public:
 
   MCDwarfRangeListEntryFragment(MCContext &Context, const MCSymbol *Base,
                                 const MCSymbol *Begin, const MCSymbol *End,
-                                EntryKindTy EntryKind,
-                                uint8_t EntryKindEncoding);
+                                uint8_t OffsetPairEncoding);
+
+  MCDwarfRangeListEntryFragment(MCContext &Context, uint64_t Startx,
+                                const MCSymbol *Begin, const MCSymbol *End,
+                                uint8_t StartxLengthEncoding);
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_DwarfLoclist;
