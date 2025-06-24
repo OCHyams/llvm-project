@@ -471,8 +471,17 @@ public:
   const MCExpr *DiffStart;
   const MCExpr *DiffEnd;
 
+  enum EntryKindTy : uint8_t {
+    OffsetPair,
+    StartxLenght,
+    // Add more as needed.
+  } EntryKind;
+  uint8_t EntryKindEncoding;
+
   MCDwarfRangeListEntryFragment(MCContext &Context, const MCSymbol *Base,
-                                const MCSymbol *Begin, const MCSymbol *End);
+                                const MCSymbol *Begin, const MCSymbol *End,
+                                EntryKindTy EntryKind,
+                                uint8_t EntryKindEncoding);
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_DwarfLoclist;

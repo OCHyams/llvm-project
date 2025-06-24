@@ -15,6 +15,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCFragment.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSection.h"
@@ -131,7 +132,8 @@ MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
 
   MCDwarfRangeListEntryFragment *ptr =
       getContext().allocFragment<MCDwarfRangeListEntryFragment>(
-          getContext(), Base, Begin, End);
+          getContext(), Base, Begin, End,
+          MCDwarfRangeListEntryFragment::OffsetPair, OffsetPair);
   insert(ptr);
   return ptr;
 }
@@ -140,15 +142,16 @@ MCDwarfRangeListOffsetPairFragment *
 MCObjectStreamer::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                                        const MCSymbol *Begin,
                                        const MCSymbol *End) {
-  if (Base->getFragment() == Begin->getFragment() ||
-      Base->getFragment() == End->getFragment())
-    return MCStreamer::emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
+  llvm_unreachable("removed this stuff");
+  // if (Base->getFragment() == Begin->getFragment() ||
+  //     Base->getFragment() == End->getFragment())
+  //   return MCStreamer::emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
 
-  MCDwarfRangeListOffsetPairFragment *ptr =
-      getContext().allocFragment<MCDwarfRangeListOffsetPairFragment>(
-          getContext(), Base, Begin, End);
-  insert(ptr);
-  return ptr;
+  // MCDwarfRangeListOffsetPairFragment *ptr =
+  //     getContext().allocFragment<MCDwarfRangeListOffsetPairFragment>(
+  //         getContext(), Base, Begin, End);
+  // insert(ptr);
+  // return ptr;
 }
 
 void MCObjectStreamer::reset() {

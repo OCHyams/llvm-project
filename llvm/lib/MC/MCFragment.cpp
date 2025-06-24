@@ -258,8 +258,9 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
 
 MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
     MCContext &Context, const MCSymbol *Base, const MCSymbol *Begin,
-    const MCSymbol *End)
-    : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false) {
+    const MCSymbol *End, EntryKindTy EntryKind, uint8_t EntryKindEncoding)
+    : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false),
+      EntryKind(EntryKind), EntryKindEncoding(EntryKindEncoding) {
   const MCExpr *BaseSym = MCSymbolRefExpr::create(Base, Context);
   DiffStart =
         MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
