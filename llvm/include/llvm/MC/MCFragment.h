@@ -448,19 +448,20 @@ public:
 
 class MCContext;
 
-class MCDwarfRangeListOffsetPairFragment
-    : public MCEncodedFragmentWithFixups<8, 0> {
-public:
-  const MCExpr *DiffStart;
-  const MCExpr *DiffEnd;
-  MCDwarfRangeListOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
-                                     const MCSymbol *Begin,
-                                     const MCSymbol *End);
 
-  static bool classof(const MCFragment *F) {
-    return F->getKind() == MCFragment::FT_DwarfRnglist;
-  }
-};
+// class MCDwarfRangeListOffsetPairFragment
+//     : public MCEncodedFragmentWithFixups<8, 0> {
+// public:
+//   const MCExpr *DiffStart;
+//   const MCExpr *DiffEnd;
+//   MCDwarfRangeListOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
+//                                      const MCSymbol *Begin,
+//                                      const MCSymbol *End);
+
+//   static bool classof(const MCFragment *F) {
+//     return F->getKind() == MCFragment::FT_DwarfRnglist;
+//   }
+// };
 
 // XXX use base bytes for the expression, is 8 bytes a good number?
 class MCDwarfLoclistOffsetPairFragment
@@ -477,7 +478,7 @@ public:
     return F->getKind() == MCFragment::FT_DwarfLoclist;
   }
 };
-
+using MCDwarfRangeListOffsetPairFragment = MCDwarfLoclistOffsetPairFragment;
 /// Represents a symbol table index fragment.
 class MCSymbolIdFragment : public MCFragment {
   const MCSymbol *Sym;
