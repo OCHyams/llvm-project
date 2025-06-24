@@ -1249,7 +1249,7 @@ void MCStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
   emitULEB128Value(Diff);
 }
 
-MCDwarfLoclistOffsetPairFragment *
+MCDwarfRangeListEntryFragment *
 MCStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
                                  const MCSymbol *Begin, const MCSymbol *End) {
   // Dummy implementation,

@@ -464,21 +464,22 @@ class MCContext;
 // };
 
 // XXX use base bytes for the expression, is 8 bytes a good number?
-class MCDwarfLoclistOffsetPairFragment
+class MCDwarfRangeListEntryFragment
     : public MCEncodedFragmentWithFixups<16, 0> {
 public:
   SmallVector<char, 8> ExprLol;
   const MCExpr *DiffStart;
   const MCExpr *DiffEnd;
 
-  MCDwarfLoclistOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
-                                   const MCSymbol *Begin, const MCSymbol *End);
+  MCDwarfRangeListEntryFragment(MCContext &Context, const MCSymbol *Base,
+                                const MCSymbol *Begin, const MCSymbol *End);
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_DwarfLoclist;
   }
 };
-using MCDwarfRangeListOffsetPairFragment = MCDwarfLoclistOffsetPairFragment;
+// dump this.
+using MCDwarfRangeListOffsetPairFragment = MCDwarfRangeListEntryFragment;
 /// Represents a symbol table index fragment.
 class MCSymbolIdFragment : public MCFragment {
   const MCSymbol *Sym;

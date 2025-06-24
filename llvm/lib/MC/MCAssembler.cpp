@@ -297,7 +297,7 @@ uint64_t MCAssembler::computeFragmentSize(const MCFragment &F) const {
   case MCFragment::FT_DwarfFrame:
     return cast<MCDwarfCallFrameFragment>(F).getContents().size();
   case MCFragment::FT_DwarfLoclist:
-    return cast<MCDwarfLoclistOffsetPairFragment>(F).getContents().size();
+    return cast<MCDwarfRangeListEntryFragment>(F).getContents().size();
   case MCFragment::FT_DwarfRnglist:
     return cast<MCDwarfRangeListOffsetPairFragment>(F).getContents().size();
   case MCFragment::FT_CVInlineLines:
@@ -735,8 +735,8 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
     break;
   }
   case MCFragment::FT_DwarfLoclist: {
-    const MCDwarfLoclistOffsetPairFragment &OF =
-        cast<MCDwarfLoclistOffsetPairFragment>(F);
+    const MCDwarfRangeListEntryFragment &OF =
+        cast<MCDwarfRangeListEntryFragment>(F);
     OS << OF.getContents();
     break;
   }
@@ -1171,7 +1171,7 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
 // Accumulate the expr into this -- it makes up 6% of memory, how much of that is fragment base?
 // Better customise to distribution of expr-sizes and num of fixups. 208 bytes in MCDataFragment!
 //   And we can just defer to MCDataFragment if there's a fixup in the expr!
-bool MCAssembler::relaxDwarfLoclist(MCDwarfLoclistOffsetPairFragment &DF) {
+bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   // const MCExpr *foo = DF.Base->getVariableValue();
   uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
@@ -1278,7 +1278,7 @@ bool MCAssembler::relaxFragment(MCFragment &F) {
   case MCFragment::FT_DwarfFrame:
     return relaxDwarfCallFrameFragment(cast<MCDwarfCallFrameFragment>(F));
   case MCFragment::FT_DwarfLoclist:
-    return relaxDwarfLoclist(cast<MCDwarfLoclistOffsetPairFragment>(F));
+    return relaxDwarfLoclist(cast<MCDwarfRangeListEntryFragment>(F));
   case MCFragment::FT_DwarfRnglist:
     return relaxDwarfRnglist(cast<MCDwarfRangeListOffsetPairFragment>(F));
   case MCFragment::FT_LEB:

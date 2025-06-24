@@ -109,7 +109,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
   case MCFragment::FT_Dwarf: OS << "MCDwarfFragment"; break;
   case MCFragment::FT_DwarfFrame: OS << "MCDwarfCallFrameFragment"; break;
   case MCFragment::FT_DwarfLoclist:
-    OS << "MCDwarfLoclistOffsetPairFragment";
+    OS << "MCDwarfRangeListEntryFragment";
     break;
   case MCFragment::FT_DwarfRnglist:
     OS << "MCDwarfRangeListOffsetPairFragment";
@@ -256,7 +256,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
 }
 #endif
 
-MCDwarfLoclistOffsetPairFragment::MCDwarfLoclistOffsetPairFragment(
+MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
     MCContext &Context, const MCSymbol *Base, const MCSymbol *Begin,
     const MCSymbol *End)
     : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false) {

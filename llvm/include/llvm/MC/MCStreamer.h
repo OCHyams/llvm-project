@@ -978,7 +978,7 @@ public:
   virtual void emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
                                                const MCSymbol *Lo);
 
-  virtual MCDwarfLoclistOffsetPairFragment *
+  virtual MCDwarfRangeListEntryFragment *
   emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
                        const MCSymbol *Begin, const MCSymbol *End);
   virtual MCDwarfRangeListOffsetPairFragment *
