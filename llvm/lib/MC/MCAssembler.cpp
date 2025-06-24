@@ -1176,19 +1176,20 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
 
-  MCContext &Context = getContext();
-
-  int64_t DiffAInt, DiffBInt;
-
+  int64_t AddrOp1, AddrOp2;
   if (DF.EntryKindEncoding == MCDwarfRangeListEntryFragment::OffsetPair) {
-    bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
+    bool Abs =
+        DF.Data.OffsetPair.DiffStart->evaluateKnownAbsolute(AddrOp1, *this);
     assert(Abs && "I like trains");
-    Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
+    Abs = DF.Data.OffsetPair.DiffEnd->evaluateKnownAbsolute(AddrOp2, *this);
     assert(Abs && "Do you like trains?");
     (void)Abs;
   } else if (DF.EntryKindEncoding ==
              MCDwarfRangeListEntryFragment::StartxLenght) {
-
+    AddrOp1 = DF.Data.Startx.Startx;
+    bool Abs = DF.Data.Startx.Diff->evaluateKnownAbsolute(AddrOp2, *this);
+    assert(Abs && "Do you like trains?");
+    (void)Abs;
   } else {
     llvm_unreachable("Add support for other entry kinds");
   }
@@ -1197,8 +1198,8 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   Data.clear();
 
   Arr[0] = DF.EntryKindEncoding;
-  unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
-  Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
+  unsigned Offs = encodeULEB128(AddrOp1, &Arr[1]) + 1;
+  Offs += encodeULEB128(AddrOp2, &Arr[Offs]);
   Data.append(Arr, Arr + Offs);
 
   // XXX emit expression? If there's anything in the ExprLol field, append
