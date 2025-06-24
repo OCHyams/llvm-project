@@ -3349,7 +3349,8 @@ static void emitRangeList(
         if (UseDwarf5) {
           // Emit offset_pair when we have a base.
           if (IsLocList)
-            beans = Asm->emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
+            beans = Asm->emitDwarfLocListOffsetPairEntry(OffsetPair, Base,
+                                                         Begin, End);
           else {
             Asm->emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
             // // handle range list!

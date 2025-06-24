@@ -979,8 +979,11 @@ public:
                                                const MCSymbol *Lo);
 
   virtual MCDwarfRangeListEntryFragment *
-  emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                       const MCSymbol *Begin, const MCSymbol *End);
+  emitDwarfLocListOffsetPairEntry(int8_t OffsetPair, const MCSymbol *Base,
+                                  const MCSymbol *Begin, const MCSymbol *End);
+  virtual MCDwarfRangeListEntryFragment *
+  emitDwarfLocListStartxLengthEntry(int8_t StartxEncoding, uint64_t Startx,
+                                    const MCSymbol *Begin, const MCSymbol *End);
   virtual MCDwarfRangeListOffsetPairFragment *
   emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                        const MCSymbol *Begin, const MCSymbol *End);

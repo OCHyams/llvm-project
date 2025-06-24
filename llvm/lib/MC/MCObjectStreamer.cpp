@@ -124,16 +124,33 @@ void MCObjectStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
 }
 
 MCDwarfRangeListEntryFragment *
-MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                                       const MCSymbol *Begin,
-                                       const MCSymbol *End) {
+MCObjectStreamer::emitDwarfLocListOffsetPairEntry(int8_t OffsetPair,
+                                                  const MCSymbol *Base,
+                                                  const MCSymbol *Begin,
+                                                  const MCSymbol *End) {
   if (Base->getFragment() == Begin->getFragment() || Base->getFragment() == End->getFragment())
-    return MCStreamer::emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
+    return MCStreamer::emitDwarfLocListOffsetPairEntry(OffsetPair, Base, Begin,
+                                                       End);
 
   MCDwarfRangeListEntryFragment *ptr =
       getContext().allocFragment<MCDwarfRangeListEntryFragment>(
-          getContext(), Base, Begin, End,
-          MCDwarfRangeListEntryFragment::OffsetPair, OffsetPair);
+          getContext(), Base, Begin, End, OffsetPair);
+  insert(ptr);
+  return ptr;
+}
+
+MCDwarfRangeListEntryFragment *
+MCObjectStreamer::emitDwarfLocListStartxLengthEntry(int8_t StartxEncoding,
+                                                    uint64_t Startx,
+                                                    const MCSymbol *Begin,
+                                                    const MCSymbol *End) {
+  if (Begin->getFragment() == End->getFragment())
+    return MCStreamer::emitDwarfLocListStartxLengthEntry(StartxEncoding, Startx,
+                                                         Begin, End);
+
+  MCDwarfRangeListEntryFragment *ptr =
+      getContext().allocFragment<MCDwarfRangeListEntryFragment>(
+          getContext(), Startx, Begin, End, StartxEncoding);
   insert(ptr);
   return ptr;
 }
