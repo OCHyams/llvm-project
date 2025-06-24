@@ -136,6 +136,21 @@ MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
   return ptr;
 }
 
+MCDwarfRangeListOffsetPairFragment *
+MCObjectStreamer::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
+                                       const MCSymbol *Begin,
+                                       const MCSymbol *End) {
+  if (Base->getFragment() == Begin->getFragment() ||
+      Base->getFragment() == End->getFragment())
+    return MCStreamer::emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
+
+  MCDwarfRangeListOffsetPairFragment *ptr =
+      getContext().allocFragment<MCDwarfRangeListOffsetPairFragment>(
+          getContext(), Base, Begin, End);
+  insert(ptr);
+  return ptr;
+}
+
 void MCObjectStreamer::reset() {
   if (Assembler) {
     Assembler->reset();
