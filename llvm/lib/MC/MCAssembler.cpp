@@ -1214,30 +1214,28 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
 }
 
 bool MCAssembler::relaxDwarfRnglist(MCDwarfRangeListOffsetPairFragment &DF) {
-  llvm_unreachable("blargo");
-  return false;
-  // // const MCExpr *foo = DF.Base->getVariableValue();
-  // uint8_t Arr[16];
-  // SmallVectorImpl<char> &Data = DF.getContents();
+  // const MCExpr *foo = DF.Base->getVariableValue();
+  uint8_t Arr[16];
+  SmallVectorImpl<char> &Data = DF.getContents();
 
-  // MCContext &Context = getContext();
+  MCContext &Context = getContext();
 
-  // int64_t DiffAInt, DiffBInt;
-  // bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
-  // assert(Abs && "I like trains");
-  // Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
-  // assert(Abs && "Do you like trains?");
-  // (void)Abs;
+  int64_t DiffAInt, DiffBInt;
+  bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
+  assert(Abs && "I like trains");
+  Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
+  assert(Abs && "Do you like trains?");
+  (void)Abs;
 
-  // unsigned OldSize = Data.size();
-  // Data.clear();
-  // // Do encoding,
-  // Arr[0] = dwarf::DW_LLE_offset_pair;
-  // unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
-  // Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
-  // Data.append(Arr, Arr + Offs);
+  unsigned OldSize = Data.size();
+  Data.clear();
+  // Do encoding,
+  Arr[0] = dwarf::DW_LLE_offset_pair;
+  unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
+  Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
+  Data.append(Arr, Arr + Offs);
 
-  // return OldSize != Data.size();
+  return OldSize != Data.size();
 }
 
 bool MCAssembler::relaxCVInlineLineTable(MCCVInlineLineTableFragment &F) {

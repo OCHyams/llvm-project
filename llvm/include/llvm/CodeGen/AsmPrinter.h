@@ -716,9 +716,10 @@ public:
   // Dwarf Emission Helper Routines
   //===------------------------------------------------------------------===//
 
-  MCDwarfRangeListEntryFragment *
-  emitDwarfLocListOffsetPairEntry(int8_t OffsetPair, const MCSymbol *Base,
-                                  const MCSymbol *Begin, const MCSymbol *End);
+  MCDwarfRangeListEntryFragment *emitDwarfLoclistElem(int8_t OffsetPair,
+                                                      const MCSymbol *Base,
+                                                      const MCSymbol *Begin,
+                                                      const MCSymbol *End);
   MCDwarfRangeListOffsetPairFragment *
   emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                        const MCSymbol *Begin, const MCSymbol *End);

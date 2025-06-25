@@ -1249,25 +1249,15 @@ void MCStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
   emitULEB128Value(Diff);
 }
 
-MCDwarfRangeListEntryFragment *MCStreamer::emitDwarfLocListOffsetPairEntry(
-    int8_t OffsetPair, const MCSymbol *Base, const MCSymbol *Begin,
-    const MCSymbol *End) {
+MCDwarfRangeListEntryFragment *
+MCStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
+                                 const MCSymbol *Begin, const MCSymbol *End) {
   // Dummy implementation,
   emitInt8(OffsetPair);
   emitAbsoluteSymbolDiffAsULEB128(Begin, Base);
   emitAbsoluteSymbolDiffAsULEB128(End, Base);
   return nullptr;
 }
-
-MCDwarfRangeListEntryFragment *MCStreamer::emitDwarfLocListStartxLengthEntry(
-    int8_t StartxEncoding, uint64_t Startx, const MCSymbol *Begin,
-    const MCSymbol *End) {
-  emitInt8(StartxEncoding);
-  emitULEB128IntValue(Startx);
-  emitAbsoluteSymbolDiffAsULEB128(End, Begin);
-  return nullptr;
-}
-
 MCDwarfRangeListOffsetPairFragment *
 MCStreamer::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                                  const MCSymbol *Begin, const MCSymbol *End) {

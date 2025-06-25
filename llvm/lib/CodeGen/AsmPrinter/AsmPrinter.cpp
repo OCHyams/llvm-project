@@ -3373,11 +3373,10 @@ void AsmPrinter::emitLabelDifferenceAsULEB128(const MCSymbol *Hi,
   OutStreamer->emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
 }
 
-MCDwarfRangeListEntryFragment *AsmPrinter::emitDwarfLocListOffsetPairEntry(
-    int8_t OffsetPair, const MCSymbol *Base, const MCSymbol *Begin,
-    const MCSymbol *End) {
-  return OutStreamer->emitDwarfLocListOffsetPairEntry(OffsetPair, Base, Begin,
-                                                      End);
+MCDwarfRangeListEntryFragment *
+AsmPrinter::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
+                                 const MCSymbol *Begin, const MCSymbol *End) {
+  return OutStreamer->emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
 }
 MCDwarfRangeListOffsetPairFragment *
 AsmPrinter::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,

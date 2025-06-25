@@ -201,13 +201,8 @@ public:
                                        const MCSymbol *Lo) override;
 
   MCDwarfRangeListEntryFragment *
-  emitDwarfLocListOffsetPairEntry(int8_t OffsetPair, const MCSymbol *Base,
-                                  const MCSymbol *Begin,
-                                  const MCSymbol *End) override;
-  MCDwarfRangeListEntryFragment *
-  emitDwarfLocListStartxLengthEntry(int8_t StartxEncoding, uint64_t Startx,
-                                    const MCSymbol *Begin,
-                                    const MCSymbol *End) override;
+  emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
+                       const MCSymbol *Begin, const MCSymbol *End) override;
   MCDwarfRangeListOffsetPairFragment *
   emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                        const MCSymbol *Begin, const MCSymbol *End) override;
