@@ -980,7 +980,8 @@ public:
 
   virtual MCDwarfRangeListEntryFragment *
   emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                       const MCSymbol *Begin, const MCSymbol *End);
+                       const MCSymbol *Begin, const MCSymbol *End,
+                       StringRef EnumEle);
   virtual MCDwarfRangeListOffsetPairFragment *
   emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                        const MCSymbol *Begin, const MCSymbol *End);

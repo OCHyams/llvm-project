@@ -1251,10 +1251,14 @@ void MCStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
 
 MCDwarfRangeListEntryFragment *
 MCStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                                 const MCSymbol *Begin, const MCSymbol *End) {
+                                 const MCSymbol *Begin, const MCSymbol *End,
+                                 StringRef EnumEle) {
   // Dummy implementation,
+  AddComment(EnumEle);
   emitInt8(OffsetPair);
+  AddComment("  starting offset");
   emitAbsoluteSymbolDiffAsULEB128(Begin, Base);
+  AddComment("  ending offset");
   emitAbsoluteSymbolDiffAsULEB128(End, Base);
   return nullptr;
 }
