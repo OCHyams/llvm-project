@@ -1262,15 +1262,6 @@ MCStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
   emitAbsoluteSymbolDiffAsULEB128(End, Base);
   return nullptr;
 }
-MCDwarfRangeListOffsetPairFragment *
-MCStreamer::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
-                                 const MCSymbol *Begin, const MCSymbol *End) {
-  // Dummy implementation,
-  emitInt8(OffsetPair);
-  emitAbsoluteSymbolDiffAsULEB128(Begin, Base);
-  emitAbsoluteSymbolDiffAsULEB128(End, Base);
-  return nullptr;
-}
 
 void MCStreamer::emitSubsectionsViaSymbols() {
   llvm_unreachable(

@@ -298,8 +298,6 @@ uint64_t MCAssembler::computeFragmentSize(const MCFragment &F) const {
     return cast<MCDwarfCallFrameFragment>(F).getContents().size();
   case MCFragment::FT_DwarfLoclist:
     return cast<MCDwarfLocListOffsetPairFragment>(F).getContents().size();
-  case MCFragment::FT_DwarfRnglist:
-    return cast<MCDwarfRangeListOffsetPairFragment>(F).getContents().size();
   case MCFragment::FT_CVInlineLines:
     return cast<MCCVInlineLineTableFragment>(F).getContents().size();
   case MCFragment::FT_CVDefRange:
@@ -737,12 +735,6 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
   case MCFragment::FT_DwarfLoclist: {
     const MCDwarfLocListOffsetPairFragment &OF =
         cast<MCDwarfLocListOffsetPairFragment>(F);
-    OS << OF.getContents();
-    break;
-  }
-  case MCFragment::FT_DwarfRnglist: {
-    const MCDwarfRangeListOffsetPairFragment &OF =
-        cast<MCDwarfRangeListOffsetPairFragment>(F);
     OS << OF.getContents();
     break;
   }
@@ -1205,31 +1197,6 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
   return OldSize != Data.size();
 }
 
-bool MCAssembler::relaxDwarfRnglist(MCDwarfRangeListOffsetPairFragment &DF) {
-  // const MCExpr *foo = DF.Base->getVariableValue();
-  uint8_t Arr[16];
-  SmallVectorImpl<char> &Data = DF.getContents();
-
-  MCContext &Context = getContext();
-
-  int64_t DiffAInt, DiffBInt;
-  bool Abs = DF.StartOffset->evaluateKnownAbsolute(DiffAInt, *this);
-  assert(Abs && "I like trains");
-  Abs = DF.EndOffset->evaluateKnownAbsolute(DiffBInt, *this);
-  assert(Abs && "Do you like trains?");
-  (void)Abs;
-
-  unsigned OldSize = Data.size();
-  Data.clear();
-  // Do encoding,
-  Arr[0] = dwarf::DW_LLE_offset_pair;
-  unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
-  Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
-  Data.append(Arr, Arr + Offs);
-
-  return OldSize != Data.size();
-}
-
 bool MCAssembler::relaxCVInlineLineTable(MCCVInlineLineTableFragment &F) {
   unsigned OldSize = F.getContents().size();
   getContext().getCVContext().encodeInlineLineTable(*this, F);
@@ -1280,8 +1247,6 @@ bool MCAssembler::relaxFragment(MCFragment &F) {
     return relaxDwarfCallFrameFragment(cast<MCDwarfCallFrameFragment>(F));
   case MCFragment::FT_DwarfLoclist:
     return relaxDwarfLoclist(cast<MCDwarfLocListOffsetPairFragment>(F));
-  case MCFragment::FT_DwarfRnglist:
-    return relaxDwarfRnglist(cast<MCDwarfRangeListOffsetPairFragment>(F));
   case MCFragment::FT_LEB:
     return relaxLEB(cast<MCLEBFragment>(F));
   case MCFragment::FT_BoundaryAlign:

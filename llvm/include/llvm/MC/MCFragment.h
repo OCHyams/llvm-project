@@ -464,8 +464,7 @@ public:
     return F->getKind() == MCFragment::FT_DwarfLoclist;
   }
 };
-// dump this.
-using MCDwarfRangeListOffsetPairFragment = MCDwarfLocListOffsetPairFragment;
+
 /// Represents a symbol table index fragment.
 class MCSymbolIdFragment : public MCFragment {
   const MCSymbol *Sym;

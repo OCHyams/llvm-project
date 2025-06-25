@@ -3380,11 +3380,7 @@ AsmPrinter::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
   return OutStreamer->emitDwarfLoclistElem(OffsetPair, Base, Begin, End,
                                            EnumEle);
 }
-MCDwarfRangeListOffsetPairFragment *
-AsmPrinter::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
-                                 const MCSymbol *Begin, const MCSymbol *End) {
-  return OutStreamer->emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
-}
+
 /// EmitLabelPlusOffset - Emit something like ".long Label+Offset"
 /// where the size in bytes of the directive is specified by Size and Label
 /// specifies the label.  This implicitly uses .set if it is available.
