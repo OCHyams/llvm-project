@@ -1177,14 +1177,15 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   SmallVectorImpl<char> &Data = DF.getContents();
 
   int64_t AddrOp1, AddrOp2;
-  if (DF.EntryKind == MCDwarfRangeListEntryFragment::OffsetPair) {
+  if (DF.EntryKindEncoding == MCDwarfRangeListEntryFragment::OffsetPair) {
     bool Abs =
         DF.Data.OffsetPair.DiffStart->evaluateKnownAbsolute(AddrOp1, *this);
     assert(Abs && "I like trains");
     Abs = DF.Data.OffsetPair.DiffEnd->evaluateKnownAbsolute(AddrOp2, *this);
     assert(Abs && "Do you like trains?");
     (void)Abs;
-  } else if (DF.EntryKind == MCDwarfRangeListEntryFragment::StartxLenght) {
+  } else if (DF.EntryKindEncoding ==
+             MCDwarfRangeListEntryFragment::StartxLenght) {
     AddrOp1 = DF.Data.Startx.Startx;
     bool Abs = DF.Data.Startx.Diff->evaluateKnownAbsolute(AddrOp2, *this);
     assert(Abs && "Do you like trains?");
