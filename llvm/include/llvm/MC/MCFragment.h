@@ -469,6 +469,7 @@ public:
   SmallVector<char, 8> ExprLol;
   const MCExpr *DiffStart;
   const MCExpr *DiffEnd;
+  uint8_t Encoding; // TODO use.
 
   MCDwarfRangeListEntryFragment(MCContext &Context, const MCSymbol *Base,
                                 const MCSymbol *Begin, const MCSymbol *End);
