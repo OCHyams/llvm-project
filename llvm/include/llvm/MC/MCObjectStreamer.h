@@ -200,7 +200,7 @@ public:
   void emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
                                        const MCSymbol *Lo) override;
 
-  MCDwarfRangeListEntryFragment *
+  MCDwarfLocListOffsetPairFragment *
   emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
                        const MCSymbol *Begin, const MCSymbol *End,
                        StringRef EnumEle) override;

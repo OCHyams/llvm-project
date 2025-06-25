@@ -109,7 +109,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
   case MCFragment::FT_Dwarf: OS << "MCDwarfFragment"; break;
   case MCFragment::FT_DwarfFrame: OS << "MCDwarfCallFrameFragment"; break;
   case MCFragment::FT_DwarfLoclist:
-    OS << "MCDwarfRangeListEntryFragment";
+    OS << "MCDwarfLocListOffsetPairFragment";
     break;
   case MCFragment::FT_DwarfRnglist:
     OS << "MCDwarfRangeListOffsetPairFragment";
@@ -256,17 +256,15 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
 }
 #endif
 
-MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
+MCDwarfLocListOffsetPairFragment::MCDwarfLocListOffsetPairFragment(
     MCContext &Context, const MCSymbol *Base, const MCSymbol *Begin,
     const MCSymbol *End)
     : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false) {
   const MCExpr *BaseSym = MCSymbolRefExpr::create(Base, Context);
-  DiffStart =
-        MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
-                                BaseSym, Context);
-  DiffEnd =
-        MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
-                                BaseSym, Context);
+  StartOffset = MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
+                                        BaseSym, Context);
+  EndOffset = MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
+                                      BaseSym, Context);
 }
 
 // MCDwarfRangeListOffsetPairFragment::MCDwarfRangeListOffsetPairFragment(

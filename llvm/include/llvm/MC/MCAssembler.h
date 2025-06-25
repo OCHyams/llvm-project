@@ -124,7 +124,7 @@ private:
   bool relaxBoundaryAlign(MCBoundaryAlignFragment &BF);
   bool relaxDwarfLineAddr(MCDwarfLineAddrFragment &DF);
   bool relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF);
-  bool relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF);
+  bool relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF);
   bool relaxDwarfRnglist(MCDwarfRangeListOffsetPairFragment &DF);
   bool relaxCVInlineLineTable(MCCVInlineLineTableFragment &DF);
   bool relaxCVDefRange(MCCVDefRangeFragment &DF);

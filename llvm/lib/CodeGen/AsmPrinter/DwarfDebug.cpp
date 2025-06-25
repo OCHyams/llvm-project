@@ -3020,7 +3020,7 @@ void DwarfDebug::emitDebugStr() {
 void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
                                    const DebugLocStream::Entry &Entry,
                                    const DwarfCompileUnit *CU,
-                                   MCDwarfRangeListEntryFragment *beans) {
+                                   MCDwarfLocListOffsetPairFragment *beans) {
   auto &&Comments = DebugLocs.getComments(Entry);
   auto Comment = Comments.begin();
   auto End = Comments.end();
@@ -3029,7 +3029,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
     if (!beans) {
       Streamer.emitInt8(Op, Comment);
     } else {
-      beans->ExprLol.push_back(Op);
+      beans->LocationDescriptionExpr.push_back(Op);
     }
   };
 
@@ -3042,7 +3042,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
       assert(Offset < (1ULL << (ULEB128PadSize * 7)) && "Offset wont fit");
       uint8_t foo[12];
       unsigned sz = encodeULEB128(Offset, &foo[0]);
-      beans->ExprLol.append(&foo[0], &foo[sz]);
+      beans->LocationDescriptionExpr.append(&foo[0], &foo[sz]);
       return ULEB128PadSize; // some kind of padding for comments?
     }
   };
@@ -3212,7 +3212,7 @@ void DebugLocEntry::finalize(const AsmPrinter &AP,
 
 void DwarfDebug::emitDebugLocEntryLocation(
     const DebugLocStream::Entry &Entry, const DwarfCompileUnit *CU,
-    MCDwarfRangeListEntryFragment *beans) {
+    MCDwarfLocListOffsetPairFragment *beans) {
   if (beans) {
     assert(getDwarfVersion() >= 5);
     APByteStreamer Streamer(*Asm);
@@ -3340,7 +3340,7 @@ static void emitRangeList(
     }
 
     for (const auto *RS : P.second) {
-      MCDwarfRangeListEntryFragment *beans = nullptr;
+      MCDwarfLocListOffsetPairFragment *beans = nullptr;
       const MCSymbol *Begin = RS->Begin;
       const MCSymbol *End = RS->End;
       assert(Begin && "Range without a begin symbol?");
@@ -3400,7 +3400,7 @@ static void emitLocList(DwarfDebug &DD, AsmPrinter *Asm, const DebugLocStream::L
       llvm::dwarf::LocListEncodingString,
       /* ShouldUseBaseAddress */ true,
       [&](const DebugLocStream::Entry &E,
-          MCDwarfRangeListEntryFragment *beans) {
+          MCDwarfLocListOffsetPairFragment *beans) {
         DD.emitDebugLocEntryLocation(E, List.CU, beans);
       },
       true);

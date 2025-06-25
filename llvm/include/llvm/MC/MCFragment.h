@@ -448,38 +448,24 @@ public:
 
 class MCContext;
 
-
-// class MCDwarfRangeListOffsetPairFragment
-//     : public MCEncodedFragmentWithFixups<8, 0> {
-// public:
-//   const MCExpr *DiffStart;
-//   const MCExpr *DiffEnd;
-//   MCDwarfRangeListOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
-//                                      const MCSymbol *Begin,
-//                                      const MCSymbol *End);
-
-//   static bool classof(const MCFragment *F) {
-//     return F->getKind() == MCFragment::FT_DwarfRnglist;
-//   }
-// };
-// XXX use base bytes for the expression, is 8 bytes a good number?
-class MCDwarfRangeListEntryFragment
+// TODO: Comment.
+class MCDwarfLocListOffsetPairFragment
     : public MCEncodedFragmentWithFixups<16, 0> {
 public:
-  SmallVector<char, 8> ExprLol;
-  const MCExpr *DiffStart;
-  const MCExpr *DiffEnd;
+  SmallVector<char, 8> LocationDescriptionExpr;
+  const MCExpr *StartOffset;
+  const MCExpr *EndOffset;
   uint8_t Encoding; // TODO use.
 
-  MCDwarfRangeListEntryFragment(MCContext &Context, const MCSymbol *Base,
-                                const MCSymbol *Begin, const MCSymbol *End);
+  MCDwarfLocListOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
+                                   const MCSymbol *Begin, const MCSymbol *End);
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_DwarfLoclist;
   }
 };
 // dump this.
-using MCDwarfRangeListOffsetPairFragment = MCDwarfRangeListEntryFragment;
+using MCDwarfRangeListOffsetPairFragment = MCDwarfLocListOffsetPairFragment;
 /// Represents a symbol table index fragment.
 class MCSymbolIdFragment : public MCFragment {
   const MCSymbol *Sym;

@@ -122,7 +122,7 @@ void MCObjectStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
     MCStreamer::emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
 }
 
-MCDwarfRangeListEntryFragment *
+MCDwarfLocListOffsetPairFragment *
 MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
                                        const MCSymbol *Begin,
                                        const MCSymbol *End, StringRef EnumEle) {
@@ -130,8 +130,8 @@ MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
     return MCStreamer::emitDwarfLoclistElem(OffsetPair, Base, Begin, End,
                                             EnumEle);
 
-  MCDwarfRangeListEntryFragment *ptr =
-      getContext().allocFragment<MCDwarfRangeListEntryFragment>(
+  MCDwarfLocListOffsetPairFragment *ptr =
+      getContext().allocFragment<MCDwarfLocListOffsetPairFragment>(
           getContext(), Base, Begin, End);
   insert(ptr);
   return ptr;

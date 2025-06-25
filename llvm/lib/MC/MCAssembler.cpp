@@ -297,7 +297,7 @@ uint64_t MCAssembler::computeFragmentSize(const MCFragment &F) const {
   case MCFragment::FT_DwarfFrame:
     return cast<MCDwarfCallFrameFragment>(F).getContents().size();
   case MCFragment::FT_DwarfLoclist:
-    return cast<MCDwarfRangeListEntryFragment>(F).getContents().size();
+    return cast<MCDwarfLocListOffsetPairFragment>(F).getContents().size();
   case MCFragment::FT_DwarfRnglist:
     return cast<MCDwarfRangeListOffsetPairFragment>(F).getContents().size();
   case MCFragment::FT_CVInlineLines:
@@ -735,8 +735,8 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
     break;
   }
   case MCFragment::FT_DwarfLoclist: {
-    const MCDwarfRangeListEntryFragment &OF =
-        cast<MCDwarfRangeListEntryFragment>(F);
+    const MCDwarfLocListOffsetPairFragment &OF =
+        cast<MCDwarfLocListOffsetPairFragment>(F);
     OS << OF.getContents();
     break;
   }
@@ -1171,7 +1171,7 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
 // Accumulate the expr into this -- it makes up 6% of memory, how much of that is fragment base?
 // Better customise to distribution of expr-sizes and num of fixups. 208 bytes in MCDataFragment!
 //   And we can just defer to MCDataFragment if there's a fixup in the expr!
-bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
+bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
   // const MCExpr *foo = DF.Base->getVariableValue();
   uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
@@ -1179,9 +1179,9 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   MCContext &Context = getContext();
 
   int64_t DiffAInt, DiffBInt;
-  bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
+  bool Abs = DF.StartOffset->evaluateKnownAbsolute(DiffAInt, *this);
   assert(Abs && "I like trains");
-  Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
+  Abs = DF.EndOffset->evaluateKnownAbsolute(DiffBInt, *this);
   assert(Abs && "Do you like trains?");
   (void)Abs;
 
@@ -1193,12 +1193,13 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
   Data.append(Arr, Arr + Offs);
 
-  // XXX emit expression? If there's anything in the ExprLol field, append
-  // its length and then the data. There might be nothing too.
-  if (unsigned Sz = DF.ExprLol.size()) {
+  // XXX emit expression? If there's anything in the LocationDescriptionExpr
+  // field, append its length and then the data. There might be nothing too.
+  if (unsigned Sz = DF.LocationDescriptionExpr.size()) {
     Offs = encodeULEB128(Sz, Arr);
     Data.append(Arr, Arr + Offs);
-    Data.append(DF.ExprLol.begin(), DF.ExprLol.begin() + Sz);
+    Data.append(DF.LocationDescriptionExpr.begin(),
+                DF.LocationDescriptionExpr.begin() + Sz);
   }
 
   return OldSize != Data.size();
@@ -1212,9 +1213,9 @@ bool MCAssembler::relaxDwarfRnglist(MCDwarfRangeListOffsetPairFragment &DF) {
   MCContext &Context = getContext();
 
   int64_t DiffAInt, DiffBInt;
-  bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
+  bool Abs = DF.StartOffset->evaluateKnownAbsolute(DiffAInt, *this);
   assert(Abs && "I like trains");
-  Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
+  Abs = DF.EndOffset->evaluateKnownAbsolute(DiffBInt, *this);
   assert(Abs && "Do you like trains?");
   (void)Abs;
 
@@ -1278,7 +1279,7 @@ bool MCAssembler::relaxFragment(MCFragment &F) {
   case MCFragment::FT_DwarfFrame:
     return relaxDwarfCallFrameFragment(cast<MCDwarfCallFrameFragment>(F));
   case MCFragment::FT_DwarfLoclist:
-    return relaxDwarfLoclist(cast<MCDwarfRangeListEntryFragment>(F));
+    return relaxDwarfLoclist(cast<MCDwarfLocListOffsetPairFragment>(F));
   case MCFragment::FT_DwarfRnglist:
     return relaxDwarfRnglist(cast<MCDwarfRangeListOffsetPairFragment>(F));
   case MCFragment::FT_LEB:
