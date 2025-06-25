@@ -18,7 +18,6 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <utility>
@@ -259,29 +258,16 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
 
 MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
     MCContext &Context, const MCSymbol *Base, const MCSymbol *Begin,
-    const MCSymbol *End, uint8_t EntryKindEncoding)
+    const MCSymbol *End, EntryKindTy EntryKind, uint8_t EntryKindEncoding)
     : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false),
-      EntryKind(MCDwarfRangeListEntryFragment::OffsetPair),
-      EntryKindEncoding(EntryKindEncoding) {
-
-  assert(Base);
+      EntryKind(EntryKind), EntryKindEncoding(EntryKindEncoding) {
   const MCExpr *BaseSym = MCSymbolRefExpr::create(Base, Context);
-  DiffStart = MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
-                                      BaseSym, Context);
-  DiffEnd = MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
-                                    BaseSym, Context);
-}
-MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
-    MCContext &Context, uint64_t Startx, const MCSymbol *Begin,
-    const MCSymbol *End, uint8_t StartxLengthEncoding)
-    : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false),
-      EntryKind(MCDwarfRangeListEntryFragment::StartxLenght),
-      EntryKindEncoding(StartxLengthEncoding) {
-  // Startx = DD.getAddressPool().getIndex(Begin);
-  // DiffLen = DiffEnd =
-  //      MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
-  //                              MCSymbolRefExpr::create(Begin, Context),
-  //                              Context);
+  DiffStart =
+        MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
+                                BaseSym, Context);
+  DiffEnd =
+        MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
+                                BaseSym, Context);
 }
 
 // MCDwarfRangeListOffsetPairFragment::MCDwarfRangeListOffsetPairFragment(

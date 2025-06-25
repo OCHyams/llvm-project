@@ -1179,24 +1179,16 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfRangeListEntryFragment &DF) {
   MCContext &Context = getContext();
 
   int64_t DiffAInt, DiffBInt;
-
-  if (DF.EntryKindEncoding == MCDwarfRangeListEntryFragment::OffsetPair) {
-    bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
-    assert(Abs && "I like trains");
-    Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
-    assert(Abs && "Do you like trains?");
-    (void)Abs;
-  } else if (DF.EntryKindEncoding ==
-             MCDwarfRangeListEntryFragment::StartxLenght) {
-
-  } else {
-    llvm_unreachable("Add support for other entry kinds");
-  }
+  bool Abs = DF.DiffStart->evaluateKnownAbsolute(DiffAInt, *this);
+  assert(Abs && "I like trains");
+  Abs = DF.DiffEnd->evaluateKnownAbsolute(DiffBInt, *this);
+  assert(Abs && "Do you like trains?");
+  (void)Abs;
 
   unsigned OldSize = Data.size();
   Data.clear();
-
-  Arr[0] = DF.EntryKindEncoding;
+  // Do encoding,
+  Arr[0] = dwarf::DW_LLE_offset_pair;
   unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
   Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
   Data.append(Arr, Arr + Offs);
