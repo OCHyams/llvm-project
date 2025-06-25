@@ -3379,12 +3379,6 @@ MCDwarfRangeListEntryFragment *AsmPrinter::emitDwarfLocListOffsetPairEntry(
   return OutStreamer->emitDwarfLocListOffsetPairEntry(OffsetPair, Base, Begin,
                                                       End);
 }
-MCDwarfRangeListEntryFragment *AsmPrinter::emitDwarfLocListStartxLengthEntry(
-    int8_t StartxEncoding, uint64_t Startx, const MCSymbol *Begin,
-    const MCSymbol *End) {
-  return OutStreamer->emitDwarfLocListStartxLengthEntry(StartxEncoding, Startx,
-                                                        Begin, End);
-}
 MCDwarfRangeListOffsetPairFragment *
 AsmPrinter::emitDwarfRnglistElem(int8_t OffsetPair, const MCSymbol *Base,
                                  const MCSymbol *Begin, const MCSymbol *End) {

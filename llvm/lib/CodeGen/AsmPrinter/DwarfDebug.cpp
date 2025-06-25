@@ -3367,14 +3367,12 @@ static void emitRangeList(
         }
       } else if (UseDwarf5) {
         // errs() << "UseStartIndex :--)\n";
-        // Asm->OutStreamer->AddComment(StringifyEnum(StartxLength));
-        // Asm->emitInt8(StartxLength);
-        // Asm->OutStreamer->AddComment("  start index");
-        // Asm->emitULEB128(DD.getAddressPool().getIndex(Begin));
-        // Asm->OutStreamer->AddComment("  length");
-        // Asm->emitLabelDifferenceAsULEB128(End, Begin);
-        beans = Asm->emitDwarfLocListStartxLengthEntry(
-            StartxLength, DD.getAddressPool().getIndex(Begin), Begin, End);
+        Asm->OutStreamer->AddComment(StringifyEnum(StartxLength));
+        Asm->emitInt8(StartxLength);
+        Asm->OutStreamer->AddComment("  start index");
+        Asm->emitULEB128(DD.getAddressPool().getIndex(Begin));
+        Asm->OutStreamer->AddComment("  length");
+        Asm->emitLabelDifferenceAsULEB128(End, Begin);
       } else {
         Asm->OutStreamer->emitSymbolValue(Begin, Size);
         Asm->OutStreamer->emitSymbolValue(End, Size);
