@@ -462,7 +462,6 @@ class MCContext;
 //     return F->getKind() == MCFragment::FT_DwarfRnglist;
 //   }
 // };
-
 // XXX use base bytes for the expression, is 8 bytes a good number?
 class MCDwarfRangeListEntryFragment
     : public MCEncodedFragmentWithFixups<16, 0> {

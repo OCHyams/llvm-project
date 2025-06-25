@@ -3348,10 +3348,10 @@ static void emitRangeList(
       if (Base) {
         if (UseDwarf5) {
           // Emit offset_pair when we have a base.
-          if (IsLocList)
+          //if (IsLocList)
             beans = Asm->emitDwarfLoclistElem(OffsetPair, Base, Begin, End);
-          else {
-            Asm->emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
+          //else {
+          //  Asm->emitDwarfRnglistElem(OffsetPair, Base, Begin, End);
             // // handle range list!
             // Asm->OutStreamer->AddComment(StringifyEnum(OffsetPair));
             // Asm->emitInt8(OffsetPair);
@@ -3359,7 +3359,7 @@ static void emitRangeList(
             // Asm->emitLabelDifferenceAsULEB128(Begin, Base);
             // Asm->OutStreamer->AddComment("  ending offset");
             // Asm->emitLabelDifferenceAsULEB128(End, Base);
-          }
+          //}
         } else {
           Asm->emitLabelDifference(Begin, Base, Size);
           Asm->emitLabelDifference(End, Base, Size);
