@@ -266,10 +266,10 @@ MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
 
   assert(Base);
   const MCExpr *BaseSym = MCSymbolRefExpr::create(Base, Context);
-  Data.OffsetPair.DiffStart = MCBinaryExpr::createSub(
-      MCSymbolRefExpr::create(Begin, Context), BaseSym, Context);
-  Data.OffsetPair.DiffEnd = MCBinaryExpr::createSub(
-      MCSymbolRefExpr::create(End, Context), BaseSym, Context);
+  DiffStart = MCBinaryExpr::createSub(MCSymbolRefExpr::create(Begin, Context),
+                                      BaseSym, Context);
+  DiffEnd = MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
+                                    BaseSym, Context);
 }
 MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
     MCContext &Context, uint64_t Startx, const MCSymbol *Begin,
@@ -277,10 +277,11 @@ MCDwarfRangeListEntryFragment::MCDwarfRangeListEntryFragment(
     : MCEncodedFragmentWithFixups<16, 0>(FT_DwarfLoclist, false),
       EntryKind(MCDwarfRangeListEntryFragment::StartxLenght),
       EntryKindEncoding(StartxLengthEncoding) {
-  Data.Startx.Startx = Startx;
-  Data.Startx.Diff =
-      MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
-                              MCSymbolRefExpr::create(Begin, Context), Context);
+  // Startx = DD.getAddressPool().getIndex(Begin);
+  // DiffLen = DiffEnd =
+  //      MCBinaryExpr::createSub(MCSymbolRefExpr::create(End, Context),
+  //                              MCSymbolRefExpr::create(Begin, Context),
+  //                              Context);
 }
 
 // MCDwarfRangeListOffsetPairFragment::MCDwarfRangeListOffsetPairFragment(

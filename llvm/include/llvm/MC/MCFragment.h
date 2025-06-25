@@ -468,16 +468,8 @@ class MCDwarfRangeListEntryFragment
     : public MCEncodedFragmentWithFixups<16, 0> {
 public:
   SmallVector<char, 8> ExprLol;
-  union {
-    struct {
-      const MCExpr *DiffStart;
-      const MCExpr *DiffEnd;
-    } OffsetPair;
-    struct {
-      uint64_t Startx;
-      const MCExpr *Diff;
-    } Startx;
-  } Data;
+  const MCExpr *DiffStart;
+  const MCExpr *DiffEnd;
 
   enum EntryKindTy : uint8_t {
     OffsetPair,
