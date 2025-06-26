@@ -3366,7 +3366,6 @@ static void emitRangeList(
           Asm->emitLabelDifference(End, Base, Size);
         }
       } else if (UseDwarf5) {
-        errs() << "UseStartIndex :--)\n";
         Asm->OutStreamer->AddComment(StringifyEnum(StartxLength));
         Asm->emitInt8(StartxLength);
         Asm->OutStreamer->AddComment("  start index");
