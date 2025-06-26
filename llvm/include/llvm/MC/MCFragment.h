@@ -452,10 +452,9 @@ class MCContext;
 class MCDwarfLocListOffsetPairFragment
     : public MCEncodedFragmentWithFixups<16, 0> {
 public:
-  SmallVector<char, 8> LocationDescriptionExpr;
+  SmallVector<int8_t, 8> LocationDescriptionExpr;
   const MCExpr *StartOffset;
   const MCExpr *EndOffset;
-  uint8_t Encoding; // TODO use.
 
   MCDwarfLocListOffsetPairFragment(MCContext &Context, const MCSymbol *Base,
                                    const MCSymbol *Begin, const MCSymbol *End);

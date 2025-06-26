@@ -126,7 +126,8 @@ MCDwarfLocListOffsetPairFragment *
 MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
                                        const MCSymbol *Begin,
                                        const MCSymbol *End, StringRef EnumEle) {
-  if (Base->getFragment() == Begin->getFragment() || Base->getFragment() == End->getFragment())
+  if (Base->getFragment() == Begin->getFragment() ||
+      Base->getFragment() == End->getFragment())
     return MCStreamer::emitDwarfLoclistElem(OffsetPair, Base, Begin, End,
                                             EnumEle);
 

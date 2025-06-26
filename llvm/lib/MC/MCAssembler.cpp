@@ -1164,11 +1164,8 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
 // Better customise to distribution of expr-sizes and num of fixups. 208 bytes in MCDataFragment!
 //   And we can just defer to MCDataFragment if there's a fixup in the expr!
 bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
-  // const MCExpr *foo = DF.Base->getVariableValue();
   uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
-
-  MCContext &Context = getContext();
 
   int64_t DiffAInt, DiffBInt;
   bool Abs = DF.StartOffset->evaluateKnownAbsolute(DiffAInt, *this);
@@ -1179,14 +1176,27 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
 
   unsigned OldSize = Data.size();
   Data.clear();
-  // Do encoding,
+  // We could track the list entry kind encoding in a field, but it so happens
+  // that LLE and RLE offset_pair encodings are both 0x4.
+  static_assert((unsigned)dwarf::DW_LLE_offset_pair ==
+                (unsigned)dwarf::DW_RLE_offset_pair);
+  // DWARVv5 p44.
+  // Each location list entry begins with a single byte identifying the kind of
+  // that entry, followed by zero or more operands depending on the kind.
   Arr[0] = dwarf::DW_LLE_offset_pair;
-  unsigned Offs = encodeULEB128(DiffAInt, &Arr[1]) + 1;
+  // DWARFv5 p45, 54.
+  // [DW_LLE_offset_pair and DW_RLE_offset_pair have] two unsigned LEB128
+  // operands. The values of these operands are the starting and ending
+  // offsets, respectively, relative to the applicable base address, that
+  // define the address range.
+  unsigned Offs = 1;
+  Offs += encodeULEB128(DiffAInt, &Arr[1]);
   Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
   Data.append(Arr, Arr + Offs);
 
-  // XXX emit expression? If there's anything in the LocationDescriptionExpr
-  // field, append its length and then the data. There might be nothing too.
+  // DWARFv5 p45.
+  // [DW_LLE_offset_pair] operands are followed by a counted location
+  // description.
   if (unsigned Sz = DF.LocationDescriptionExpr.size()) {
     Offs = encodeULEB128(Sz, Arr);
     Data.append(Arr, Arr + Offs);
