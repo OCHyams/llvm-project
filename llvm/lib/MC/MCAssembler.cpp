@@ -1158,20 +1158,16 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
   return OldSize != Data.size();
 }
 
-// Skip OFfsetPair, leave it in prev fragment?
-// Just have a fixed constant for start/end difference? fewer exprs
-// Accumulate the expr into this -- it makes up 6% of memory, how much of that is fragment base?
-// Better customise to distribution of expr-sizes and num of fixups. 208 bytes in MCDataFragment!
-//   And we can just defer to MCDataFragment if there's a fixup in the expr!
 bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
   uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
 
   int64_t DiffAInt, DiffBInt;
   bool Abs = DF.StartOffset->evaluateKnownAbsolute(DiffAInt, *this);
-  assert(Abs && "I like trains");
+  assert(Abs && "We created a loc/range list entry with an invalid expression");
+
   Abs = DF.EndOffset->evaluateKnownAbsolute(DiffBInt, *this);
-  assert(Abs && "Do you like trains?");
+  assert(Abs && "We created a loc/range list entry with an invalid expression");
   (void)Abs;
 
   unsigned OldSize = Data.size();

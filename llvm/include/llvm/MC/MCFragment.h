@@ -448,7 +448,12 @@ public:
 
 class MCContext;
 
-// TODO: Comment.
+/// Represents a DWARF offset-pair kind location list or range list entry.
+/// Currently not suitable to use if either of the offsets require
+/// linker-relaxable relocations, which should be emitted as uleb fragments
+/// instead.
+/// LocationDescriptionExpr, which represents a DWARF location description,
+/// is only used for location list entries.
 class MCDwarfLocListOffsetPairFragment
     : public MCEncodedFragmentWithFixups<16, 0> {
 public:

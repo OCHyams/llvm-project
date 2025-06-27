@@ -1253,7 +1253,7 @@ MCDwarfLocListOffsetPairFragment *
 MCStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
                                  const MCSymbol *Begin, const MCSymbol *End,
                                  StringRef EnumEle) {
-  // Dummy implementation,
+  // Base impl: just emit ulebs, possibly resulting in multiple fragments.
   AddComment(EnumEle);
   emitInt8(OffsetPair);
   AddComment("  starting offset");
