@@ -1250,9 +1250,9 @@ void MCStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
 }
 
 MCDwarfLocListOffsetPairFragment *
-MCStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                                 const MCSymbol *Begin, const MCSymbol *End,
-                                 StringRef EnumEle) {
+MCStreamer::emitDwarfLoclistEntry(int8_t OffsetPair, const MCSymbol *Base,
+                                  const MCSymbol *Begin, const MCSymbol *End,
+                                  StringRef EnumEle) {
   // Base impl: just emit ulebs, possibly resulting in multiple fragments.
   AddComment(EnumEle);
   emitInt8(OffsetPair);

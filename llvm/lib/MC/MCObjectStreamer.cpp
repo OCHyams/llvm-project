@@ -122,10 +122,9 @@ void MCObjectStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
     MCStreamer::emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
 }
 
-MCDwarfLocListOffsetPairFragment *
-MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                                       const MCSymbol *Begin,
-                                       const MCSymbol *End, StringRef EnumEle) {
+MCDwarfLocListOffsetPairFragment *MCObjectStreamer::emitDwarfLoclistEntry(
+    int8_t OffsetPair, const MCSymbol *Base, const MCSymbol *Begin,
+    const MCSymbol *End, StringRef EnumEle) {
   // Heuristic: if we can emit one of the offsets as a constant now that
   // that consumes less memory than creating a MCDwarfLocListOffsetPairFragment.
   bool BeginOrEndInBaseFragment = Base->getFragment() == Begin->getFragment() ||
@@ -138,8 +137,8 @@ MCObjectStreamer::emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
   bool MayBeLinkerRelaxable =
       Base->getSection().isLinkerRelaxable() || !SameSection;
   if (BeginOrEndInBaseFragment || MayBeLinkerRelaxable)
-    return MCStreamer::emitDwarfLoclistElem(OffsetPair, Base, Begin, End,
-                                            EnumEle);
+    return MCStreamer::emitDwarfLoclistEntry(OffsetPair, Base, Begin, End,
+                                             EnumEle);
 
   MCDwarfLocListOffsetPairFragment *Frag =
       getContext().allocFragment<MCDwarfLocListOffsetPairFragment>(

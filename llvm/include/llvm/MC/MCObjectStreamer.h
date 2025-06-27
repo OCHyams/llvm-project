@@ -201,9 +201,9 @@ public:
                                        const MCSymbol *Lo) override;
 
   MCDwarfLocListOffsetPairFragment *
-  emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                       const MCSymbol *Begin, const MCSymbol *End,
-                       StringRef EnumEle) override;
+  emitDwarfLoclistEntry(int8_t OffsetPair, const MCSymbol *Base,
+                        const MCSymbol *Begin, const MCSymbol *End,
+                        StringRef EnumEle) override;
 
   bool mayHaveInstructions(MCSection &Sec) const override;
 

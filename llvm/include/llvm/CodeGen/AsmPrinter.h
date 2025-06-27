@@ -716,11 +716,11 @@ public:
   // Dwarf Emission Helper Routines
   //===------------------------------------------------------------------===//
 
-  MCDwarfLocListOffsetPairFragment *emitDwarfLoclistElem(int8_t OffsetPair,
-                                                         const MCSymbol *Base,
-                                                         const MCSymbol *Begin,
-                                                         const MCSymbol *End,
-                                                         StringRef EnumEle);
+  MCDwarfLocListOffsetPairFragment *emitDwarfLoclistEntry(int8_t OffsetPair,
+                                                          const MCSymbol *Base,
+                                                          const MCSymbol *Begin,
+                                                          const MCSymbol *End,
+                                                          StringRef EnumEle);
 
   /// Emit a .byte 42 directive that corresponds to an encoding.  If verbose
   /// assembly output is enabled, we output comments describing the encoding.

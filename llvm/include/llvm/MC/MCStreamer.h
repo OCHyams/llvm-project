@@ -979,9 +979,9 @@ public:
                                                const MCSymbol *Lo);
 
   virtual MCDwarfLocListOffsetPairFragment *
-  emitDwarfLoclistElem(int8_t OffsetPair, const MCSymbol *Base,
-                       const MCSymbol *Begin, const MCSymbol *End,
-                       StringRef EnumEle);
+  emitDwarfLoclistEntry(int8_t OffsetPair, const MCSymbol *Base,
+                        const MCSymbol *Begin, const MCSymbol *End,
+                        StringRef EnumEle);
 
   virtual MCSymbol *getDwarfLineTableSymbol(unsigned CUID);
   virtual void emitCFISections(bool EH, bool Debug);
