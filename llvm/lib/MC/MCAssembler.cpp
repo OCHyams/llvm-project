@@ -1159,8 +1159,8 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
 }
 
 bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
-  uint8_t Arr[16];
   SmallVectorImpl<char> &Data = DF.getContents();
+  raw_svector_ostream OSE(Data);
 
   int64_t DiffAInt, DiffBInt;
   bool Abs = DF.StartOffset->evaluateKnownAbsolute(DiffAInt, *this);
@@ -1172,6 +1172,7 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
 
   unsigned OldSize = Data.size();
   Data.clear();
+
   // We could track the list entry kind encoding in a field, but it so happens
   // that LLE and RLE offset_pair encodings are both 0x4.
   static_assert((unsigned)dwarf::DW_LLE_offset_pair ==
@@ -1179,23 +1180,20 @@ bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
   // DWARVv5 p44.
   // Each location list entry begins with a single byte identifying the kind of
   // that entry, followed by zero or more operands depending on the kind.
-  Arr[0] = dwarf::DW_LLE_offset_pair;
+  OSE << static_cast<uint8_t>(dwarf::DW_LLE_offset_pair);
   // DWARFv5 p45, 54.
   // [DW_LLE_offset_pair and DW_RLE_offset_pair have] two unsigned LEB128
   // operands. The values of these operands are the starting and ending
   // offsets, respectively, relative to the applicable base address, that
   // define the address range.
-  unsigned Offs = 1;
-  Offs += encodeULEB128(DiffAInt, &Arr[1]);
-  Offs += encodeULEB128(DiffBInt, &Arr[Offs]);
-  Data.append(Arr, Arr + Offs);
+  encodeULEB128(DiffAInt, OSE);
+  encodeULEB128(DiffBInt, OSE);
 
   // DWARFv5 p45.
   // [DW_LLE_offset_pair] operands are followed by a counted location
   // description.
   if (unsigned Sz = DF.LocationDescriptionExpr.size()) {
-    Offs = encodeULEB128(Sz, Arr);
-    Data.append(Arr, Arr + Offs);
+    encodeULEB128(Sz, OSE);
     Data.append(DF.LocationDescriptionExpr.begin(),
                 DF.LocationDescriptionExpr.begin() + Sz);
   }
