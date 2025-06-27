@@ -17,7 +17,9 @@
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <utility>
@@ -199,7 +201,18 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_DwarfLoclist:  {
-    OS << "ohai jmorse here, implement some stuff pls\n";
+    const auto *LF = cast<MCDwarfLocListOffsetPairFragment>(this);
+    OS << "\n       "
+       << " StartOffset: " << LF->StartOffset
+       << " EndOffset: " << LF->EndOffset;
+    if (!LF->LocationDescriptionExpr.empty()) {
+      OS << " Expr: [";
+      llvm::interleave(
+          LF->LocationDescriptionExpr,
+          [&](uint8_t C) { OS << format_hex_no_prefix(C, 2); },
+          [&]() { OS << " "; });
+      OS << "]";
+    }
     break;
   }
   case MCFragment::FT_LEB: {
