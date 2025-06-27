@@ -3373,12 +3373,11 @@ void AsmPrinter::emitLabelDifferenceAsULEB128(const MCSymbol *Hi,
   OutStreamer->emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
 }
 
-MCDwarfLocListOffsetPairFragment *
-AsmPrinter::emitDwarfLoclistEntry(int8_t OffsetPair, const MCSymbol *Base,
-                                  const MCSymbol *Begin, const MCSymbol *End,
-                                  StringRef EnumEle) {
-  return OutStreamer->emitDwarfLoclistEntry(OffsetPair, Base, Begin, End,
-                                            EnumEle);
+MCDwarfLocListOffsetPairFragment *AsmPrinter::emitDwarfLocListOffsetPairEntry(
+    int8_t OffsetPair, const MCSymbol *Base, const MCSymbol *Begin,
+    const MCSymbol *End, StringRef EnumEle) {
+  return OutStreamer->emitDwarfLocListOffsetPairEntry(OffsetPair, Base, Begin,
+                                                      End, EnumEle);
 }
 
 /// EmitLabelPlusOffset - Emit something like ".long Label+Offset"

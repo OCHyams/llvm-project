@@ -3317,8 +3317,8 @@ static void emitRangeList(
       if (Base) {
         if (UseDwarf5) {
           // Emit offset_pair when we have a base.
-          LE = Asm->emitDwarfLoclistEntry(OffsetPair, Base, Begin, End,
-                                          StringifyEnum(OffsetPair));
+          LE = Asm->emitDwarfLocListOffsetPairEntry(
+              OffsetPair, Base, Begin, End, StringifyEnum(OffsetPair));
         } else {
           Asm->emitLabelDifference(Begin, Base, Size);
           Asm->emitLabelDifference(End, Base, Size);
