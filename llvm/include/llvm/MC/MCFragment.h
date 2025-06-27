@@ -45,7 +45,7 @@ public:
     FT_Org,
     FT_Dwarf,
     FT_DwarfFrame,
-    FT_DwarfLoclist,
+    FT_DwarfLoclistEntry,
     FT_LEB,
     FT_BoundaryAlign,
     FT_SymbolId,
@@ -136,7 +136,7 @@ public:
     case MCFragment::FT_Data:
     case MCFragment::FT_Dwarf:
     case MCFragment::FT_DwarfFrame:
-    case MCFragment::FT_DwarfLoclist:
+    case MCFragment::FT_DwarfLoclistEntry:
     case MCFragment::FT_PseudoProbe:
       return true;
     }
@@ -200,7 +200,7 @@ public:
     return Kind == MCFragment::FT_Relaxable || Kind == MCFragment::FT_Data ||
            Kind == MCFragment::FT_CVDefRange || Kind == MCFragment::FT_Dwarf ||
            Kind == MCFragment::FT_DwarfFrame ||
-           Kind == MCFragment::FT_DwarfLoclist;
+           Kind == MCFragment::FT_DwarfLoclistEntry;
   }
 };
 
@@ -462,7 +462,7 @@ public:
                                    const MCSymbol *Begin, const MCSymbol *End);
 
   static bool classof(const MCFragment *F) {
-    return F->getKind() == MCFragment::FT_DwarfLoclist;
+    return F->getKind() == MCFragment::FT_DwarfLoclistEntry;
   }
 };
 

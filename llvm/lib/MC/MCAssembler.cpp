@@ -296,7 +296,7 @@ uint64_t MCAssembler::computeFragmentSize(const MCFragment &F) const {
     return cast<MCDwarfLineAddrFragment>(F).getContents().size();
   case MCFragment::FT_DwarfFrame:
     return cast<MCDwarfCallFrameFragment>(F).getContents().size();
-  case MCFragment::FT_DwarfLoclist:
+  case MCFragment::FT_DwarfLoclistEntry:
     return cast<MCDwarfLocListOffsetPairFragment>(F).getContents().size();
   case MCFragment::FT_CVInlineLines:
     return cast<MCCVInlineLineTableFragment>(F).getContents().size();
@@ -732,7 +732,7 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
     OS << CF.getContents();
     break;
   }
-  case MCFragment::FT_DwarfLoclist: {
+  case MCFragment::FT_DwarfLoclistEntry: {
     const MCDwarfLocListOffsetPairFragment &OF =
         cast<MCDwarfLocListOffsetPairFragment>(F);
     OS << OF.getContents();
@@ -1158,7 +1158,7 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCDwarfCallFrameFragment &DF) {
   return OldSize != Data.size();
 }
 
-bool MCAssembler::relaxDwarfLoclist(MCDwarfLocListOffsetPairFragment &DF) {
+bool MCAssembler::relaxDwarfLoclistEntry(MCDwarfLocListOffsetPairFragment &DF) {
   SmallVectorImpl<char> &Data = DF.getContents();
   raw_svector_ostream OSE(Data);
 
@@ -1249,8 +1249,8 @@ bool MCAssembler::relaxFragment(MCFragment &F) {
     return relaxDwarfLineAddr(cast<MCDwarfLineAddrFragment>(F));
   case MCFragment::FT_DwarfFrame:
     return relaxDwarfCallFrameFragment(cast<MCDwarfCallFrameFragment>(F));
-  case MCFragment::FT_DwarfLoclist:
-    return relaxDwarfLoclist(cast<MCDwarfLocListOffsetPairFragment>(F));
+  case MCFragment::FT_DwarfLoclistEntry:
+    return relaxDwarfLoclistEntry(cast<MCDwarfLocListOffsetPairFragment>(F));
   case MCFragment::FT_LEB:
     return relaxLEB(cast<MCLEBFragment>(F));
   case MCFragment::FT_BoundaryAlign:
