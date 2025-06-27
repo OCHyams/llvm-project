@@ -78,7 +78,7 @@ void MCFragment::destroy() {
       cast<MCDwarfLocListOffsetPairFragment>(this)
           ->~MCDwarfLocListOffsetPairFragment();
       return;
-    }
+  }
 }
 
 const MCSymbol *MCFragment::getAtom() const {
