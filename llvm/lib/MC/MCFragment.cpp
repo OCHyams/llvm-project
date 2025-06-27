@@ -202,10 +202,6 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     OS << "ohai jmorse here, implement some stuff pls\n";
     break;
   }
-  case MCFragment::FT_DwarfRnglist: {
-    OS << "OCH: implement some stuff pls\n";
-    break;
-  }
   case MCFragment::FT_LEB: {
     const auto *LF = cast<MCLEBFragment>(this);
     OS << "\n       ";

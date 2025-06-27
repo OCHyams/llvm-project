@@ -46,7 +46,6 @@ public:
     FT_Dwarf,
     FT_DwarfFrame,
     FT_DwarfLoclist,
-    FT_DwarfRnglist,
     FT_LEB,
     FT_BoundaryAlign,
     FT_SymbolId,
@@ -138,7 +137,6 @@ public:
     case MCFragment::FT_Dwarf:
     case MCFragment::FT_DwarfFrame:
     case MCFragment::FT_DwarfLoclist:
-    case MCFragment::FT_DwarfRnglist:
     case MCFragment::FT_PseudoProbe:
       return true;
     }
@@ -202,8 +200,7 @@ public:
     return Kind == MCFragment::FT_Relaxable || Kind == MCFragment::FT_Data ||
            Kind == MCFragment::FT_CVDefRange || Kind == MCFragment::FT_Dwarf ||
            Kind == MCFragment::FT_DwarfFrame ||
-           Kind == MCFragment::FT_DwarfLoclist ||
-           Kind == MCFragment::FT_DwarfRnglist;
+           Kind == MCFragment::FT_DwarfLoclist;
   }
 };
 
