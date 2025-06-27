@@ -3045,16 +3045,15 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
     Offset++;
     for (unsigned I = 0; I < Op.getDescription().Op.size(); ++I) {
       if (Op.getDescription().Op[I] == Encoding::BaseTypeRef) {
-        unsigned Length = Streamer.emitDIERef(
-            *CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die);
+        unsigned Length =
+          Streamer.emitDIERef(*CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die);
         // Make sure comments stay aligned.
         for (unsigned J = 0; J < Length; ++J)
           if (Comment != End)
             Comment++;
       } else {
         for (uint64_t J = Offset; J < Op.getOperandEndOffset(I); ++J)
-          Streamer.emitInt8(Data.getData()[J],
-                            Comment != End ? *(Comment++) : "");
+          Streamer.emitInt8(Data.getData()[J], Comment != End ? *(Comment++) : "");
       }
       Offset = Op.getOperandEndOffset(I);
     }
