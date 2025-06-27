@@ -3244,12 +3244,13 @@ static MCSymbol *emitLoclistsTableHeader(AsmPrinter *Asm,
 }
 
 template <typename Ranges, typename PayloadEmitter>
-static void
-emitRangeList(DwarfDebug &DD, AsmPrinter *Asm, MCSymbol *Sym, const Ranges &R,
-              const DwarfCompileUnit &CU, unsigned BaseAddressx,
-              unsigned OffsetPair, unsigned StartxLength, unsigned EndOfList,
-              StringRef (*StringifyEnum)(unsigned), bool ShouldUseBaseAddress,
-              PayloadEmitter EmitPayload) {
+static void emitRangeList(
+    DwarfDebug &DD, AsmPrinter *Asm, MCSymbol *Sym, const Ranges &R,
+    const DwarfCompileUnit &CU, unsigned BaseAddressx, unsigned OffsetPair,
+    unsigned StartxLength, unsigned EndOfList,
+    StringRef (*StringifyEnum)(unsigned),
+    bool ShouldUseBaseAddress,
+    PayloadEmitter EmitPayload) {
 
   auto Size = Asm->MAI->getCodePointerSize();
   bool UseDwarf5 = DD.getDwarfVersion() >= 5;
