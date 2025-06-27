@@ -3400,7 +3400,14 @@ static void emitLocList(DwarfDebug &DD, AsmPrinter *Asm, const DebugLocStream::L
       /* ShouldUseBaseAddress */ true,
       [&](const DebugLocStream::Entry &E,
           MCDwarfLocListOffsetPairFragment *beans) {
-        DD.emitDebugLocEntryLocation(E, List.CU, beans);
+        if (beans) {
+          // We don't need to emit the header if we're just writing to a
+          // fragment.
+          APByteStreamer S(*Asm);
+          DD.emitDebugLocEntry(S, E, List.CU, beans);
+        } else {
+          DD.emitDebugLocEntryLocation(E, List.CU, beans);
+        }
       },
       true);
 }
