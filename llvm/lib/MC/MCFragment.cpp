@@ -74,7 +74,11 @@ void MCFragment::destroy() {
     case FT_PseudoProbe:
       cast<MCPseudoProbeAddrFragment>(this)->~MCPseudoProbeAddrFragment();
       return;
-  }
+    case FT_DwarfLoclist:
+      cast<MCDwarfLocListOffsetPairFragment>(this)
+          ->~MCDwarfLocListOffsetPairFragment();
+      return;
+    }
 }
 
 const MCSymbol *MCFragment::getAtom() const {
