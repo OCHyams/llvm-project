@@ -3399,14 +3399,16 @@ static void emitLocList(DwarfDebug &DD, AsmPrinter *Asm, const DebugLocStream::L
       llvm::dwarf::LocListEncodingString,
       /* ShouldUseBaseAddress */ true,
       [&](const DebugLocStream::Entry &E,
-          MCDwarfLocListOffsetPairFragment *beans) {
-        if (beans) {
-          // We don't need to emit the header if we're just writing to a
-          // fragment.
-          APByteStreamer S(*Asm);
-          DD.emitDebugLocEntry(S, E, List.CU, beans);
+          MCDwarfLocListOffsetPairFragment *LLE) {
+        if (LLE) {
+          // We don't need to emit the length header if we're writing to an
+          // entry fragment directly.
+          std::vector<std::string> Comments;
+          BufferByteStreamer S(LLE->LocationDescriptionExpr, Comments,
+                               /*GenerateComments*/ false);
+          DD.emitDebugLocEntry(S, E, List.CU, nullptr);
         } else {
-          DD.emitDebugLocEntryLocation(E, List.CU, beans);
+          DD.emitDebugLocEntryLocation(E, List.CU, nullptr);
         }
       },
       true);
