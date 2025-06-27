@@ -866,13 +866,11 @@ public:
   /// handle an entry that's going to be emitted into the debug loc section.
   void emitDebugLocEntry(ByteStreamer &Streamer,
                          const DebugLocStream::Entry &Entry,
-                         const DwarfCompileUnit *CU,
-                         MCDwarfLocListOffsetPairFragment *beans);
+                         const DwarfCompileUnit *CU);
 
   /// Emit the location for a debug loc entry, including the size header.
   void emitDebugLocEntryLocation(const DebugLocStream::Entry &Entry,
-                                 const DwarfCompileUnit *CU,
-                                 MCDwarfLocListOffsetPairFragment *beans);
+                                 const DwarfCompileUnit *CU);
 
   void addSubprogramNames(const DwarfUnit &Unit,
                           const DICompileUnit::DebugNameTableKind NameTableKind,
