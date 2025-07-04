@@ -107,7 +107,7 @@ private:
   MachineBasicBlock *Parent;
 
   using instr_iterator =
-      simple_ilist<MachineInstr, ilist_sentinel_tracking<true>>::iterator;
+      simple_ilist<MachineInstr, ilist_iterator_bits<true>, ilist_sentinel_tracking<true>>::iterator;
 
 public:
   LLVM_ABI void addNodeToList(MachineInstr *N);
@@ -140,7 +140,7 @@ public:
   };
 
 private:
-  using Instructions = ilist<MachineInstr, ilist_sentinel_tracking<true>>;
+  using Instructions = ilist<MachineInstr, ilist_iterator_bits<true>, ilist_sentinel_tracking<true>>;
 
   const BasicBlock *BB;
   int Number;
@@ -1343,6 +1343,8 @@ public:
   void setTrailingDbgRecords(DbgMachineMarker *M);
   DbgMachineMarker *getTrailingDbgRecords();
   void deleteTrailingDbgRecords();
+  void flushTerminatorDbgRecords();
+  DbgMachineMarker *createMarker(MachineInstr *I);
 };
 
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const MachineBasicBlock &MBB);

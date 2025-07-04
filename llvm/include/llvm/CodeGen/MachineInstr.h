@@ -71,9 +71,12 @@ class DbgMachineMarker;
 ///
 class MachineInstr
     : public ilist_node_with_parent<MachineInstr, MachineBasicBlock,
+                                    ilist_iterator_bits<true>,
                                     ilist_sentinel_tracking<true>> {
 public:
   using mmo_iterator = ArrayRef<MachineMemOperand *>::iterator;
+  using instr_iterator =
+      simple_ilist<MachineInstr, ilist_iterator_bits<true>, ilist_sentinel_tracking<true>>::iterator;
 
   using AsmPrinterFlagTy = uint8_t;
 
@@ -328,9 +331,8 @@ private:
 
   DebugLoc DbgLoc; // Source line information.
 
-public:
-  DbgMachineMarker *DebugMarker; // "lol"
-private:  // Intrusive list support
+private:
+  // Intrusive list support
   friend struct ilist_traits<MachineInstr>;
   friend struct ilist_callback_traits<MachineBasicBlock>;
   void setParent(MachineBasicBlock *P) { Parent = P; }
@@ -378,6 +380,7 @@ public:
 
   /// Move the instruction before \p MovePos.
   LLVM_ABI void moveBefore(MachineInstr *MovePos);
+  LLVM_ABI void moveBefore(instr_iterator MovePos);
 
   /// Return the function that contains the basic block that this instruction
   /// belongs to.
@@ -2122,6 +2125,15 @@ private:
                     MCSymbol *PreInstrSymbol, MCSymbol *PostInstrSymbol,
                     MDNode *HeapAllocMarker, MDNode *PCSections,
                     uint32_t CFIType, MDNode *MMRAs, Value *DS);
+
+public:
+  DbgMachineMarker *DebugMarker = nullptr;
+  void handleMarkerRemoval();
+  /// Transfer any DbgRecords on the position \p It onto this instruction,
+  /// by simply adopting the sequence of DbgRecords (which is efficient) if
+  /// possible, by merging two sequences otherwise.
+  LLVM_ABI void adoptDbgRecords(MachineBasicBlock *BB, instr_iterator It,
+                                bool InsertAtHead);
 };
 
 /// Special DenseMapInfo traits to compare MachineInstr* by *value* of the
