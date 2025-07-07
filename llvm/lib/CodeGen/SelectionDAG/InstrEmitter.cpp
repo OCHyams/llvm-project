@@ -33,6 +33,8 @@ using namespace llvm;
 
 #define DEBUG_TYPE "instr-emitter"
 
+bool UsingDDDISel = true;
+
 /// MinRCSize - Smallest register class we allow when constraining virtual
 /// registers.  If satisfying all register class constraints would require
 /// using a smaller register class, emit a COPY to a new virtual register
@@ -706,8 +708,10 @@ void InstrEmitter::EmitRegSequence(SDNode *Node, VRBaseMapType &VRBaseMap,
 
 /// EmitDbgValue - Generate machine instruction for a dbg_value node.
 ///
-MachineInstr *InstrEmitter::EmitDbgValue(SDDbgValue *SD,
-                                         VRBaseMapType &VRBaseMap) {
+std::variant<MachineInstr *, DbgMachineRecord *>
+InstrEmitter::EmitDbgValue(SDDbgValue *SD,
+                           VRBaseMapType &VRBaseMap) {
+  DebugLoc DL = SD->getDebugLoc();
   assert(cast<DILocalVariable>(SD->getVariable())
              ->isValidLocationForIntrinsic(SD->getDebugLoc()) &&
          "Expected inlined-at fields to agree");
@@ -721,9 +725,13 @@ MachineInstr *InstrEmitter::EmitDbgValue(SDDbgValue *SD,
     return EmitDbgNoLocation(SD);
 
   // Attempt to produce a DBG_INSTR_REF if we've been asked to.
-  if (EmitDebugInstrRefs)
-    if (auto *InstrRef = EmitDbgInstrRef(SD, VRBaseMap))
+  if (EmitDebugInstrRefs) {
+    auto InstrRef = EmitDbgInstrRef(SD, VRBaseMap);
+    // If it's holding a debug-record, or a non-null MachineInstr *, emit that.
+    if (!std::holds_alternative<MachineInstr*>(InstrRef) ||
+        std::get<MachineInstr*>(InstrRef))
       return InstrRef;
+  }
 
   // Emit variadic dbg_value nodes as DBG_VALUE_LIST if they have not been
   // emitted as instruction references.
@@ -789,7 +797,7 @@ void InstrEmitter::AddDbgValueLocationOps(
   }
 }
 
-MachineInstr *
+std::variant<MachineInstr *, DbgMachineRecord *>
 InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
                               VRBaseMapType &VRBaseMap) {
   MDNode *Var = SD->getVariable();
@@ -827,6 +835,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
     Expr = DIExpression::convertToVariadicExpression(Expr);
 
   SmallVector<MachineOperand> MOs;
+  SmallVector<std::pair<unsigned, unsigned>> Refs;
 
   // It may not be immediately possible to identify the MachineInstr that
   // defines a VReg, it can depend for example on the order blocks are
@@ -837,13 +846,19 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
   //
   // i.e., point the instruction at the vreg, and patch it up later in
   // MachineFunction::finalizeDebugInstrRefs.
-  auto AddVRegOp = [&](Register VReg) {
-    MOs.push_back(MachineOperand::CreateReg(
-        /* Reg */ VReg, /* isDef */ false, /* isImp */ false,
-        /* isKill */ false, /* isDead */ false,
-        /* isUndef */ false, /* isEarlyClobber */ false,
-        /* SubReg */ 0, /* isDebug */ true));
+  auto RecordVRegOperand = [&](Register R) {
+    if (!UsingDDDISel) {
+      MOs.push_back(MachineOperand::CreateReg(
+          /* Reg */ R, /* isDef */ false, /* isImp */ false,
+          /* isKill */ false, /* isDead */ false,
+          /* isUndef */ false, /* isEarlyClobber */ false,
+          /* SubReg */ 0, /* isDebug */ true));
+    } else {
+      // Otherwise, uh, record some "special" values.
+      Refs.push_back(std::make_pair(R, UINT_MAX));
+    }
   };
+
   unsigned OpCount = SD->getLocationOps().size();
   for (unsigned OpIdx = 0; OpIdx < OpCount; ++OpIdx) {
     SDDbgOperand DbgOperand = SD->getLocationOps()[OpIdx];
@@ -858,7 +873,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
       // No definition means that block hasn't been emitted yet. Leave a vreg
       // reference to be fixed later.
       if (!MRI->hasOneDef(VReg)) {
-        AddVRegOp(VReg);
+        RecordVRegOperand(VReg);
         continue;
       }
 
@@ -878,12 +893,13 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
       // Again, if there's no instruction defining the VReg right now, fix it up
       // later.
       if (!MRI->hasOneDef(VReg)) {
-        AddVRegOp(VReg);
+        RecordVRegOperand(VReg);
         continue;
       }
 
       DefMI = &*MRI->def_instr_begin(VReg);
     } else {
+llvm_unreachable("I thought we were getting rid of these?");
       assert(DbgOperand.getKind() == SDDbgOperand::CONST);
       MOs.push_back(GetMOForConstDbgOp(DbgOperand));
       continue;
@@ -893,7 +909,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
     // Leave a virtual-register reference until it can be fixed up later, to
     // find the underlying value definition.
     if (DefMI->isCopyLike() || TII->isCopyInstr(*DefMI)) {
-      AddVRegOp(VReg);
+      RecordVRegOperand(VReg);
       continue;
     }
 
@@ -908,15 +924,26 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
 
     // Make the DBG_INSTR_REF refer to that instruction, and that operand.
     unsigned InstrNum = DefMI->getDebugInstrNum();
-    MOs.push_back(MachineOperand::CreateDbgInstrRef(InstrNum, OperandIdx));
+    if (!UsingDDDISel) {
+      MOs.push_back(MachineOperand::CreateDbgInstrRef(InstrNum, OperandIdx));
+    } else {
+      assert(OperandIdx != UINT_MAX);
+      Refs.push_back(std::make_pair(InstrNum, OperandIdx));
+    }
   }
 
   // If we haven't created a valid MachineOperand for every DbgOp, abort and
   // produce an undef DBG_VALUE.
-  if (MOs.size() != OpCount)
+  if (!UsingDDDISel && MOs.size() != OpCount)
+    return EmitDbgNoLocation(SD);
+  if (UsingDDDISel && Refs.size() != OpCount)
     return EmitDbgNoLocation(SD);
 
-  return BuildMI(*MF, DL, RefII, false, MOs, Var, Expr);
+  if (!UsingDDDISel) {
+    return BuildMI(*MF, DL, RefII, false, MOs, Var, Expr);
+  } else {
+    return DbgMachineVariableRecord::createDMVRRef(Refs, cast<DILocalVariable>(Var), (DIExpression*)Expr, DL);
+  }
 }
 
 MachineInstr *InstrEmitter::EmitDbgNoLocation(SDDbgValue *SD) {

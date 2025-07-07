@@ -1935,3 +1935,17 @@ DbgMachineMarker *MachineBasicBlock::createMarker(MachineInstr *I) {
   I->DebugMarker = Marker;
   return Marker;
 }
+
+DbgMachineMarker *MachineBasicBlock::createMarker(iterator It) {
+  if (It != end())
+    return createMarker(&*It);
+
+  DbgMachineMarker *DM = getTrailingDbgRecords();
+  if (DM)
+    return DM;
+
+  DM = new DbgMachineMarker();
+  setTrailingDbgRecords(DM);
+  return DM;
+}
+
