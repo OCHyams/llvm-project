@@ -672,7 +672,7 @@ class MemLocFragmentFill {
     if (!VarsWithStackSlot->count(getAggregate(DbgVar)))
       return;
     unsigned Var = Aggregates.insert(
-        DebugAggregate(DbgVar.getVariable(), VarLoc.DL.getInlinedAt()));
+        DebugAggregate(DbgVar.getVariable(), VarLoc.DL->getInlinedAt()));
 
     // [StartBit: EndBit) are the bits affected by this def.
     const DIExpression *DIExpr = VarLoc.Expr;
@@ -972,7 +972,7 @@ public:
           Expr = DIExpression::prepend(Expr, DIExpression::DerefAfter,
                                        FragMemLoc.OffsetInBits / 8);
           DebugVariable Var(Aggregates[FragMemLoc.Var].first, Expr,
-                            FragMemLoc.DL.getInlinedAt());
+                            FragMemLoc.DL->getInlinedAt());
           FnVarLocs->addVarLoc(InsertBefore, Var, Expr, FragMemLoc.DL,
                                Bases[FragMemLoc.Base]);
         }
@@ -2181,7 +2181,7 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
 
           DebugVariable DV =
               DebugVariable(Assign->getVariable(), FragInfo,
-                            Assign->getDebugLoc().getInlinedAt());
+                            Assign->getDebugLoc()->getInlinedAt());
           DebugAggregate DA = {DV.getVariable(), DV.getInlinedAt()};
           if (!VarsWithStackSlot.contains(DA))
             return;
@@ -2202,7 +2202,7 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
           // store, we treat it as an unusable store to the whole variable.
           DebugVariable DV =
               DebugVariable(Assign->getVariable(), std::nullopt,
-                            Assign->getDebugLoc().getInlinedAt());
+                            Assign->getDebugLoc()->getInlinedAt());
           DebugAggregate DA = {DV.getVariable(), DV.getInlinedAt()};
           if (!VarsWithStackSlot.contains(DA))
             return;
@@ -2591,7 +2591,7 @@ removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
       for (const VarLocInfo &Loc : *Locs) {
         NumDefsScanned++;
         DebugVariable Key(FnVarLocs.getVariable(Loc.VariableID).getVariable(),
-                          std::nullopt, Loc.DL.getInlinedAt());
+                          std::nullopt, Loc.DL->getInlinedAt());
         auto [VMI, Inserted] = VariableMap.try_emplace(Key);
 
         // Update the map if we found a new value/expression describing the
@@ -2678,7 +2678,7 @@ removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
       for (const VarLocInfo &Loc : *Locs) {
         NumDefsScanned++;
         DebugAggregate Aggr{FnVarLocs.getVariable(Loc.VariableID).getVariable(),
-                            Loc.DL.getInlinedAt()};
+                            Loc.DL->getInlinedAt()};
         DebugVariable Var = FnVarLocs.getVariable(Loc.VariableID);
 
         // Remove undef entries that are encountered before any non-undef
@@ -2733,7 +2733,7 @@ static DenseSet<DebugAggregate> findVarsWithStackSlot(Function &Fn) {
       // case, we need to consider the variable interesting for NFC behaviour
       // with this change. TODO: Consider only looking at allocas.
       for (DbgVariableRecord *DVR : at::getDVRAssignmentMarkers(&I)) {
-        Result.insert({DVR->getVariable(), DVR->getDebugLoc().getInlinedAt()});
+        Result.insert({DVR->getVariable(), DVR->getDebugLoc()->getInlinedAt()});
       }
     }
   }
