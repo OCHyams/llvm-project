@@ -1357,7 +1357,9 @@ private:
   void touchFragment(VariableID Var);
 
   /// Emit info for variables that are fully promoted.
-  bool emitPromotedVarLocs(FunctionVarLocsBuilder *FnVarLocs);
+  bool
+  emitPromotedVarLocs(FunctionVarLocsBuilder *FnVarLocs,
+                      SmallVector<DbgVariableRecord *> FullyPromotedVarRecords);
 
 public:
   AssignmentTrackingLowering(Function &Fn, const DataLayout &Layout,
@@ -2121,6 +2123,7 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     const DenseSet<DebugAggregate> &VarsWithStackSlot,
     AssignmentTrackingLowering::UntaggedStoreAssignmentMap &UntaggedStoreVars,
     AssignmentTrackingLowering::UnknownStoreAssignmentMap &UnknownStoreVars,
+    SmallVector<DbgVariableRecord *> &FullyPromotedVarRecords,
     unsigned &TrackedVariablesVectorSize) {
   DenseSet<DebugVariable> Seen;
   // Map of Variable: [Fragments].
@@ -2141,8 +2144,10 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     }
     DebugVariable DV = DebugVariable(Record);
     DebugAggregate DA = {DV.getVariable(), DV.getInlinedAt()};
-    if (!VarsWithStackSlot.contains(DA))
+    if (!VarsWithStackSlot.contains(DA)) {
+      FullyPromotedVarRecords.push_back(Record);
       return;
+    }
     if (Seen.insert(DV).second)
       FragmentMap[DA].push_back(DV);
   };
@@ -2277,9 +2282,10 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
   // Note that this pass doesn't handle partial overlaps correctly (FWIW
   // neither does LiveDebugVariables) because that is difficult to do and
   // appears to be rare occurance.
+  SmallVector<DbgVariableRecord *> FullyPromotedVarRecords;
   VarContains = buildOverlapMapAndRecordDeclares(
       Fn, FnVarLocs, *VarsWithStackSlot, UntaggedStoreVars, UnknownStoreVars,
-      TrackedVariablesVectorSize);
+      FullyPromotedVarRecords, TrackedVariablesVectorSize);
 
   // Prepare for traversal.
   ReversePostOrderTraversal<Function *> RPOT(&Fn);
@@ -2425,21 +2431,22 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
     FnVarLocs->setWedge(InsertBefore, std::move(NewDefs));
   }
 
-  InsertedAnyIntrinsics |= emitPromotedVarLocs(FnVarLocs);
+  InsertedAnyIntrinsics |=
+      emitPromotedVarLocs(FnVarLocs, FullyPromotedVarRecords);
 
   return InsertedAnyIntrinsics;
 }
 
 bool AssignmentTrackingLowering::emitPromotedVarLocs(
-    FunctionVarLocsBuilder *FnVarLocs) {
+    FunctionVarLocsBuilder *FnVarLocs,
+    SmallVector<DbgVariableRecord *> FullyPromotedVarRecords) {
   bool InsertedAnyIntrinsics = false;
   // Go through every block, translating debug intrinsics for fully promoted
   // variables into FnVarLocs location defs. No analysis required for these.
   auto TranslateDbgRecord = [&](DbgVariableRecord *Record) {
     // Skip variables that haven't been promoted - we've dealt with those
     // already.
-    if (VarsWithStackSlot->contains(getAggregate(Record)))
-      return;
+    assert(!VarsWithStackSlot->contains(getAggregate(Record)));
     auto InsertBefore = getNextNode(Record);
     assert(InsertBefore && "Unexpected: debug intrinsics after a terminator");
     FnVarLocs->addVarLoc(InsertBefore, DebugVariable(Record),
@@ -2447,13 +2454,10 @@ bool AssignmentTrackingLowering::emitPromotedVarLocs(
                          RawLocationWrapper(Record->getRawLocation()));
     InsertedAnyIntrinsics = true;
   };
-  for (auto &BB : Fn) {
-    for (auto &I : BB) {
-      // Skip instructions other than dbg.values and dbg.assigns.
-      for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange()))
-        if (DVR.isDbgValue() || DVR.isDbgAssign())
-          TranslateDbgRecord(&DVR);
-    }
+
+  for (DbgVariableRecord *DVR : FullyPromotedVarRecords) {
+    assert(DVR->isDbgValue() || DVR->isDbgAssign());
+    TranslateDbgRecord(DVR);
   }
   return InsertedAnyIntrinsics;
 }
