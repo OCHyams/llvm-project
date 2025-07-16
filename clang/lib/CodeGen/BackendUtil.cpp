@@ -934,10 +934,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         });
     break;
   case CodeGenOptions::AssignmentTrackingOpts::Enabled:
-    // Disable assignment tracking in LTO builds for now as the performance
-    // cost is too high. Disable for LLDB tuning due to llvm.org/PR43126.
-    if (!CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.PrepareForLTO &&
-        CodeGenOpts.getDebuggerTuning() != llvm::DebuggerKind::LLDB) {
+    // Disable for LLDB tuning due to llvm.org/PR43126.
+    if (CodeGenOpts.getDebuggerTuning() != llvm::DebuggerKind::LLDB) {
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             // Only use assignment tracking if optimisations are enabled.
