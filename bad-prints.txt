@@ -1,0 +1,91 @@
+AssignmentTrackingAnalysis run on main
+Processing Worklist
+
+Pop BB entry
+entry has new InLocs, process it
+processDbgAssign on #dbg_assign(i1 undef, !11, !DIExpression(), !15, ptr %c, !DIExpression(), !16)
+   LiveLoc None -> Val, Stack contents is unknown
+entry has new OutLocs, add succs to worklist: [ while.end while.body.lr.ph ]
+
+Pop BB while.body.lr.ph
+while.body.lr.ph has new InLocs, process it
+while.body.lr.ph has new OutLocs, add succs to worklist: [ while.body ]
+
+Pop BB while.body
+while.body has new InLocs, process it
+processDbgAssign on #dbg_assign(i32 0, !11, !DIExpression(), !17, ptr %c, !DIExpression(), !16)
+   LiveLoc Val -> Val, Stack contents is unknown
+while.body has new OutLocs, add succs to worklist: [ ]
+
+Pop BB while.end
+while.end has new InLocs, process it
+while.end has new OutLocs, add succs to worklist: [ ]
+Processing Worklist
+
+Pop BB while.body.lr.ph
+
+Pop BB while.body
+while.body has new InLocs, process it
+processDbgAssign on #dbg_assign(i32 0, !11, !DIExpression(), !17, ptr %c, !DIExpression(), !16)
+   LiveLoc Val -> Val, Stack contents is unknown
+
+Pop BB while.end
+Processing Worklist
+
+Pop BB entry
+meet block info from preds of entry
+change=true (first) on meet on entry
+entry has new InLocs, process it
+DEF c [0, 32): None
+entry has new OutLocs, add succs to worklist: [ while.end while.body.lr.ph ]
+
+Pop BB while.body.lr.ph
+meet block info from preds of while.body.lr.ph
+BBLiveIn = entry
+change=true (first) on meet on while.body.lr.ph
+while.body.lr.ph has new InLocs, process it
+while.body.lr.ph has new OutLocs, add succs to worklist: [ while.body ]
+
+Pop BB while.body
+meet block info from preds of while.body
+BBLiveIn = while.body.lr.ph
+change=true (first) on meet on while.body
+while.body has new InLocs, process it
+DEF c [0, 32): None
+- Erase intervals contained within
+- Erase [0, 32): None
+- Insert DEF into now-empty space
+while.body has new OutLocs, add succs to worklist: [ ]
+
+Pop BB while.end
+meet block info from preds of while.end
+BBLiveIn = entry
+change=true (first) on meet on while.end
+while.end has new InLocs, process it
+while.end has new OutLocs, add succs to worklist: [ ]
+Processing Worklist
+
+Pop BB while.body.lr.ph
+meet block info from preds of while.body.lr.ph
+BBLiveIn = entry
+change=false on meet on while.body.lr.ph
+
+Pop BB while.body
+meet block info from preds of while.body
+BBLiveIn = while.body
+BBLiveIn = meet BBLiveIn, while.body.lr.ph
+meet fragment maps for c
+a [0, 32): None
+- FirstOverlap [0, 32): None, IntersectStart: 0
+- LastOverlap invalid iterator (end), IntersectEnd: 0
+- insert intersection of a and [0, 32): None
+change=true on meet on while.body
+while.body has new InLocs, process it
+DEF c [0, 32): None
+- No overlaps
+
+Pop BB while.end
+meet block info from preds of while.end
+BBLiveIn = entry
+change=false on meet on while.end
+Removed redundant dbg locs from: entry
