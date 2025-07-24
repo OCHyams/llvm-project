@@ -14,12 +14,24 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include <llvm/ADT/UniqueVector.h>
 
 namespace llvm {
 class Instruction;
 class raw_ostream;
+using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
 } // namespace llvm
-class FunctionVarLocsBuilder;
+
+namespace std {
+template <> struct hash<llvm::VarLocInsertPt> {
+  using argument_type = llvm::VarLocInsertPt;
+  using result_type = std::size_t;
+
+  result_type operator()(const argument_type &Arg) const {
+    return std::hash<void *>()(Arg.getOpaqueValue());
+  }
+};
+} // namespace std
 
 namespace llvm {
 /// Type wrapper for integer ID for Variables. 0 is reserved.
@@ -35,7 +47,7 @@ struct VarLocInfo {
 /// Data structure describing the variable locations in a function. Used as the
 /// result of the AssignmentTrackingAnalysis pass. Essentially read-only
 /// outside of AssignmentTrackingAnalysis where it is built.
-class FunctionVarLocs {
+class FunctionVarLocsX {
   /// Maps VarLocInfo.VariableID to a DebugVariable for VarLocRecords.
   SmallVector<DebugVariable> Variables;
   /// List of variable location changes grouped by the instruction the
@@ -97,9 +109,107 @@ public:
   ///@{
   /// Non-const methods used by AssignmentTrackingAnalysis (which invalidate
   /// analysis results if called incorrectly).
-  void init(FunctionVarLocsBuilder &Builder);
+  //void init(FunctionVarLocsBuilder &Builder);
   void clear();
   ///@}
+};
+
+using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
+/// Helper class to build FunctionVarLocs, since that class isn't easy to
+/// modify. TODO: There's not a great deal of value in the split, it could be
+/// worth merging the two classes.
+class FunctionVarLocs {
+  UniqueVector<DebugVariable> Variables;
+  // Use an unordered_map so we don't invalidate iterators after
+  // insert/modifications.
+  std::unordered_map<VarLocInsertPt, SmallVector<VarLocInfo>> VarLocsBeforeInst;
+
+  SmallVector<VarLocInfo> SingleLocVars;
+
+public:
+  void clear();
+  void print(raw_ostream &OS, const Function &Fn) const;
+
+  /// Return the DILocalVariable for the location definition represented by \p
+  /// ID.
+  DILocalVariable *getDILocalVariable(const VarLocInfo *Loc) const {
+    VariableID VarID = Loc->VariableID;
+    return getDILocalVariable(VarID);
+  }
+  /// Return the DILocalVariable of the variable represented by \p ID.
+  DILocalVariable *getDILocalVariable(VariableID ID) const {
+    return const_cast<DILocalVariable *>(getVariable(ID).getVariable());
+  }
+  ///@name iterators
+  ///@{
+  /// First single-location variable location definition.
+  const VarLocInfo *single_locs_begin() const { return SingleLocVars.begin(); }
+  /// One past the last single-location variable location definition.
+  const VarLocInfo *single_locs_end() const { return SingleLocVars.end(); }
+  /// First variable location definition that comes before \p Before.
+  const VarLocInfo *locs_begin(const Instruction *Before) const {
+    auto R = VarLocsBeforeInst.find(Before);
+    if (R != VarLocsBeforeInst.end())
+      return R->second.begin();
+    return nullptr;
+  }
+  /// One past the last variable location definition that comes before \p
+  /// Before.
+  const VarLocInfo *locs_end(const Instruction *Before) const {
+    auto R = VarLocsBeforeInst.find(Before);
+    if (R != VarLocsBeforeInst.end())
+      return R->second.end();
+    return nullptr;
+  }
+  ///@}
+
+  unsigned getNumVariables() const { return Variables.size(); }
+
+  /// Find or insert \p V and return the ID.
+  VariableID insertVariable(DebugVariable V) {
+    return static_cast<VariableID>(Variables.insert(V));
+  }
+
+  /// Get a variable from its \p ID.
+  const DebugVariable &getVariable(VariableID ID) const {
+    return Variables[static_cast<unsigned>(ID)];
+  }
+
+  /// Return ptr to wedge of defs or nullptr if no defs come just before /p
+  /// Before.
+  const SmallVectorImpl<VarLocInfo> *getWedge(VarLocInsertPt Before) const {
+    auto R = VarLocsBeforeInst.find(Before);
+    if (R == VarLocsBeforeInst.end())
+      return nullptr;
+    return &R->second;
+  }
+
+  /// Replace the defs that come just before /p Before with /p Wedge.
+  void setWedge(VarLocInsertPt Before, SmallVector<VarLocInfo> &&Wedge) {
+    VarLocsBeforeInst[Before] = std::move(Wedge);
+  }
+
+  /// Add a def for a variable that is valid for its lifetime.
+  void addSingleLocVar(DebugVariable Var, DIExpression *Expr, DebugLoc DL,
+                       RawLocationWrapper R) {
+    VarLocInfo VarLoc;
+    VarLoc.VariableID = insertVariable(Var);
+    VarLoc.Expr = Expr;
+    VarLoc.DL = DL;
+    VarLoc.Values = R;
+    SingleLocVars.emplace_back(VarLoc);
+  }
+
+  /// Add a def to the wedge of defs just before /p Before.
+  void addVarLoc(VarLocInsertPt Before, DebugVariable Var, DIExpression *Expr,
+                 DebugLoc DL, RawLocationWrapper R) {
+    VarLocInfo VarLoc;
+    VarLoc.VariableID = insertVariable(Var);
+    VarLoc.Expr = Expr;
+    VarLoc.DL = DL;
+    VarLoc.Values = R;
+    VarLocsBeforeInst[Before].emplace_back(VarLoc);
+  }
 };
 
 class DebugAssignmentTrackingAnalysis
