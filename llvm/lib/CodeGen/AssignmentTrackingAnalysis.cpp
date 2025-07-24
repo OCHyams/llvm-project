@@ -85,71 +85,6 @@ template <> struct llvm::DenseMapInfo<VariableID> {
   }
 };
 
-/// Helper class to build FunctionVarLocs, since that class isn't easy to
-/// modify. TODO: There's not a great deal of value in the split, it could be
-/// worth merging the two classes.
-class FunctionVarLocsBuilder {
-  friend FunctionVarLocs;
-  UniqueVector<DebugVariable> Variables;
-  // Use an unordered_map so we don't invalidate iterators after
-  // insert/modifications.
-public:
-  std::unordered_map<const Instruction *, SmallVector<VarLocInfo>>
-      VarLocsBeforeInst;
-
-private:
-  SmallVector<VarLocInfo> SingleLocVars;
-
-public:
-  unsigned getNumVariables() const { return Variables.size(); }
-
-  /// Find or insert \p V and return the ID.
-  VariableID insertVariable(DebugVariable V) {
-    return static_cast<VariableID>(Variables.insert(V));
-  }
-
-  /// Get a variable from its \p ID.
-  const DebugVariable &getVariable(VariableID ID) const {
-    return Variables[static_cast<unsigned>(ID)];
-  }
-
-  /// Return ptr to wedge of defs or nullptr if no defs come just before /p
-  /// Before.
-  const SmallVectorImpl<VarLocInfo> *getWedge(const Instruction *Before) const {
-    auto R = VarLocsBeforeInst.find(Before);
-    if (R == VarLocsBeforeInst.end())
-      return nullptr;
-    return &R->second;
-  }
-
-  /// Replace the defs that come just before /p Before with /p Wedge.
-  void setWedge(const Instruction *Before, SmallVector<VarLocInfo> &&Wedge) {
-    VarLocsBeforeInst[Before] = std::move(Wedge);
-  }
-
-  /// Add a def for a variable that is valid for its lifetime.
-  void addSingleLocVar(DebugVariable Var, DIExpression *Expr, DebugLoc DL,
-                       RawLocationWrapper R) {
-    VarLocInfo VarLoc;
-    VarLoc.VariableID = insertVariable(Var);
-    VarLoc.Expr = Expr;
-    VarLoc.DL = DL;
-    VarLoc.Values = R;
-    SingleLocVars.emplace_back(VarLoc);
-  }
-
-  /// Add a def to the wedge of defs just before /p Before.
-  void addVarLoc(const Instruction *Before, DebugVariable Var,
-                 DIExpression *Expr, DebugLoc DL, RawLocationWrapper R) {
-    VarLocInfo VarLoc;
-    VarLoc.VariableID = insertVariable(Var);
-    VarLoc.Expr = Expr;
-    VarLoc.DL = DL;
-    VarLoc.Values = R;
-    VarLocsBeforeInst[Before].emplace_back(VarLoc);
-  }
-};
-
 void FunctionVarLocs::print(raw_ostream &OS, const Function &Fn) const {
   // Print the variable table first. TODO: Sorting by variable could make the
   // output more stable?
@@ -199,42 +134,11 @@ void FunctionVarLocs::print(raw_ostream &OS, const Function &Fn) const {
   }
 }
 
-void FunctionVarLocs::init(FunctionVarLocsBuilder &Builder) {
-  // Add the single-location variables first.
-  for (const auto &VarLoc : Builder.SingleLocVars)
-    VarLocRecords.emplace_back(VarLoc);
-  // Mark the end of the section.
-  SingleVarLocEnd = VarLocRecords.size();
-
-  // Insert a contiguous block of VarLocInfos for each instruction, mapping it
-  // to the start and end position in the vector with VarLocsBeforeInst. This
-  // block includes VarLocs for any DbgVariableRecords attached to that
-  // instruction.
-  for (auto &P : Builder.VarLocsBeforeInst) {
-    const Instruction *I = P.first;
-    unsigned BlockStart = VarLocRecords.size();
-    for (const VarLocInfo &VarLoc : P.second)
-      VarLocRecords.emplace_back(VarLoc);
-    unsigned BlockEnd = VarLocRecords.size();
-    // Record the start and end indices.
-    if (BlockEnd != BlockStart)
-      VarLocsBeforeInst[I] = {BlockStart, BlockEnd};
-  }
-
-  // Copy the Variables vector from the builder's UniqueVector.
-  assert(Variables.empty() && "Expect clear before init");
-  // UniqueVectors IDs are one-based (which means the VarLocInfo VarID values
-  // are one-based) so reserve an extra and insert a dummy.
-  Variables.reserve(Builder.Variables.size() + 1);
-  Variables.push_back(DebugVariable(nullptr, std::nullopt, nullptr));
-  Variables.append(Builder.Variables.begin(), Builder.Variables.end());
-}
-
 void FunctionVarLocs::clear() {
-  Variables.clear();
-  VarLocRecords.clear();
+  // UniqueVector<T>::reset only works if T can be cast from 0.
+  Variables = decltype(Variables)();
   VarLocsBeforeInst.clear();
-  SingleVarLocEnd = 0;
+  SingleLocVars.clear();
 }
 
 /// Walk backwards along constant GEPs and bitcasts to the base storage from \p
@@ -346,7 +250,7 @@ namespace {
 /// fragment of the second def".
 class MemLocFragmentFill {
   Function &Fn;
-  FunctionVarLocsBuilder *FnVarLocs;
+  FunctionVarLocs *FnVarLocs;
   const DenseSet<DebugAggregate> *VarsWithStackSlot;
   bool CoalesceAdjacentFragments;
 
@@ -842,7 +746,7 @@ public:
   ///     var x bits 0 to 31:  value is %0
   ///     var x bits 32 to 61: value in memory ; <-- new loc def
   ///
-  void run(FunctionVarLocsBuilder *FnVarLocs) {
+  void run(FunctionVarLocs *FnVarLocs) {
     if (!EnableMemLocFragFill)
       return;
 
@@ -1256,7 +1160,7 @@ private:
   Function &Fn;
   const DataLayout &Layout;
   const DenseSet<DebugAggregate> *VarsWithStackSlot;
-  FunctionVarLocsBuilder *FnVarLocs;
+  FunctionVarLocs *FnVarLocs;
   DenseMap<const BasicBlock *, BlockInfo> LiveIn;
   DenseMap<const BasicBlock *, BlockInfo> LiveOut;
 
@@ -1342,7 +1246,7 @@ private:
   void touchFragment(VariableID Var);
 
   /// Emit info for variables that are fully promoted.
-  bool emitPromotedVarLocs(FunctionVarLocsBuilder *FnVarLocs);
+  bool emitPromotedVarLocs(FunctionVarLocs *FnVarLocs);
 
 public:
   AssignmentTrackingLowering(Function &Fn, const DataLayout &Layout,
@@ -1350,7 +1254,7 @@ public:
       : Fn(Fn), Layout(Layout), VarsWithStackSlot(VarsWithStackSlot) {}
   /// Run the analysis, adding variable location info to \p FnVarLocs. Returns
   /// true if any variable locations have been added to FnVarLocs.
-  bool run(FunctionVarLocsBuilder *FnVarLocs);
+  bool run(FunctionVarLocs *FnVarLocs);
 };
 } // namespace
 
@@ -2093,7 +1997,7 @@ AllocaInst *getUnknownStore(const Instruction &I, const DataLayout &Layout) {
 /// These tasks are bundled together to reduce the number of times we need
 /// to iterate over the function as they can be achieved together in one pass.
 static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
-    Function &Fn, FunctionVarLocsBuilder *FnVarLocs,
+    Function &Fn, FunctionVarLocs *FnVarLocs,
     const DenseSet<DebugAggregate> &VarsWithStackSlot,
     AssignmentTrackingLowering::UntaggedStoreAssignmentMap &UntaggedStoreVars,
     AssignmentTrackingLowering::UnknownStoreAssignmentMap &UnknownStoreVars,
@@ -2233,7 +2137,7 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
   return Map;
 }
 
-bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
+bool AssignmentTrackingLowering::run(FunctionVarLocs *FnVarLocsBuilder) {
   if (Fn.size() > MaxNumBlocks) {
     LLVM_DEBUG(dbgs() << "[AT] Dropping var locs in: " << Fn.getName()
                       << ": too many blocks (" << Fn.size() << ")\n");
@@ -2404,7 +2308,7 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
 }
 
 bool AssignmentTrackingLowering::emitPromotedVarLocs(
-    FunctionVarLocsBuilder *FnVarLocs) {
+    FunctionVarLocs *FnVarLocs) {
   bool InsertedAnyIntrinsics = false;
   // Go through every block, translating debug intrinsics for fully promoted
   // variables into FnVarLocs location defs. No analysis required for these.
@@ -2437,10 +2341,10 @@ bool AssignmentTrackingLowering::emitPromotedVarLocs(
 ///
 /// This implements removeRedundantDbgInstrsUsingBackwardScan from
 /// lib/Transforms/Utils/BasicBlockUtils.cpp for locations described with
-/// FunctionVarLocsBuilder instead of with intrinsics.
+/// FunctionVarLocs instead of with intrinsics.
 static bool
 removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
-                                        FunctionVarLocsBuilder &FnVarLocs) {
+                                        FunctionVarLocs &FnVarLocs) {
   bool Changed = false;
   SmallDenseMap<DebugAggregate, BitVector> VariableDefinedBytes;
   // Scan over the entire block, not just over the instructions mapped by
@@ -2531,10 +2435,9 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
 ///
 /// This implements removeRedundantDbgInstrsUsingForwardScan from
 /// lib/Transforms/Utils/BasicBlockUtils.cpp for locations described with
-/// FunctionVarLocsBuilder instead of with intrinsics
-static bool
-removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
-                                       FunctionVarLocsBuilder &FnVarLocs) {
+/// FunctionVarLocs instead of with intrinsics
+static bool removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
+                                                   FunctionVarLocs &FnVarLocs) {
   bool Changed = false;
   DenseMap<DebugVariable, std::pair<RawLocationWrapper, DIExpression *>>
       VariableMap;
@@ -2589,9 +2492,8 @@ removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
   return Changed;
 }
 
-static bool
-removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
-                                 FunctionVarLocsBuilder &FnVarLocs) {
+static bool removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
+                                             FunctionVarLocs &FnVarLocs) {
   assert(BB->isEntryBlock());
   // Do extra work to ensure that we remove semantically unimportant undefs.
   //
@@ -2674,7 +2576,7 @@ removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
 }
 
 static bool removeRedundantDbgLocs(const BasicBlock *BB,
-                                   FunctionVarLocsBuilder &FnVarLocs) {
+                                   FunctionVarLocs &FnVarLocs) {
   bool MadeChanges = false;
   MadeChanges |= removeRedundantDbgLocsUsingBackwardScan(BB, FnVarLocs);
   if (BB->isEntryBlock())
@@ -2705,7 +2607,7 @@ static DenseSet<DebugAggregate> findVarsWithStackSlot(Function &Fn) {
 }
 
 static void analyzeFunction(Function &Fn, const DataLayout &Layout,
-                            FunctionVarLocsBuilder *FnVarLocs) {
+                            FunctionVarLocs *FnVarLocs) {
   // The analysis will generate location definitions for all variables, but we
   // only need to perform a dataflow on the set of variables which have a stack
   // slot. Find those now.
@@ -2742,12 +2644,10 @@ DebugAssignmentTrackingAnalysis::run(Function &F,
 
   auto &DL = F.getDataLayout();
 
-  FunctionVarLocsBuilder Builder;
-  analyzeFunction(F, DL, &Builder);
+  FunctionVarLocs Results;
+  analyzeFunction(F, DL, &Results);
 
   // Save these results.
-  FunctionVarLocs Results;
-  Results.init(Builder);
   return Results;
 }
 
@@ -2770,11 +2670,7 @@ bool AssignmentTrackingAnalysis::runOnFunction(Function &F) {
   // Clear previous results.
   Results->clear();
 
-  FunctionVarLocsBuilder Builder;
-  analyzeFunction(F, F.getDataLayout(), &Builder);
-
-  // Save these results.
-  Results->init(Builder);
+  analyzeFunction(F, F.getDataLayout(), Results.get());
 
   if (PrintResults && isFunctionInPrintList(F.getName()))
     Results->print(errs(), F);
