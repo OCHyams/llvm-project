@@ -399,7 +399,9 @@ class MemLocFragmentFill {
     unsigned SizeInBits;
     DebugLoc DL;
   };
-  using InsertMap = MapVector<VarLocInsertPt, SmallVector<FragMemLoc>>;
+
+  using InsertPos = std::pair<const SmallVectorImpl<VarLocInfo> *, size_t>;
+  using InsertMap = MapVector<InsertPos, SmallVector<FragMemLoc>>;
 
   /// BBInsertBeforeMap holds a description for the set of location defs to be
   /// inserted after the analysis is complete. It is updated during the dataflow
@@ -618,7 +620,7 @@ class MemLocFragmentFill {
     return /*Changed=*/false;
   }
 
-  void insertMemLoc(BasicBlock &BB, VarLocInsertPt Before, unsigned Var,
+  void insertMemLoc(BasicBlock &BB, InsertPos Before, unsigned Var,
                     unsigned StartBit, unsigned EndBit, unsigned Base,
                     DebugLoc DL) {
     assert(StartBit < EndBit && "Cannot create fragment of size <= 0");
@@ -640,7 +642,7 @@ class MemLocFragmentFill {
   /// in \p FragMap starts before \p StartBit or ends after \p EndBit (which
   /// indicates - assuming StartBit->EndBit has just been inserted - that the
   /// slice has been coalesced in the map).
-  void coalesceFragments(BasicBlock &BB, VarLocInsertPt Before, unsigned Var,
+  void coalesceFragments(BasicBlock &BB, InsertPos Before, unsigned Var,
                          unsigned StartBit, unsigned EndBit, unsigned Base,
                          DebugLoc DL, const FragsInMemMap &FragMap) {
     if (!CoalesceAdjacentFragments)
@@ -661,7 +663,7 @@ class MemLocFragmentFill {
                  Base, DL);
   }
 
-  void addDef(const VarLocInfo &VarLoc, VarLocInsertPt Before, BasicBlock &BB,
+  void addDef(const VarLocInfo &VarLoc, InsertPos Before, BasicBlock &BB,
               VarFragMap &LiveSet) {
     DebugVariable DbgVar = FnVarLocs->getVariable(VarLoc.VariableID);
     if (skipVariable(DbgVar.getVariable()))
@@ -830,14 +832,16 @@ class MemLocFragmentFill {
     for (auto &I : BB) {
       for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange())) {
         if (const auto *Locs = FnVarLocs->getWedge(&DVR)) {
+          size_t Idx = 0;
           for (const VarLocInfo &Loc : *Locs) {
-            addDef(Loc, &DVR, *I.getParent(), LiveSet);
+            addDef(Loc, {Locs, Idx++}, *I.getParent(), LiveSet);
           }
         }
       }
       if (const auto *Locs = FnVarLocs->getWedge(&I)) {
+        size_t Idx = 0;
         for (const VarLocInfo &Loc : *Locs) {
-          addDef(Loc, &I, *I.getParent(), LiveSet);
+          addDef(Loc, {Locs, Idx++}, *I.getParent(), LiveSet);
         }
       }
     }
@@ -958,10 +962,13 @@ public:
     for (auto &Pair : BBInsertBeforeMap) {
       InsertMap &Map = Pair.second;
       for (auto &Pair : Map) {
-        auto InsertBefore = Pair.first;
-        assert(InsertBefore && "should never be null");
+        // Info to build the new var locs.
         auto FragMemLocs = Pair.second;
         auto &Ctx = Fn.getContext();
+        // Where to insert the new var locs.
+        SmallVectorImpl<VarLocInfo> *VarLocsVector =
+            const_cast<SmallVectorImpl<VarLocInfo> *>(Pair.first.first);
+        size_t Idx = Pair.first.second;
 
         for (auto &FragMemLoc : FragMemLocs) {
           DIExpression *Expr = DIExpression::get(Ctx, {});
@@ -973,8 +980,13 @@ public:
                                        FragMemLoc.OffsetInBits / 8);
           DebugVariable Var(Aggregates[FragMemLoc.Var].first, Expr,
                             FragMemLoc.DL.getInlinedAt());
-          FnVarLocs->addVarLoc(InsertBefore, Var, Expr, FragMemLoc.DL,
-                               Bases[FragMemLoc.Base]);
+
+          VarLocInfo VarLoc;
+          VarLoc.VariableID = FnVarLocs->insertVariable(Var);
+          VarLoc.Expr = Expr;
+          VarLoc.DL = FragMemLoc.DL;
+          VarLoc.Values = Bases[FragMemLoc.Base];
+          VarLocsVector->insert(VarLocsVector->begin() + ++Idx, VarLoc);
         }
       }
     }
