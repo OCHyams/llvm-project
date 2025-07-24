@@ -33,7 +33,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <assert.h>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <queue>
 #include <sstream>
@@ -83,19 +85,6 @@ template <> struct llvm::DenseMapInfo<VariableID> {
   }
 };
 
-using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
-
-namespace std {
-template <> struct hash<VarLocInsertPt> {
-  using argument_type = VarLocInsertPt;
-  using result_type = std::size_t;
-
-  result_type operator()(const argument_type &Arg) const {
-    return std::hash<void *>()(Arg.getOpaqueValue());
-  }
-};
-} // namespace std
-
 /// Helper class to build FunctionVarLocs, since that class isn't easy to
 /// modify. TODO: There's not a great deal of value in the split, it could be
 /// worth merging the two classes.
@@ -104,8 +93,11 @@ class FunctionVarLocsBuilder {
   UniqueVector<DebugVariable> Variables;
   // Use an unordered_map so we don't invalidate iterators after
   // insert/modifications.
-  std::unordered_map<VarLocInsertPt, SmallVector<VarLocInfo>> VarLocsBeforeInst;
+public:
+  std::unordered_map<const Instruction *, SmallVector<VarLocInfo>>
+      VarLocsBeforeInst;
 
+private:
   SmallVector<VarLocInfo> SingleLocVars;
 
 public:
@@ -123,7 +115,7 @@ public:
 
   /// Return ptr to wedge of defs or nullptr if no defs come just before /p
   /// Before.
-  const SmallVectorImpl<VarLocInfo> *getWedge(VarLocInsertPt Before) const {
+  const SmallVectorImpl<VarLocInfo> *getWedge(const Instruction *Before) const {
     auto R = VarLocsBeforeInst.find(Before);
     if (R == VarLocsBeforeInst.end())
       return nullptr;
@@ -131,7 +123,7 @@ public:
   }
 
   /// Replace the defs that come just before /p Before with /p Wedge.
-  void setWedge(VarLocInsertPt Before, SmallVector<VarLocInfo> &&Wedge) {
+  void setWedge(const Instruction *Before, SmallVector<VarLocInfo> &&Wedge) {
     VarLocsBeforeInst[Before] = std::move(Wedge);
   }
 
@@ -147,8 +139,8 @@ public:
   }
 
   /// Add a def to the wedge of defs just before /p Before.
-  void addVarLoc(VarLocInsertPt Before, DebugVariable Var, DIExpression *Expr,
-                 DebugLoc DL, RawLocationWrapper R) {
+  void addVarLoc(const Instruction *Before, DebugVariable Var,
+                 DIExpression *Expr, DebugLoc DL, RawLocationWrapper R) {
     VarLocInfo VarLoc;
     VarLoc.VariableID = insertVariable(Var);
     VarLoc.Expr = Expr;
@@ -219,24 +211,8 @@ void FunctionVarLocs::init(FunctionVarLocsBuilder &Builder) {
   // block includes VarLocs for any DbgVariableRecords attached to that
   // instruction.
   for (auto &P : Builder.VarLocsBeforeInst) {
-    // Process VarLocs attached to a DbgRecord alongside their marker
-    // Instruction.
-    if (isa<const DbgRecord *>(P.first))
-      continue;
-    const Instruction *I = cast<const Instruction *>(P.first);
+    const Instruction *I = P.first;
     unsigned BlockStart = VarLocRecords.size();
-    // Any VarLocInfos attached to a DbgRecord should now be remapped to their
-    // marker Instruction, in order of DbgRecord appearance and prior to any
-    // VarLocInfos attached directly to that instruction.
-    for (const DbgVariableRecord &DVR : filterDbgVars(I->getDbgRecordRange())) {
-      // Even though DVR defines a variable location, VarLocsBeforeInst can
-      // still be empty if that VarLoc was redundant.
-      auto It = Builder.VarLocsBeforeInst.find(&DVR);
-      if (It == Builder.VarLocsBeforeInst.end())
-        continue;
-      for (const VarLocInfo &VarLoc : It->second)
-        VarLocRecords.emplace_back(VarLoc);
-    }
     for (const VarLocInfo &VarLoc : P.second)
       VarLocRecords.emplace_back(VarLoc);
     unsigned BlockEnd = VarLocRecords.size();
@@ -830,14 +806,6 @@ class MemLocFragmentFill {
   void process(BasicBlock &BB, VarFragMap &LiveSet) {
     BBInsertBeforeMap[&BB].clear();
     for (auto &I : BB) {
-      for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange())) {
-        if (const auto *Locs = FnVarLocs->getWedge(&DVR)) {
-          size_t Idx = 0;
-          for (const VarLocInfo &Loc : *Locs) {
-            addDef(Loc, {Locs, ++Idx}, *I.getParent(), LiveSet);
-          }
-        }
-      }
       if (const auto *Locs = FnVarLocs->getWedge(&I)) {
         size_t Idx = 0;
         for (const VarLocInfo &Loc : *Locs) {
@@ -959,20 +927,22 @@ public:
     }
 
     // Insert new location defs.
-    for (auto &Pair : BBInsertBeforeMap) {
-      InsertMap &Map = Pair.second;
-      for (auto &Pair : Map) {
-        // Info to build the new var locs.
-        auto FragMemLocs = Pair.second;
-        auto &Ctx = Fn.getContext();
+    auto &Ctx = Fn.getContext();
+    for (auto &[_, LocDefMap] : BBInsertBeforeMap) {
+
+      // Go in reverse because otherwise we're going to invalidate indices.
+      size_t PrevIdx = std::numeric_limits<size_t>::max();
+      (void)PrevIdx;
+      for (auto &[Pos, FragMemLocs] : reverse(LocDefMap)) {
         // Where to insert the new var locs.
         SmallVectorImpl<VarLocInfo> *VarLocsVector =
-            const_cast<SmallVectorImpl<VarLocInfo> *>(Pair.first.first);
-        size_t Idx = Pair.first.second;
+            const_cast<SmallVectorImpl<VarLocInfo> *>(Pos.first);
+        size_t Idx = Pos.second;
+        assert(Idx < PrevIdx && "Expect to insert in reverse order");
         // Make space for the new locs.
         VarLocsVector->reserve(VarLocsVector->size() + FragMemLocs.size());
 
-        for (auto &FragMemLoc : FragMemLocs) {
+        for (auto &FragMemLoc : reverse(FragMemLocs)) {
           DIExpression *Expr = DIExpression::get(Ctx, {});
           if (FragMemLoc.SizeInBits !=
               *Aggregates[FragMemLoc.Var].first->getSizeInBits())
@@ -988,7 +958,7 @@ public:
           VarLoc.Expr = Expr;
           VarLoc.DL = FragMemLoc.DL;
           VarLoc.Values = Bases[FragMemLoc.Base];
-          VarLocsVector->insert(VarLocsVector->begin() + Idx++, VarLoc);
+          VarLocsVector->insert(VarLocsVector->begin() + Idx, VarLoc);
         }
       }
     }
@@ -1112,14 +1082,15 @@ private:
   UnknownStoreAssignmentMap UnknownStoreVars;
 
   // Machinery to defer inserting dbg.values.
-  using InstInsertMap = MapVector<VarLocInsertPt, SmallVector<VarLocInfo>>;
+  using InstInsertMap = MapVector<const Instruction *, SmallVector<VarLocInfo>>;
   InstInsertMap InsertBeforeMap;
   /// Clear the location definitions currently cached for insertion after /p
   /// After.
   void resetInsertionPoint(Instruction &After);
-  void resetInsertionPoint(DbgVariableRecord &After);
+  void resetInsertionPointBefore(const Instruction *After);
 
-  void emitDbgValue(LocKind Kind, DbgVariableRecord *, VarLocInsertPt After);
+  void emitDbgValue(LocKind Kind, DbgVariableRecord *,
+                    const Instruction *Before);
 
   static bool mapsAreEqual(const BitVector &Mask, const AssignmentMap &A,
                            const AssignmentMap &B) {
@@ -1479,37 +1450,26 @@ const char *locStr(AssignmentTrackingLowering::LocKind Loc) {
 }
 #endif
 
-VarLocInsertPt getNextNode(const DbgRecord *DVR) {
-  auto NextIt = ++(DVR->getIterator());
-  if (NextIt == DVR->getMarker()->getDbgRecordRange().end())
-    return DVR->getMarker()->MarkedInstr;
-  return &*NextIt;
+const Instruction *getNextNode(const DbgRecord *DVR) {
+  return DVR->getMarker()->MarkedInstr;
 }
-VarLocInsertPt getNextNode(const Instruction *Inst) {
-  const Instruction *Next = Inst->getNextNode();
-  if (!Next->hasDbgRecords())
-    return Next;
-  return &*Next->getDbgRecordRange().begin();
-}
-VarLocInsertPt getNextNode(VarLocInsertPt InsertPt) {
-  if (isa<const Instruction *>(InsertPt))
-    return getNextNode(cast<const Instruction *>(InsertPt));
-  return getNextNode(cast<const DbgRecord *>(InsertPt));
+const Instruction *getNextNode(const Instruction *Inst) {
+  return Inst->getNextNode();
 }
 
 void AssignmentTrackingLowering::emitDbgValue(
     AssignmentTrackingLowering::LocKind Kind, DbgVariableRecord *Source,
-    VarLocInsertPt After) {
+    const Instruction *InsertBefore) {
 
   DILocation *DL = Source->getDebugLoc();
-  auto Emit = [this, Source, After, DL](Metadata *Val, DIExpression *Expr) {
+  auto Emit = [this, Source, InsertBefore, DL](Metadata *Val,
+                                               DIExpression *Expr) {
     assert(Expr);
     if (!Val)
       Val = ValueAsMetadata::get(
           PoisonValue::get(Type::getInt1Ty(Source->getContext())));
 
     // Find a suitable insert point.
-    auto InsertBefore = getNextNode(After);
     assert(InsertBefore && "Shouldn't be inserting after a terminator");
 
     VariableID Var = getVariableID(DebugVariable(Source));
@@ -1586,12 +1546,12 @@ void AssignmentTrackingLowering::processUnknownStoreToVariable(
     LLVM_DEBUG(dbgs() << "Switching to fallback debug value: ";
                DbgAV.dump(dbgs()); dbgs() << "\n");
     setLocKind(LiveSet, Var, LocKind::Val);
-    emitDbgValue(LocKind::Val, DbgAV.Source, &I);
+    emitDbgValue(LocKind::Val, DbgAV.Source, getNextNode(&I));
     return;
   }
   // Otherwise, find a suitable insert point, before the next instruction or
   // DbgRecord after I.
-  auto InsertBefore = getNextNode(&I);
+  auto *InsertBefore = getNextNode(&I);
   assert(InsertBefore && "Shouldn't be inserting after a terminator");
 
   // Get DILocation for this assignment.
@@ -1651,7 +1611,7 @@ void AssignmentTrackingLowering::processUntaggedInstruction(
     addMemDef(LiveSet, Var, Assignment::makeNoneOrPhi());
     addDbgDef(LiveSet, Var, Assignment::makeNoneOrPhi());
     setLocKind(LiveSet, Var, LocKind::Mem);
-    LLVM_DEBUG(dbgs() << "  setting Stack LocKind to: " << locStr(LocKind::Mem)
+    LLVM_DEBUG(dbgs() << "   setting Stack LocKind to: " << locStr(LocKind::Mem)
                       << "\n");
     // Build the dbg location def to insert.
     //
@@ -1672,7 +1632,7 @@ void AssignmentTrackingLowering::processUntaggedInstruction(
                                        /*EntryValue=*/false);
     // Find a suitable insert point, before the next instruction or DbgRecord
     // after I.
-    auto InsertBefore = getNextNode(&I);
+    auto *InsertBefore = getNextNode(&I);
     assert(InsertBefore && "Shouldn't be inserting after a terminator");
 
     // Get DILocation for this unrecorded assignment.
@@ -1727,7 +1687,7 @@ void AssignmentTrackingLowering::processTaggedInstruction(
                  LiveSet->DebugValue[static_cast<unsigned>(Var)].dump(dbgs());
                  dbgs() << "\n");
       setLocKind(LiveSet, Var, LocKind::Mem);
-      emitDbgValue(LocKind::Mem, Assign, &I);
+      emitDbgValue(LocKind::Mem, Assign, getNextNode(&I));
       return;
     }
 
@@ -1753,16 +1713,16 @@ void AssignmentTrackingLowering::processTaggedInstruction(
         // We need to terminate any previously open location now.
         LLVM_DEBUG(dbgs() << "None, No Debug value available\n";);
         setLocKind(LiveSet, Var, LocKind::None);
-        emitDbgValue(LocKind::None, Assign, &I);
+        emitDbgValue(LocKind::None, Assign, getNextNode(&I));
       } else {
         // The previous DebugValue Value can be used here.
         LLVM_DEBUG(dbgs() << "Val, Debug value is Known\n";);
         setLocKind(LiveSet, Var, LocKind::Val);
         if (DbgAV.Source) {
-          emitDbgValue(LocKind::Val, DbgAV.Source, &I);
+          emitDbgValue(LocKind::Val, DbgAV.Source, getNextNode(&I));
         } else {
           // PrevAV.Source is nullptr so we must emit undef here.
-          emitDbgValue(LocKind::None, Assign, &I);
+          emitDbgValue(LocKind::None, Assign, getNextNode(&I));
         }
       }
     } break;
@@ -1808,13 +1768,13 @@ void AssignmentTrackingLowering::processDbgAssign(DbgVariableRecord *DbgAssign,
       Kind = LocKind::Mem;
     };
     setLocKind(LiveSet, Var, Kind);
-    emitDbgValue(Kind, DbgAssign, DbgAssign);
+    emitDbgValue(Kind, DbgAssign, DbgAssign->getInstruction());
   } else {
     // The last assignment to the memory location isn't the one that we want
     // to show to the user so emit a dbg.value(Value). Value may be undef.
     LLVM_DEBUG(dbgs() << "Val, Stack contents is unknown\n";);
     setLocKind(LiveSet, Var, LocKind::Val);
-    emitDbgValue(LocKind::Val, DbgAssign, DbgAssign);
+    emitDbgValue(LocKind::Val, DbgAssign, DbgAssign->getInstruction());
   }
 }
 
@@ -1837,10 +1797,10 @@ void AssignmentTrackingLowering::processDbgValue(DbgVariableRecord *DbgValue,
 
   LLVM_DEBUG(dbgs() << "processDbgValue on " << *DbgValue << "\n";);
   LLVM_DEBUG(dbgs() << "   LiveLoc " << locStr(getLocKind(LiveSet, Var))
-                    << " -> Val, dbg.value override");
+                    << " -> Val, dbg.value override\n");
 
   setLocKind(LiveSet, Var, LocKind::Val);
-  emitDbgValue(LocKind::Val, DbgValue, DbgValue);
+  emitDbgValue(LocKind::Val, DbgValue, DbgValue->getInstruction());
 }
 
 static bool hasZeroSizedFragment(DbgVariableRecord &DbgValue) {
@@ -1868,8 +1828,9 @@ void AssignmentTrackingLowering::resetInsertionPoint(Instruction &After) {
     return;
   R->second.clear();
 }
-void AssignmentTrackingLowering::resetInsertionPoint(DbgVariableRecord &After) {
-  auto *R = InsertBeforeMap.find(getNextNode(&After));
+void AssignmentTrackingLowering::resetInsertionPointBefore(
+    const Instruction *Before) {
+  auto *R = InsertBeforeMap.find(Before);
   if (R == InsertBeforeMap.end())
     return;
   R->second.clear();
@@ -1879,6 +1840,7 @@ void AssignmentTrackingLowering::process(BasicBlock &BB, BlockInfo *LiveSet) {
   // If the block starts with DbgRecords, we need to process those DbgRecords as
   // their own frame without processing any instructions first.
   bool ProcessedLeadingDbgRecords = !BB.begin()->hasDbgRecords();
+  resetInsertionPointBefore(&*BB.begin());
   for (auto II = BB.begin(), EI = BB.end(); II != EI;) {
     assert(VarsTouchedThisFrame.empty());
     // Process the instructions in "frames". A "frame" includes a single
@@ -1899,6 +1861,7 @@ void AssignmentTrackingLowering::process(BasicBlock &BB, BlockInfo *LiveSet) {
       assert(LiveSet->isValid());
       ++II;
     }
+
     // II is now either a debug intrinsic, a non-debug instruction with no
     // attached DbgRecords, or a non-debug instruction with attached unprocessed
     // DbgRecords.
@@ -1907,7 +1870,6 @@ void AssignmentTrackingLowering::process(BasicBlock &BB, BlockInfo *LiveSet) {
       // be read from IR (possibly re-ordering them within the debug record
       // range) rather than from the analysis results.
       for (DbgVariableRecord &DVR : filterDbgVars(II->getDbgRecordRange())) {
-        resetInsertionPoint(DVR);
         processDbgVariableRecord(DVR, LiveSet);
         assert(LiveSet->isValid());
       }
@@ -2488,7 +2450,7 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
     // Sequence of consecutive defs ended. Clear map for the next one.
     VariableDefinedBytes.clear();
 
-    auto HandleLocsForWedge = [&](auto *WedgePosition) {
+    auto HandleLocsForWedge = [&](const Instruction *WedgePosition) {
       // Get the location defs that start just before this instruction.
       const auto *Locs = FnVarLocs.getWedge(WedgePosition);
       if (!Locs)
@@ -2558,8 +2520,6 @@ removeRedundantDbgLocsUsingBackwardScan(const BasicBlock *BB,
       }
     };
     HandleLocsForWedge(&I);
-    for (DbgVariableRecord &DVR : reverse(filterDbgVars(I.getDbgRecordRange())))
-      HandleLocsForWedge(&DVR);
   }
 
   return Changed;
@@ -2584,7 +2544,7 @@ removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
   // instructions.
   for (const Instruction &I : *BB) {
     // Get the defs that come just before this instruction.
-    auto HandleLocsForWedge = [&](auto *WedgePosition) {
+    auto HandleLocsForWedge = [&](const Instruction *WedgePosition) {
       const auto *Locs = FnVarLocs.getWedge(WedgePosition);
       if (!Locs)
         return;
@@ -2623,8 +2583,6 @@ removeRedundantDbgLocsUsingForwardScan(const BasicBlock *BB,
       }
     };
 
-    for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange()))
-      HandleLocsForWedge(&DVR);
     HandleLocsForWedge(&I);
   }
 
@@ -2671,7 +2629,7 @@ removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
   // instructions.
   for (const Instruction &I : *BB) {
     // Get the defs that come just before this instruction.
-    auto HandleLocsForWedge = [&](auto *WedgePosition) {
+    auto HandleLocsForWedge = [&](const Instruction *WedgePosition) {
       const auto *Locs = FnVarLocs.getWedge(WedgePosition);
       if (!Locs)
         return;
@@ -2708,8 +2666,7 @@ removeUndefDbgLocsFromEntryBlock(const BasicBlock *BB,
         Changed = true;
       }
     };
-    for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange()))
-      HandleLocsForWedge(&DVR);
+
     HandleLocsForWedge(&I);
   }
 
