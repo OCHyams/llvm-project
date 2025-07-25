@@ -33,7 +33,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <assert.h>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <queue>
 #include <sstream>
@@ -925,20 +927,22 @@ public:
     }
 
     // Insert new location defs.
-    for (auto &Pair : BBInsertBeforeMap) {
-      InsertMap &Map = Pair.second;
-      for (auto &Pair : Map) {
-        // Info to build the new var locs.
-        auto FragMemLocs = Pair.second;
-        auto &Ctx = Fn.getContext();
+    auto &Ctx = Fn.getContext();
+    for (auto &[_, LocDefMap] : BBInsertBeforeMap) {
+
+      // Go in reverse because otherwise we're going to invalidate indices.
+      size_t PrevIdx = std::numeric_limits<size_t>::max();
+      (void)PrevIdx;
+      for (auto &[Pos, FragMemLocs] : reverse(LocDefMap)) {
         // Where to insert the new var locs.
         SmallVectorImpl<VarLocInfo> *VarLocsVector =
-            const_cast<SmallVectorImpl<VarLocInfo> *>(Pair.first.first);
-        size_t Idx = Pair.first.second;
+            const_cast<SmallVectorImpl<VarLocInfo> *>(Pos.first);
+        size_t Idx = Pos.second;
+        assert(Idx < PrevIdx && "Expect to insert in reverse order");
         // Make space for the new locs.
         VarLocsVector->reserve(VarLocsVector->size() + FragMemLocs.size());
 
-        for (auto &FragMemLoc : FragMemLocs) {
+        for (auto &FragMemLoc : reverse(FragMemLocs)) {
           DIExpression *Expr = DIExpression::get(Ctx, {});
           if (FragMemLoc.SizeInBits !=
               *Aggregates[FragMemLoc.Var].first->getSizeInBits())
@@ -954,7 +958,7 @@ public:
           VarLoc.Expr = Expr;
           VarLoc.DL = FragMemLoc.DL;
           VarLoc.Values = Bases[FragMemLoc.Base];
-          VarLocsVector->insert(VarLocsVector->begin() + Idx++, VarLoc);
+          VarLocsVector->insert(VarLocsVector->begin() + Idx, VarLoc);
         }
       }
     }
