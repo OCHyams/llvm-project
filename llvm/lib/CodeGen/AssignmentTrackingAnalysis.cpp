@@ -168,7 +168,7 @@ void FunctionVarLocs::init(FunctionVarLocs &Builder) {
 #endif
 
 void FunctionVarLocs::clear() {
-  // UniqueVector<>::reset is borked.
+  // UniqueVector<T>::reset only works if T can be cast from 0.
   Variables = decltype(Variables)();
   VarLocsBeforeInst.clear();
   SingleLocVars.clear();
