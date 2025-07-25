@@ -834,14 +834,14 @@ class MemLocFragmentFill {
         if (const auto *Locs = FnVarLocs->getWedge(&DVR)) {
           size_t Idx = 0;
           for (const VarLocInfo &Loc : *Locs) {
-            addDef(Loc, {Locs, Idx++}, *I.getParent(), LiveSet);
+            addDef(Loc, {Locs, ++Idx}, *I.getParent(), LiveSet);
           }
         }
       }
       if (const auto *Locs = FnVarLocs->getWedge(&I)) {
         size_t Idx = 0;
         for (const VarLocInfo &Loc : *Locs) {
-          addDef(Loc, {Locs, Idx++}, *I.getParent(), LiveSet);
+          addDef(Loc, {Locs, ++Idx}, *I.getParent(), LiveSet);
         }
       }
     }
@@ -969,6 +969,8 @@ public:
         SmallVectorImpl<VarLocInfo> *VarLocsVector =
             const_cast<SmallVectorImpl<VarLocInfo> *>(Pair.first.first);
         size_t Idx = Pair.first.second;
+        // Make space for the new locs.
+        VarLocsVector->reserve(VarLocsVector->size() + FragMemLocs.size());
 
         for (auto &FragMemLoc : FragMemLocs) {
           DIExpression *Expr = DIExpression::get(Ctx, {});
@@ -986,7 +988,7 @@ public:
           VarLoc.Expr = Expr;
           VarLoc.DL = FragMemLoc.DL;
           VarLoc.Values = Bases[FragMemLoc.Base];
-          VarLocsVector->insert(VarLocsVector->begin() + ++Idx, VarLoc);
+          VarLocsVector->insert(VarLocsVector->begin() + Idx++, VarLoc);
         }
       }
     }
