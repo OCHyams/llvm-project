@@ -19,19 +19,7 @@
 namespace llvm {
 class Instruction;
 class raw_ostream;
-using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
 } // namespace llvm
-
-namespace std {
-template <> struct hash<llvm::VarLocInsertPt> {
-  using argument_type = llvm::VarLocInsertPt;
-  using result_type = std::size_t;
-
-  result_type operator()(const argument_type &Arg) const {
-    return std::hash<void *>()(Arg.getOpaqueValue());
-  }
-};
-} // namespace std
 
 namespace llvm {
 /// Type wrapper for integer ID for Variables. 0 is reserved.
@@ -44,7 +32,6 @@ struct VarLocInfo {
   RawLocationWrapper Values = RawLocationWrapper();
 };
 
-using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
 /// Data structure describing the variable locations in a function. Used as the
 /// result of the AssignmentTrackingAnalysis pass. Essentially read-only
 /// outside of AssignmentTrackingAnalysis where it is built.
@@ -52,7 +39,8 @@ class FunctionVarLocs {
   /// Maps VarLocInfo.VariableID to a DebugVariable for VarLocRecords.
   UniqueVector<DebugVariable> Variables;
   /// Variable locations grouped by the instruction they occur before.
-  std::unordered_map<VarLocInsertPt, SmallVector<VarLocInfo>> VarLocsBeforeInst;
+  std::unordered_map<const Instruction *, SmallVector<VarLocInfo>>
+      VarLocsBeforeInst;
   // Variables with a single location through the function.
   SmallVector<VarLocInfo> SingleLocVars;
 
@@ -113,7 +101,7 @@ public:
 
   /// Return ptr to wedge of defs or nullptr if no defs come just before /p
   /// Before.
-  const SmallVectorImpl<VarLocInfo> *getWedge(VarLocInsertPt Before) const {
+  const SmallVectorImpl<VarLocInfo> *getWedge(const Instruction *Before) const {
     auto R = VarLocsBeforeInst.find(Before);
     if (R == VarLocsBeforeInst.end())
       return nullptr;
@@ -121,7 +109,7 @@ public:
   }
 
   /// Replace the defs that come just before /p Before with /p Wedge.
-  void setWedge(VarLocInsertPt Before, SmallVector<VarLocInfo> &&Wedge) {
+  void setWedge(const Instruction *Before, SmallVector<VarLocInfo> &&Wedge) {
     VarLocsBeforeInst[Before] = std::move(Wedge);
   }
 
@@ -137,8 +125,8 @@ public:
   }
 
   /// Add a def to the wedge of defs just before /p Before.
-  void addVarLoc(VarLocInsertPt Before, DebugVariable Var, DIExpression *Expr,
-                 DebugLoc DL, RawLocationWrapper R) {
+  void addVarLoc(const Instruction *Before, DebugVariable Var,
+                 DIExpression *Expr, DebugLoc DL, RawLocationWrapper R) {
     VarLocInfo VarLoc;
     VarLoc.VariableID = insertVariable(Var);
     VarLoc.Expr = Expr;
