@@ -44,90 +44,19 @@ struct VarLocInfo {
   RawLocationWrapper Values = RawLocationWrapper();
 };
 
+using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
 /// Data structure describing the variable locations in a function. Used as the
 /// result of the AssignmentTrackingAnalysis pass. Essentially read-only
 /// outside of AssignmentTrackingAnalysis where it is built.
-class FunctionVarLocsX {
-  /// Maps VarLocInfo.VariableID to a DebugVariable for VarLocRecords.
-  SmallVector<DebugVariable> Variables;
-  /// List of variable location changes grouped by the instruction the
-  /// change occurs before (see VarLocsBeforeInst). The elements from
-  /// zero to SingleVarLocEnd represent variables with a single location.
-  SmallVector<VarLocInfo> VarLocRecords;
-  /// End of range of VarLocRecords that represent variables with a single
-  /// location that is valid for the entire scope. Range starts at 0.
-  unsigned SingleVarLocEnd = 0;
-  /// Maps an instruction to a range of VarLocs that start just before it.
-  DenseMap<const Instruction *, std::pair<unsigned, unsigned>>
-      VarLocsBeforeInst;
-
-public:
-  /// Return the DILocalVariable for the location definition represented by \p
-  /// ID.
-  DILocalVariable *getDILocalVariable(const VarLocInfo *Loc) const {
-    VariableID VarID = Loc->VariableID;
-    return getDILocalVariable(VarID);
-  }
-  /// Return the DILocalVariable of the variable represented by \p ID.
-  DILocalVariable *getDILocalVariable(VariableID ID) const {
-    return const_cast<DILocalVariable *>(getVariable(ID).getVariable());
-  }
-  /// Return the DebugVariable represented by \p ID.
-  const DebugVariable &getVariable(VariableID ID) const {
-    return Variables[static_cast<unsigned>(ID)];
-  }
-
-  ///@name iterators
-  ///@{
-  /// First single-location variable location definition.
-  const VarLocInfo *single_locs_begin() const { return VarLocRecords.begin(); }
-  /// One past the last single-location variable location definition.
-  const VarLocInfo *single_locs_end() const {
-    const auto *It = VarLocRecords.begin();
-    std::advance(It, SingleVarLocEnd);
-    return It;
-  }
-  /// First variable location definition that comes before \p Before.
-  const VarLocInfo *locs_begin(const Instruction *Before) const {
-    auto Span = VarLocsBeforeInst.lookup(Before);
-    const auto *It = VarLocRecords.begin();
-    std::advance(It, Span.first);
-    return It;
-  }
-  /// One past the last variable location definition that comes before \p
-  /// Before.
-  const VarLocInfo *locs_end(const Instruction *Before) const {
-    auto Span = VarLocsBeforeInst.lookup(Before);
-    const auto *It = VarLocRecords.begin();
-    std::advance(It, Span.second);
-    return It;
-  }
-  ///@}
-
-  void print(raw_ostream &OS, const Function &Fn) const;
-
-  ///@{
-  /// Non-const methods used by AssignmentTrackingAnalysis (which invalidate
-  /// analysis results if called incorrectly).
-  //void init(FunctionVarLocsBuilder &Builder);
-  void clear();
-  ///@}
-};
-
-using VarLocInsertPt = PointerUnion<const Instruction *, const DbgRecord *>;
-/// Helper class to build FunctionVarLocs, since that class isn't easy to
-/// modify. TODO: There's not a great deal of value in the split, it could be
-/// worth merging the two classes.
 class FunctionVarLocs {
+  /// Maps VarLocInfo.VariableID to a DebugVariable for VarLocRecords.
   UniqueVector<DebugVariable> Variables;
-  // Use an unordered_map so we don't invalidate iterators after
-  // insert/modifications.
+  /// Variable locations grouped by the instruction they occur before.
   std::unordered_map<VarLocInsertPt, SmallVector<VarLocInfo>> VarLocsBeforeInst;
-
+  // Variables with a single location through the function.
   SmallVector<VarLocInfo> SingleLocVars;
 
 public:
-  void clear();
   void print(raw_ostream &OS, const Function &Fn) const;
 
   /// Return the DILocalVariable for the location definition represented by \p
@@ -164,6 +93,13 @@ public:
   ///@}
 
   unsigned getNumVariables() const { return Variables.size(); }
+
+  ///@{
+  /// Non-const methods used by AssignmentTrackingAnalysis (which invalidate
+  /// analysis results if called incorrectly).
+
+  /// Reset all state.
+  void clear();
 
   /// Find or insert \p V and return the ID.
   VariableID insertVariable(DebugVariable V) {
@@ -210,6 +146,7 @@ public:
     VarLoc.Values = R;
     VarLocsBeforeInst[Before].emplace_back(VarLoc);
   }
+  ///@}
 };
 
 class DebugAssignmentTrackingAnalysis

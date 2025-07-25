@@ -2677,12 +2677,10 @@ DebugAssignmentTrackingAnalysis::run(Function &F,
 
   auto &DL = F.getDataLayout();
 
-  FunctionVarLocs Builder;
-  analyzeFunction(F, DL, &Builder);
+  FunctionVarLocs Results;
+  analyzeFunction(F, DL, &Results);
 
   // Save these results.
-  FunctionVarLocs Results;
-  //Results.init(Builder);
   return Results;
 }
 
