@@ -134,39 +134,6 @@ void FunctionVarLocs::print(raw_ostream &OS, const Function &Fn) const {
   }
 }
 
-#if 0
-void FunctionVarLocs::init(FunctionVarLocs &Builder) {
-  // Add the single-location variables first.
-  for (const auto &VarLoc : Builder.SingleLocVars)
-    VarLocRecords.emplace_back(VarLoc);
-  // Mark the end of the section.
-  SingleVarLocEnd = VarLocRecords.size();
-
-  // Insert a contiguous block of VarLocInfos for each instruction, mapping it
-  // to the start and end position in the vector with VarLocsBeforeInst. This
-  // block includes VarLocs for any DbgVariableRecords attached to that
-  // instruction.
-  for (auto &P : Builder.VarLocsBeforeInst) {
-    const Instruction *I = P.first;
-    unsigned BlockStart = VarLocRecords.size();
-    for (const VarLocInfo &VarLoc : P.second)
-      VarLocRecords.emplace_back(VarLoc);
-    unsigned BlockEnd = VarLocRecords.size();
-    // Record the start and end indices.
-    if (BlockEnd != BlockStart)
-      VarLocsBeforeInst[I] = {BlockStart, BlockEnd};
-  }
-
-  // Copy the Variables vector from the builder's UniqueVector.
-  assert(Variables.empty() && "Expect clear before init");
-  // UniqueVectors IDs are one-based (which means the VarLocInfo VarID values
-  // are one-based) so reserve an extra and insert a dummy.
-  Variables.reserve(Builder.Variables.size() + 1);
-  Variables.push_back(DebugVariable(nullptr, std::nullopt, nullptr));
-  Variables.append(Builder.Variables.begin(), Builder.Variables.end());
-}
-#endif
-
 void FunctionVarLocs::clear() {
   // UniqueVector<T>::reset only works if T can be cast from 0.
   Variables = decltype(Variables)();
