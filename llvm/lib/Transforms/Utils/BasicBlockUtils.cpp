@@ -384,7 +384,7 @@ DbgVariableRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
     for (DbgVariableRecord &DR :
-         reverse(make_early_inc_range(filterDbgVars(I.getDbgRecordRange())))) {
+         make_early_inc_range(reverse(filterDbgVars(I.getDbgRecordRange())))) {
       DbgVariableRecord &DVR = cast<DbgVariableRecord>(DR);
 
       DebugVariable Key(DVR.getVariable(), DVR.getExpression(),
