@@ -27,6 +27,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -45,6 +46,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -383,10 +385,15 @@ DbgVariableRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
   bool RemovedAny = false;
   SmallDenseSet<DebugVariable> VariableSet;
   for (auto &I : reverse(*BB)) {
-    for (DbgVariableRecord &DR :
-         make_early_inc_range(reverse(filterDbgVars(I.getDbgRecordRange())))) {
-      DbgVariableRecord &DVR = cast<DbgVariableRecord>(DR);
+    auto Range = I.getDbgRecordRange();
+    auto NextIt = std::prev(Range.end());
+    auto EndIt = std::prev(Range.begin());
+    while (NextIt != EndIt) {
+      DbgRecord &Rec = *NextIt--;// Early-inc for record deletion.
 
+      if (!isa<DbgVariableRecord>(&Rec))
+        continue;
+      DbgVariableRecord &DVR = *dyn_cast<DbgVariableRecord>(&Rec);
       DebugVariable Key(DVR.getVariable(), DVR.getExpression(),
                         DVR.getDebugLoc()->getInlinedAt());
       auto R = VariableSet.insert(Key);
@@ -404,7 +411,15 @@ DbgVariableRecordsRemoveRedundantDbgInstrsUsingBackwardScan(BasicBlock *BB) {
       }
 
       RemovedAny = true;
+      bool Blarg = false;
+      if (DVR.getIterator() != Range.begin()) {
+        NextIt =  DVR.getPrevNode()->getIterator();
+        Blarg = true;
+      }
+
       DVR.eraseFromParent();
+      if (!Blarg)
+        break;
     }
     // Sequence with consecutive dbg.value instrs ended. Clear the map to
     // restart identifying redundant instructions if case we find another
