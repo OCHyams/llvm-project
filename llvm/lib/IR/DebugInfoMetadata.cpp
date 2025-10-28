@@ -227,6 +227,7 @@ struct ScopeLocationsMatcher {
 };
 
 DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
+  uint32_t MERGED_LINE = int32_t(-1);
   if (LocA == LocB)
     return LocA;
 
@@ -307,7 +308,7 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
   // inlined-at location for the created location.
   auto *LocAIA = LocA->getInlinedAt();
   auto *LocBIA = LocB->getInlinedAt();
-  auto MergeLocPair = [&C, LocAIA,
+  auto MergeLocPair = [&C, LocAIA, MERGED_LINE,
                        LocBIA](const DILocation *L1, const DILocation *L2,
                                DILocation *InlinedAt) -> DILocation * {
     if (L1 == L2)
@@ -347,7 +348,7 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
 
     bool SameLine = L1->getLine() == L2->getLine();
     bool SameCol = L1->getColumn() == L2->getColumn();
-    unsigned Line = SameLine ? L1->getLine() : 0;
+    unsigned Line = SameLine ? L1->getLine() : MERGED_LINE;
     unsigned Col = SameLine && SameCol ? L1->getColumn() : 0;
     bool IsImplicitCode = L1->isImplicitCode() && L2->isImplicitCode();
 
@@ -418,7 +419,7 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
   // way to handle this.
   // Key Instructions: it's fine to drop atom group and rank here, as line 0
   // is a nonsensical is_stmt location.
-  return DILocation::get(C, 0, 0, LocA->getScope(), nullptr, false,
+  return DILocation::get(C, MERGED_LINE, 0, LocA->getScope(), nullptr, false,
                          /*AtomGroup*/ 0, /*AtomRank*/ 0);
 }
 

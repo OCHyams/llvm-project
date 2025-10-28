@@ -64,6 +64,10 @@ using namespace llvm;
 #define DEBUG_TYPE "dwarfdebug"
 
 STATISTIC(NumCSParams, "Number of dbg call site params created");
+STATISTIC(NumInstrs, "num instrs");
+STATISTIC(NumDebugLoc, "instrs with DebugLoc");
+STATISTIC(NumLineZero, "Num line 0 instrs");
+STATISTIC(NumMergedLoc, "Num merged loc instrs");
 
 static cl::opt<bool> UseDwarfRangesBaseAddressSpecifier(
     "use-dwarf-ranges-base-address-specifier", cl::Hidden,
@@ -2027,6 +2031,11 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
   }
 }
 
+static unsigned GetLine(const DebugLoc &DL) {
+  return DL.getLine() == int32_t(-1)? 0u : DL.getLine();
+};
+
+
 // Process beginning of an instruction.
 void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   const MachineFunction &MF = *MI->getMF();
@@ -2092,17 +2101,27 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // Check if source location changes, but ignore DBG_VALUE and CFI locations.
   // If the instruction is part of the function frame setup code, do not emit
   // any line record, as there is no correspondence with any user code.
-  if (MI->isMetaInstruction())
-    return;
   if (MI->getFlag(MachineInstr::FrameSetup)) {
-    // Prevent a loc from the previous block leaking into frame setup instrs.
-    if (LastAsmLine && PrevInstBB && PrevInstBB != MI->getParent())
-      RecordLineZero();
-    return;
+    if (LastAsmLine)
+      NumLineZero++;
+    else
+      NumDebugLoc++; // inherited a line num...
   }
+  if (MI->isMetaInstruction() || MI->getFlag(MachineInstr::FrameSetup))
+    return;
+
+  NumInstrs++;
 
   const DebugLoc &DL = MI->getDebugLoc();
   unsigned Flags = 0;
+
+  if (DL) {
+    NumDebugLoc++;
+    if (!GetLine(DL))
+      NumLineZero++;
+    if (DL.getLine() == int32_t(-1))
+      NumMergedLoc++;
+  }
 
   if (MI->getFlag(MachineInstr::FrameDestroy) && DL) {
     const MachineBasicBlock *MBB = MI->getParent();
@@ -2119,7 +2138,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
       raw_svector_ostream OS(LocationString);
       DL.print(OS);
     }
-    recordSourceLine(DL.getLine(), DL.getCol(), DL.getScope(), Flags,
+    recordSourceLine(GetLine(DL), DL.getCol(), DL.getScope(), Flags,
                      LocationString);
   };
 
@@ -2133,7 +2152,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
       DL->getScope()->getSubprogram()->getKeyInstructionsEnabled();
 
   bool IsKey = false;
-  if (ScopeUsesKeyInstructions && DL && DL.getLine())
+  if (ScopeUsesKeyInstructions && DL && GetLine(DL))
     IsKey = KeyInstructions.contains(MI);
 
   if (!DL && MI == PrologEndLoc) {
@@ -2160,7 +2179,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     if (!IsKey) {
       // We have an explicit location, same as the previous location.
       // But we might be coming back to it after a line 0 record.
-      if ((LastAsmLine == 0 && DL.getLine() != 0) || Flags) {
+      if ((LastAsmLine == 0 && GetLine(DL) != 0) || Flags) {
         // Reinstate the source location but not marked as a statement.
         RecordSourceLine(DL, Flags);
       }
@@ -2169,6 +2188,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   }
 
   if (!DL) {
+    NumLineZero++;
     // FIXME: We could assert that `DL.getKind() != DebugLocKind::Temporary`
     // here, or otherwise record any temporary DebugLocs seen to ensure that
     // transient compiler-generated instructions aren't leaking their DLs to
@@ -2196,7 +2216,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // We have an explicit location, different from the previous location.
   // Don't repeat a line-0 record, but otherwise emit the new location.
   // (The new location might be an explicit line 0, which we do emit.)
-  if (DL.getLine() == 0 && LastAsmLine == 0)
+  if (GetLine(DL) == 0 && LastAsmLine == 0)
     return;
   if (MI == PrologEndLoc) {
     Flags |= DWARF2_FLAG_PROLOGUE_END | DWARF2_FLAG_IS_STMT;
@@ -2209,15 +2229,15 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   } else {
     // If the line changed, we call that a new statement; unless we went to
     // line 0 and came back, in which case it is not a new statement.
-    unsigned OldLine = PrevInstLoc ? PrevInstLoc.getLine() : LastAsmLine;
-    if (DL.getLine() && (DL.getLine() != OldLine || ForceIsStmt))
+    unsigned OldLine = PrevInstLoc ? GetLine(PrevInstLoc) : LastAsmLine;
+    if (GetLine(DL) && (GetLine(DL) != OldLine || ForceIsStmt))
       Flags |= DWARF2_FLAG_IS_STMT;
   }
 
   RecordSourceLine(DL, Flags);
 
   // If we're not at line 0, remember this location.
-  if (DL.getLine())
+  if (GetLine(DL))
     PrevInstLoc = DL;
 }
 
