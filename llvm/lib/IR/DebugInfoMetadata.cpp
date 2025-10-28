@@ -40,6 +40,12 @@ cl::opt<bool> EnableFSDiscriminator(
 LLVM_ABI cl::opt<bool> PickMergedSourceLocations(
     "pick-merged-source-locations", cl::init(false), cl::Hidden,
     cl::desc("Preserve line and column number when merging locations."));
+
+// Applies PickMergedSourceLocations logic if the merged locations have
+// the same scope.
+LLVM_ABI cl::opt<bool>
+    PickMergedLocInSameScope("pick-merged-source-locations-scopes",
+                             cl::init(true), cl::Hidden, cl::desc(""));
 } // namespace llvm
 
 uint32_t DIType::getAlignInBits() const {
@@ -229,7 +235,10 @@ DILocation *DILocation::getMergedLocation(DILocation *LocA, DILocation *LocB) {
   // rather than computing a merged location using line 0, which is typically
   // not useful for PGO. If one of them is null, then try to return one which is
   // valid.
-  if (PickMergedSourceLocations) {
+  bool MergeInScope = PickMergedLocInSameScope && LocA && LocB &&
+                      LocA->getScope() == LocB->getScope() &&
+                      LocA->getInlinedAt() == LocB->getInlinedAt();
+  if (PickMergedSourceLocations || MergeInScope) {
     if (!LocA || !LocB)
       return LocA ? LocA : LocB;
 
