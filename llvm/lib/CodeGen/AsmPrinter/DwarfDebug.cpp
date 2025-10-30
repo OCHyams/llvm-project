@@ -2030,8 +2030,12 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
     }
   }
 }
+// 68 (+100%), 34 (+200%)
+cl::opt<unsigned> MergedLocNum("xxx", cl::init(-1));
 
 static unsigned GetLine(const DebugLoc &DL) {
+  if (NumDebugLoc % MergedLocNum == 0) // roughly double the number of line zeros.
+    return 0u;
   return DL.getLine() == int32_t(-1)? 0u : DL.getLine();
 };
 
@@ -2119,7 +2123,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     NumDebugLoc++;
     if (!GetLine(DL))
       NumLineZero++;
-    if (DL.getLine() == int32_t(-1))
+    if (DL.getLine() == int32_t(-1) || NumDebugLoc % MergedLocNum == 0)
       NumMergedLoc++;
   }
 
