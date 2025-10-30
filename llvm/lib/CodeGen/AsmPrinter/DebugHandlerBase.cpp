@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/CommandLine.h"
@@ -102,11 +103,15 @@ DebugHandlerBase::DebugHandlerBase(AsmPrinter *A) : Asm(A), MMI(Asm->MMI) {}
 
 DebugHandlerBase::~DebugHandlerBase() = default;
 
+static void lineZeroInserter(Module *);
+
 void DebugHandlerBase::beginModule(Module *M) {
   if (M->debug_compile_units().empty())
     Asm = nullptr;
-  else
+  else {
+    lineZeroInserter(M);
     LScopes.initialize(*M);
+  }
 }
 
 // Each LexicalScope has first instruction and last instruction to mark
@@ -440,4 +445,55 @@ void DebugHandlerBase::beginBasicBlockSection(const MachineBasicBlock &MBB) {
 
 void DebugHandlerBase::endBasicBlockSection(const MachineBasicBlock &MBB) {
   PrevLabel = nullptr;
+}
+
+cl::opt<int> XXXTargtPercentage("xxx-target-percentage", cl::init(0));
+static void lineZeroInserter(Module *M) {
+  if (!XXXTargtPercentage)
+    return;
+
+  // Count the number of instructions.
+  uint64_t NumInstr = 0;
+  uint64_t NumBr = 0;
+  uint64_t LineZeroCountBefore = 0;
+  for (auto &F : *M) {
+    for (auto &BB: F) {
+      for (auto &I : BB) {
+        if (isa<BranchInst>(I))
+          NumBr++;
+        NumInstr++;
+        if (I.getDebugLoc() && !I.getDebugLoc()->getLine())
+          LineZeroCountBefore++;
+      }
+    }
+  }
+
+  uint64_t Numerator = NumBr; // or whatever else we want.
+  uint64_t NthInst = static_cast<uint64_t>((double)Numerator / (100.f / (double)XXXTargtPercentage));
+
+  {
+    uint64_t InstCounter = 0;
+    uint64_t NumInserted = 0;
+    for (auto &F : *M) {
+      for (auto &BB: F) {
+        for (auto &I : BB) {
+          if (isa<BranchInst>(I)) {
+            InstCounter++;
+            if (InstCounter % NthInst == 0) {
+              if (!I.getDebugLoc()|| !I.getDebugLoc()->getLine())
+                continue;
+              DILocation *DL = I.getDebugLoc();
+              I.setDebugLoc(DILocation::get(I.getContext(), 0, DL->getColumn(), DL->getScope(), DL->getInlinedAt(), DL->isImplicitCode(), DL->getAtomGroup(), DL->getAtomRank()));
+              NumInserted++;
+            }
+          }
+        }
+      }
+    }
+    errs() << "Inserting line zeros on branches.";
+    errs() << "  Target branches to convert: " << XXXTargtPercentage << "%\n";
+    errs() << "  Number of instructions with line zero before: " << NumBr << "\n";
+    errs() << "  Number of branches: " << NumBr << "\n";
+    errs() << "  Number of line zeros inserted: " << NumInserted <<"\n";
+  }
 }
