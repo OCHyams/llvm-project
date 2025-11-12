@@ -103,13 +103,13 @@ DebugHandlerBase::DebugHandlerBase(AsmPrinter *A) : Asm(A), MMI(Asm->MMI) {}
 
 DebugHandlerBase::~DebugHandlerBase() = default;
 
-static void lineZeroInserter(Module *);
+static void lineZeroInserter(MachineModuleInfo *, Module *);
 
 void DebugHandlerBase::beginModule(Module *M) {
   if (M->debug_compile_units().empty())
     Asm = nullptr;
   else {
-    lineZeroInserter(M);
+    lineZeroInserter(MMI, M);
     LScopes.initialize(*M);
   }
 }
@@ -448,7 +448,7 @@ void DebugHandlerBase::endBasicBlockSection(const MachineBasicBlock &MBB) {
 }
 
 cl::opt<int> XXXTargtPercentage("xxx-target-percentage", cl::init(0));
-static void lineZeroInserter(Module *M) {
+static void lineZeroInserter(MachineModuleInfo *MMI, Module *M) {
   if (!XXXTargtPercentage)
     return;
 
@@ -456,22 +456,27 @@ static void lineZeroInserter(Module *M) {
   uint64_t NumInstr = 0;
   uint64_t NumBr = 0;
   uint64_t LineZeroCountBefore = 0;
+  uint64_t BrLineZeroCountBefore = 0;
   for (auto &F : *M) {
-    for (auto &BB: F) {
-      for (auto &I : BB) {
-        if (isa<BranchInst>(I))
+    MachineFunction *MF = MMI->getMachineFunction(F);
+    if (!MF)
+      continue;
+    for (auto &MBB: *MF) {
+      for (auto &MI : MBB) {
+        if (MI.isBranch()) {
           NumBr++;
+          if (MI.getDebugLoc() && !MI.getDebugLoc()->getLine())
+            BrLineZeroCountBefore++;
+        }
         NumInstr++;
-        if (I.getDebugLoc() && !I.getDebugLoc()->getLine())
+        if (MI.getDebugLoc() && !MI.getDebugLoc()->getLine())
           LineZeroCountBefore++;
       }
     }
   }
 
-  uint64_t Numerator = NumBr; // or whatever else we want.
-  uint64_t NthInst = static_cast<uint64_t>((double)Numerator / (100.f / (double)XXXTargtPercentage));
-
   {
+    uint64_t NthInst = llvm::divideCeil(100.0, (double)XXXTargtPercentage);
     uint64_t InstCounter = 0;
     uint64_t NumInserted = 0;
     for (auto &F : *M) {
@@ -480,10 +485,12 @@ static void lineZeroInserter(Module *M) {
           if (isa<BranchInst>(I)) {
             InstCounter++;
             if (InstCounter % NthInst == 0) {
-              if (!I.getDebugLoc()|| !I.getDebugLoc()->getLine())
+              if (!I.getDebugLoc() || !I.getDebugLoc()->getLine())
                 continue;
               DILocation *DL = I.getDebugLoc();
-              I.setDebugLoc(DILocation::get(I.getContext(), 0, DL->getColumn(), DL->getScope(), DL->getInlinedAt(), DL->isImplicitCode(), DL->getAtomGroup(), DL->getAtomRank()));
+              I.setDebugLoc(DILocation::get(I.getContext(), 0, DL->getColumn(),
+                  DL->getScope(), DL->getInlinedAt(), DL->isImplicitCode(),
+                  DL->getAtomGroup(), DL->getAtomRank()));
               NumInserted++;
             }
           }
@@ -492,7 +499,9 @@ static void lineZeroInserter(Module *M) {
     }
     errs() << "Inserting line zeros on branches.";
     errs() << "  Target branches to convert: " << XXXTargtPercentage << "%\n";
-    errs() << "  Number of instructions with line zero before: " << NumBr << "\n";
+    errs() << "  Number of instructions with line zero before: " << LineZeroCountBefore << "\n";
+    errs() << "  Number of branches with line zero before: " << BrLineZeroCountBefore << "\n";
+    errs() << "  Number of instructions: " << NumInstr << "\n";
     errs() << "  Number of branches: " << NumBr << "\n";
     errs() << "  Number of line zeros inserted: " << NumInserted <<"\n";
   }
