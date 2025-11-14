@@ -178,6 +178,10 @@ static cl::opt<bool> LineZeroBranches(
     "line-zero-branches", cl::Hidden,
     cl::desc("Set all branch source locs to line zero for experimentation"),
     cl::init(false));
+static cl::opt<bool> LineZeroCalls(
+    "line-zero-calls", cl::Hidden,
+    cl::desc("Set all call source locs to line zero for experimentation"),
+    cl::init(false));
 
 static constexpr unsigned ULEB128PadSize = 4;
 
@@ -2098,7 +2102,9 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
 
   /*const */ DebugLoc DL = MI->getDebugLoc();
   // XXX - Line zero on all branches, how bad is this? let's find out.
-  if (LineZeroBranches && DL && MI->isBranch()) {
+  bool ApplyLineZero = DL && LineZeroCalls && MI->isCall();
+  ApplyLineZero |= DL && LineZeroBranches && MI->isBranch();
+  if (ApplyLineZero) {
     DL = DILocation::get(
         MI->getParent()->getParent()->getFunction().getContext(), 0,
         DL->getColumn(), DL->getScope(), DL->getInlinedAt(),
