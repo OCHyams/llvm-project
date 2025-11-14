@@ -174,6 +174,11 @@ static cl::opt<bool> KeyInstructionsAreStmts(
     "dwarf-use-key-instructions", cl::Hidden, cl::init(true),
     cl::desc("Set to false to ignore Key Instructions metadata"));
 
+static cl::opt<bool> LineZeroBranches(
+    "line-zero-branches", cl::Hidden,
+    cl::desc("Set all branch source locs to line zero for experimentation"),
+    cl::init(false));
+
 static constexpr unsigned ULEB128PadSize = 4;
 
 void DebugLocDwarfExpression::emitOp(uint8_t Op, const char *Comment) {
@@ -2091,7 +2096,14 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
     return;
   }
 
-  const DebugLoc &DL = MI->getDebugLoc();
+  /*const */ DebugLoc DL = MI->getDebugLoc();
+  // XXX - Line zero on all branches, how bad is this? let's find out.
+  if (LineZeroBranches && DL && MI->isBranch()) {
+    DL = DILocation::get(
+        MI->getParent()->getParent()->getFunction().getContext(), 0,
+        DL->getColumn(), DL->getScope(), DL->getInlinedAt(),
+        DL->isImplicitCode(), DL->getAtomGroup(), DL->getAtomRank());
+  }
   unsigned Flags = 0;
 
   if (MI->getFlag(MachineInstr::FrameDestroy) && DL) {
