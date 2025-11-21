@@ -1327,28 +1327,13 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(
 
   if (CallReg) {
     // Indirect call.
-    if (MemOffset) {
-      // DIELoc *Loc = new (DIEValueAllocator) DIELoc;
-      // DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
-      // DwarfExpr.addBReg()
-      // allReg, Offset
-      DIExpression *E;
-      if (Offset >= 0)
-        E = DIExpression::get(Asm->MF->getFunction().getContext(),
-                              {dwarf::DW_OP_plus_uconst, (uint64_t)Offset});
-      else
-        E = DIExpression::get(Asm->MF->getFunction().getContext(),
-                              {dwarf::DW_OP_minus, (uint64_t)-Offset});
-      addComplexAddress(E, CallSiteDIE,
+    if (MemOffset)
+      addMemoryLocation(CallSiteDIE,
                         getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
-                        MachineLocation(CallReg, true));
-      //    addBlock(*CallSiteDieParam,
-      //    getDwarf5OrGNUAttr(dwarf::DW_AT_call_value),
-      // DwarfExpr.finalize());
-    } else {
+                        MachineLocation(CallReg, true), Offset);
+    else
       addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
                  MachineLocation(CallReg));
-    }
   } else if (CalleeSP) {
     DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP, CalleeF);
     assert(CalleeDIE && "Could not create DIE for call site entry origin");
@@ -1661,15 +1646,15 @@ void DwarfCompileUnit::addVariableAddress(const DbgVariable &DV, DIE &Die,
     addAddress(Die, dwarf::DW_AT_location, Location);
 }
 
-/// Add an address attribute to a die based on the location provided.
-void DwarfCompileUnit::addAddress(DIE &Die, dwarf::Attribute Attribute,
-                                  const MachineLocation &Location) {
+void DwarfCompileUnit::addLocationWithExpr(DIE &Die, dwarf::Attribute Attribute,
+                                           const MachineLocation &Location,
+                                           ArrayRef<uint64_t> Expr) {
   DIELoc *Loc = new (DIEValueAllocator) DIELoc;
   DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
   if (Location.isIndirect())
     DwarfExpr.setMemoryLocationKind();
 
-  DIExpressionCursor Cursor({});
+  DIExpressionCursor Cursor(Expr);
   const TargetRegisterInfo &TRI = *Asm->MF->getSubtarget().getRegisterInfo();
   if (!DwarfExpr.addMachineRegExpression(TRI, Cursor, Location.getReg()))
     return;
@@ -1681,6 +1666,21 @@ void DwarfCompileUnit::addAddress(DIE &Die, dwarf::Attribute Attribute,
   if (DwarfExpr.TagOffset)
     addUInt(Die, dwarf::DW_AT_LLVM_tag_offset, dwarf::DW_FORM_data1,
             *DwarfExpr.TagOffset);
+}
+
+/// Add an address attribute to a die based on the location provided.
+void DwarfCompileUnit::addAddress(DIE &Die, dwarf::Attribute Attribute,
+                                  const MachineLocation &Location) {
+  addLocationWithExpr(Die, Attribute, Location, {});
+}
+
+void DwarfCompileUnit::addMemoryLocation(DIE &Die, dwarf::Attribute Attribute,
+                                         const MachineLocation &Location,
+                                         int64_t Offset) {
+  assert(Location.isIndirect() && "Memory loc should be indirect");
+  SmallVector<uint64_t, 3> Ops;
+  DIExpression::appendOffset(Ops, Offset);
+  addLocationWithExpr(Die, Attribute, Location, Ops);
 }
 
 /// Start with the address based on the location provided, and generate the

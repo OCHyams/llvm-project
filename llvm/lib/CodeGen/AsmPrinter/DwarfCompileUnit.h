@@ -160,6 +160,12 @@ class DwarfCompileUnit final : public DwarfUnit {
   DIE &createAbstractSubprogramDIE(const DISubprogram *SP, DIE *ContextDIE,
                                    DwarfCompileUnit *ContextCU);
 
+  /// Add a location exprloc to \p DIE with attribute \p Attribute at
+  /// for \p Location modified by raw DIExpression \p Expr.
+  void addLocationWithExpr(DIE &Die, dwarf::Attribute Attribute,
+                           const MachineLocation &Location,
+                           ArrayRef<uint64_t> Expr);
+
 public:
   DwarfCompileUnit(unsigned UID, const DICompileUnit *Node, AsmPrinter *A,
                    DwarfDebug *DW, DwarfFile *DWU,
@@ -390,6 +396,10 @@ public:
   void addAddress(DIE &Die, dwarf::Attribute Attribute,
                   const MachineLocation &Location);
 
+  /// Add a memory location exprloc to \p DIE with attribute \p Attribute
+  /// at \p Location + \p Offset.
+  void addMemoryLocation(DIE &Die, dwarf::Attribute Attribute,
+                         const MachineLocation &Location, int64_t Offset);
   /// Start with the address based on the location provided, and generate the
   /// DWARF information necessary to find the actual variable (navigating the
   /// extra location information encoded in the type) based on the starting
