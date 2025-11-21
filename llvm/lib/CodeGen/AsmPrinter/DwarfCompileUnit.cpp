@@ -15,6 +15,7 @@
 #include "DwarfExpression.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/DIE.h"
@@ -1319,15 +1320,35 @@ DwarfCompileUnit::getDwarf5OrGNULocationAtom(dwarf::LocationAtom Loc) const {
 DIE &DwarfCompileUnit::constructCallSiteEntryDIE(
     DIE &ScopeDIE, const DISubprogram *CalleeSP, const Function *CalleeF,
     bool IsTail, const MCSymbol *PCAddr, const MCSymbol *CallAddr,
-    unsigned CallReg, DIType *AllocSiteTy) {
+    unsigned CallReg, int64_t Offset, bool MemOffset, DIType *AllocSiteTy) {
   // Insert a call site entry DIE within ScopeDIE.
   DIE &CallSiteDIE = createAndAddDIE(getDwarf5OrGNUTag(dwarf::DW_TAG_call_site),
                                      ScopeDIE, nullptr);
 
   if (CallReg) {
     // Indirect call.
-    addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
-               MachineLocation(CallReg));
+    if (MemOffset) {
+      // DIELoc *Loc = new (DIEValueAllocator) DIELoc;
+      // DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
+      // DwarfExpr.addBReg()
+      // allReg, Offset
+      DIExpression *E;
+      if (Offset >= 0)
+        E = DIExpression::get(Asm->MF->getFunction().getContext(),
+                              {dwarf::DW_OP_plus_uconst, (uint64_t)Offset});
+      else
+        E = DIExpression::get(Asm->MF->getFunction().getContext(),
+                              {dwarf::DW_OP_minus, (uint64_t)-Offset});
+      addComplexAddress(E, CallSiteDIE,
+                        getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
+                        MachineLocation(CallReg, true));
+      //    addBlock(*CallSiteDieParam,
+      //    getDwarf5OrGNUAttr(dwarf::DW_AT_call_value),
+      // DwarfExpr.finalize());
+    } else {
+      addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
+                 MachineLocation(CallReg));
+    }
   } else if (CalleeSP) {
     DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP, CalleeF);
     assert(CalleeDIE && "Could not create DIE for call site entry origin");

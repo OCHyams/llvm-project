@@ -949,18 +949,37 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
           CalleeOp.isReg() && CalleeOp.getReg().isPhysical();
       // Hack: WebAssembly CALL instructions have MCInstrDesc that does not
       // describe the call target operand.
-      if (CalleeOp.getOperandNo() < MI.getDesc().operands().size()) {
-        const MCOperandInfo &MCOI =
-            MI.getDesc().operands()[CalleeOp.getOperandNo()];
-        PhysRegCalleeOperand =
-            PhysRegCalleeOperand && MCOI.OperandType == MCOI::OPERAND_REGISTER;
-      }
+      // if (CalleeOp.getOperandNo() < MI.getDesc().operands().size()) {
+      //   const MCOperandInfo &MCOI =
+      //       MI.getDesc().operands()[CalleeOp.getOperandNo()];
+      //   PhysRegCalleeOperand =
+      //       PhysRegCalleeOperand && MCOI.OperandType ==
+      //       MCOI::OPERAND_REGISTER;
+      // }
+
+      // This succeeds for memory-indirect calls on targets that model them
+      // with a standard memory operand (e.g. x86 CALL*m).
 
       unsigned CallReg = 0;
+      int64_t Offset = 0;
+      bool MemOffset = false;
       const DISubprogram *CalleeSP = nullptr;
       const Function *CalleeDecl = nullptr;
       if (PhysRegCalleeOperand) {
-        CallReg = CalleeOp.getReg(); // might be zero
+        bool Scalable = false;
+        const MachineOperand *BaseOp = nullptr;
+        const TargetRegisterInfo &TRI =
+            *Asm->MF->getSubtarget().getRegisterInfo();
+        if (TII->getMemOperandWithOffset(MI, BaseOp, Offset, Scalable, &TRI)) {
+          if (BaseOp && BaseOp->isReg() && !Scalable) {
+            CallReg = BaseOp->getReg();
+            MemOffset = true;
+          }
+        }
+
+        if (!MemOffset)
+          CallReg = CalleeOp.getReg(); // Might be zero.
+
       } else if (CalleeOp.isGlobal()) {
         CalleeDecl = dyn_cast<Function>(CalleeOp.getGlobal());
         if (CalleeDecl)
@@ -1004,9 +1023,9 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
                                                        ->getName(CallReg)))
                         << (IsTail ? " [IsTail]" : "") << "\n");
 
-      DIE &CallSiteDIE =
-          CU.constructCallSiteEntryDIE(ScopeDIE, CalleeSP, CalleeDecl, IsTail,
-                                       PCAddr, CallAddr, CallReg, AllocSiteTy);
+      DIE &CallSiteDIE = CU.constructCallSiteEntryDIE(
+          ScopeDIE, CalleeSP, CalleeDecl, IsTail, PCAddr, CallAddr, CallReg,
+          Offset, MemOffset, AllocSiteTy);
 
       // Optionally emit call-site-param debug info.
       if (emitDebugEntryValues()) {
