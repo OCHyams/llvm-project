@@ -1324,6 +1324,7 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(
   DIE &CallSiteDIE = createAndAddDIE(getDwarf5OrGNUTag(dwarf::DW_TAG_call_site),
                                      ScopeDIE, nullptr);
 
+  // A valid register in CallTarget indicates an indirect call.
   if (CallTarget.getReg()) {
     // CallTarget is the location of the address of an indirect call. The
     // location may be indirect, modified by Offset.
