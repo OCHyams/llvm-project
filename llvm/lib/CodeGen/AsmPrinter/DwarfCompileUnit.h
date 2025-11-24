@@ -315,17 +315,17 @@ public:
   /// \p IsTail specifies whether the call is a tail call.
   /// \p PCAddr points to the PC value after the call instruction.
   /// \p CallAddr points to the PC value at the call instruction (or is null).
-  /// \p CallReg is a register location for an indirect call, or base register
-  ///            for a memory location if \p MemOffset is true. For direct
-  ///            calls the \p CallReg is set to 0.
-  /// \p Offset is the offset from base register if \p MemOffset is true.
+  /// \p CallTarget a location holding the target address for an indirect call.
+  /// For direct
+  ///            calls \p CallTarget register is set to 0.
+  /// \p Offset from \p CallTarget register value if the location is indirect.
   /// \p MemOffset determines whether to create a register (false) or memory
   //               (true) location.
   DIE &constructCallSiteEntryDIE(DIE &ScopeDIE, const DISubprogram *CalleeSP,
                                  const Function *CalleeF, bool IsTail,
                                  const MCSymbol *PCAddr,
-                                 const MCSymbol *CallAddr, unsigned CallReg,
-                                 int64_t Offset, bool MemOffset,
+                                 const MCSymbol *CallAddr,
+                                 MachineLocation CallTarget, int64_t Offset,
                                  DIType *AllocSiteTy);
   /// Construct call site parameter DIEs for the \p CallSiteDIE. The \p Params
   /// were collected by the \ref collectCallSiteParameters.

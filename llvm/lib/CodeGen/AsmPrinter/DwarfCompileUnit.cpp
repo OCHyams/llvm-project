@@ -1320,20 +1320,21 @@ DwarfCompileUnit::getDwarf5OrGNULocationAtom(dwarf::LocationAtom Loc) const {
 DIE &DwarfCompileUnit::constructCallSiteEntryDIE(
     DIE &ScopeDIE, const DISubprogram *CalleeSP, const Function *CalleeF,
     bool IsTail, const MCSymbol *PCAddr, const MCSymbol *CallAddr,
-    unsigned CallReg, int64_t Offset, bool MemOffset, DIType *AllocSiteTy) {
+    MachineLocation CallTarget, int64_t Offset, DIType *AllocSiteTy) {
   // Insert a call site entry DIE within ScopeDIE.
   DIE &CallSiteDIE = createAndAddDIE(getDwarf5OrGNUTag(dwarf::DW_TAG_call_site),
                                      ScopeDIE, nullptr);
 
-  if (CallReg) {
-    // Indirect call.
-    if (MemOffset)
+  if (CallTarget.getReg()) {
+    // CallTarget is the location of the address of an indirect call. The
+    // location may be indirect, modified by Offset.
+    if (CallTarget.isIndirect())
       addMemoryLocation(CallSiteDIE,
                         getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
-                        MachineLocation(CallReg, true), Offset);
+                        CallTarget, Offset);
     else
       addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
-                 MachineLocation(CallReg));
+                 CallTarget);
   } else if (CalleeSP) {
     DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP, CalleeF);
     assert(CalleeDIE && "Could not create DIE for call site entry origin");
