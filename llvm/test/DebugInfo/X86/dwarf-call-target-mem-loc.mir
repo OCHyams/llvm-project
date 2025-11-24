@@ -18,7 +18,7 @@
 ##   virtual int v() { return x * 2; }
 ##   int x;
 ## };
-## 
+##
 ## [[clang::noinline]]
 ## [[clang::disable_tail_calls]]
 ## int foo(Base* b) {
