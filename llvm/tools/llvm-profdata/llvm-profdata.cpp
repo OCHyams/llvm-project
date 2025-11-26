@@ -1685,12 +1685,12 @@ static void mergeSampleProfile(const WeightedFileVector &Inputs,
   }
 
   filterFunctions(ProfileMap);
-
+  errs() << "Writing to " << OutputFilename << "\n";
   auto WriterOrErr =
       SampleProfileWriter::create(OutputFilename, FormatMap[OutputFormat]);
   if (std::error_code EC = WriterOrErr.getError())
     exitWithErrorCode(EC, OutputFilename);
-
+  errs() << "Written to " << OutputFilename << "\n";
   auto Writer = std::move(WriterOrErr.get());
   // WriterList will have StringRef refering to string in Buffer.
   // Make sure Buffer lives as long as WriterList.

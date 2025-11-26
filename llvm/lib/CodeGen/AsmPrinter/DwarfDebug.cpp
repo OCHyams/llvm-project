@@ -182,6 +182,18 @@ static cl::opt<bool> LineZeroCalls(
     "line-zero-calls", cl::Hidden,
     cl::desc("Set all call source locs to line zero for experimentation"),
     cl::init(false));
+static cl::opt<bool> LineZeroNotCallsOrBranches(
+    "line-zero-not-call-or-br", cl::Hidden,
+    cl::desc("Set all instructions to line zero for experimentation except calls and jumps"),
+    cl::init(false));
+static cl::opt<unsigned> LineZeroNtInstr(
+    "line-zero-nth-instr", cl::Hidden,
+    cl::desc("Set every nth instructions with a non-zero source location to line zero"),
+    cl::init(0));
+static cl::opt<unsigned> NthInstrNotZero(
+    "not-line-zero-nth-instr", cl::Hidden,
+    cl::desc("Aim for one in N instructions not-line-zero"),
+    cl::init(0));
 
 static constexpr unsigned ULEB128PadSize = 4;
 
@@ -2025,7 +2037,8 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
     }
   }
 }
-
+thread_local uint64_t InstWithSrcLocSeen = 0;
+thread_local uint64_t L0InstrCounter = 0;
 // Process beginning of an instruction.
 void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   const MachineFunction &MF = *MI->getMF();
@@ -2104,6 +2117,27 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // XXX - Line zero on all branches, how bad is this? let's find out.
   bool ApplyLineZero = DL && LineZeroCalls && MI->isCall();
   ApplyLineZero |= DL && LineZeroBranches && MI->isBranch();
+  ApplyLineZero |= DL && (LineZeroNotCallsOrBranches && !MI->isBranch() && !MI->isCall());
+  if (LineZeroNtInstr != 0) {
+    if (DL && DL->getLine()) {
+      InstWithSrcLocSeen++;
+      if (InstWithSrcLocSeen == LineZeroNtInstr) {
+        InstWithSrcLocSeen = 0;
+        ApplyLineZero = true;
+      }
+    }
+  }
+  if (NthInstrNotZero != 0) {
+    assert(LineZeroNtInstr == 0);
+    // Make this instr line zero unless we hit the desired instr count.
+    if (DL && DL->getLine()) {
+      if (++L0InstrCounter < NthInstrNotZero)
+        ApplyLineZero = true;
+      else
+        L0InstrCounter = 0;
+    }
+  }
+
   if (ApplyLineZero) {
     DL = DILocation::get(
         MI->getParent()->getParent()->getFunction().getContext(), 0,
