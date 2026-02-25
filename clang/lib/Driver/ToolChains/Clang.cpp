@@ -4475,7 +4475,8 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   bool EmitDwarf = false;
   if (const Arg *A = getDwarfNArg(Args))
     EmitDwarf = checkDebugInfoOption(A, Args, D, TC);
-
+  EmitDwarf = true; // force debug info emission
+  CmdArgs.push_back("-debug-info-kind=constructor");
   bool EmitCodeView = false;
   if (const Arg *A = Args.getLastArg(options::OPT_gcodeview))
     EmitCodeView = checkDebugInfoOption(A, Args, D, TC);
@@ -4510,7 +4511,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   if (RequestedDWARFVersion == 0 &&
       DebugInfoKind == llvm::codegenoptions::DebugDirectivesOnly)
     DebugInfoKind = llvm::codegenoptions::NoDebugInfo;
-
+  RequestedDWARFVersion = 5;
   // strict DWARF is set to false by default. But for DBX, we need it to be set
   // as true by default.
   if (const Arg *A = Args.getLastArg(options::OPT_gstrict_dwarf))
