@@ -27,13 +27,17 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/PseudoProbe.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "instr-emitter"
 
-bool UsingDDDISel = true;
+bool UsingDDDISel = false;
+static cl::opt<bool, true> UsingDDDISelFlag("mir-dbg-records",
+                                            cl::location(UsingDDDISel),
+                                            cl::init(false));
 
 /// MinRCSize - Smallest register class we allow when constraining virtual
 /// registers.  If satisfying all register class constraints would require
