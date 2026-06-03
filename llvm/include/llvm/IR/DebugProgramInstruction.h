@@ -180,6 +180,7 @@ public:
   }
 
   Module *getModule() {
+    // xxx machine function has no member getParent
     return getFunction()->getParent();
   }
   const Module *getModule() const {
@@ -755,11 +756,9 @@ public:
   DIExpression *getExpression() const { return Expression.get(); }
   MDNode *getRawExpression() const { return Expression.getAsMDNode(); }
 
-#if 0
   LLVM_ABI void print(raw_ostream &O, bool IsForDebug = false) const;
   LLVM_ABI void print(raw_ostream &ROS, ModuleSlotTracker &MST,
                       bool IsForDebug) const;
-#endif
 
   /// Support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const DbgMachineRecord *E) {

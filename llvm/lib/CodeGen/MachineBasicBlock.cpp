@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -439,6 +440,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
 
   bool IsInBundle = false;
   for (const MachineInstr &MI : instrs()) {
+    for (const DbgMachineRecord &MR : MI.getDbgRecordRange())
+      MR.print(OS, MST, false);
+
     if (Indexes && PrintSlotIndexes) {
       if (Indexes->hasIndex(MI))
         OS << Indexes->getInstructionIndex(MI);

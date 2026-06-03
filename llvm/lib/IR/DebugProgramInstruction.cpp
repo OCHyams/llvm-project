@@ -7,9 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DebugProgramInstruction.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Support/Compiler.h"
 
 using namespace llvm;
@@ -761,5 +763,47 @@ DbgMachineVariableRecord::createDMVRPHI(Register R, DILocalVariable *Variable,
   return NewThing;
 }
 
+void DbgMachineVariableRecord::print(raw_ostream &O, bool IsForDebug) const {
+  const MachineFunction *MF = getFunction();
+  const Function *F = &MF->getFunction();
+  ModuleSlotTracker MST(F->getParent());
+  if (F)
+    MST.incorporateFunction(*F);
+  print(O, MST, IsForDebug);
+}
+
+void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
+                                     bool IsForDebug) const {
+  // XXX errr, when are we an instr ref and when are we a dbg_value
+  O << "#dbg_instr_ref";
+  O << "(";
+
+  const Module *Mod = getFunction()->getFunction().getParent();
+
+  auto PrintOrNull = [&](Metadata *M) {
+    if (!M)
+      O << "(null)";
+    else
+      M->printAsOperand(O, MST, Mod);
+  };
+
+  if (isRef()) {
+    interleave(
+        Refs, [&](auto R) { O << "(" << R.first << ", " << R.second << ")"; },
+        [&]() { O << ", "; });
+    PrintOrNull(getVariable());
+    O << ", ";
+    PrintOrNull(getExpression());
+    O << ", ";
+    PrintOrNull(getDebugLoc());
+    O << ", ";
+  } else if (isPHI()) {
+    O << "DBG_PHI";
+  } else {
+    assert(isValue());
+    O << "DBG_VALUE";
+  }
+  O << ")";
+}
 } // end namespace llvm
 
