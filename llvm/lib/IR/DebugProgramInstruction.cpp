@@ -775,9 +775,6 @@ void DbgMachineVariableRecord::print(raw_ostream &O, bool IsForDebug) const {
 void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
                                      bool IsForDebug) const {
   // XXX errr, when are we an instr ref and when are we a dbg_value
-  O << "#dbg_instr_ref";
-  O << "(";
-
   const Module *Mod = getFunction()->getFunction().getParent();
 
   auto PrintOrNull = [&](Metadata *M) {
@@ -787,23 +784,54 @@ void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
       M->printAsOperand(O, MST, Mod);
   };
 
+  O << "#dbg_instr_ref";
+  O << "(";
   if (isRef()) {
     interleave(
         Refs, [&](auto R) { O << "(" << R.first << ", " << R.second << ")"; },
         [&]() { O << ", "; });
+    O << ", ";
     PrintOrNull(getVariable());
     O << ", ";
     PrintOrNull(getExpression());
-    O << ", ";
-    PrintOrNull(getDebugLoc());
-    O << ", ";
   } else if (isPHI()) {
     O << "DBG_PHI";
   } else {
     assert(isValue());
     O << "DBG_VALUE";
   }
+
+  O << ", ";
+  PrintOrNull(getDebugLoc());
   O << ")";
 }
+
+void DbgMachineLabelRecord::print(raw_ostream &O, bool IsForDebug) const {
+  const MachineFunction *MF = getFunction();
+  const Function *F = &MF->getFunction();
+  ModuleSlotTracker MST(F->getParent());
+  if (F)
+    MST.incorporateFunction(*F);
+  print(O, MST, IsForDebug);
+}
+
+void DbgMachineLabelRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
+                                  bool IsForDebug) const {
+  // XXX errr, when are we an instr ref and when are we a dbg_value
+  const Module *Mod = getFunction()->getFunction().getParent();
+  auto PrintOrNull = [&](Metadata *M) {
+    if (!M)
+      O << "(null)";
+    else
+      M->printAsOperand(O, MST, Mod);
+  };
+
+  O << "#dbg_label";
+  O << "(";
+  PrintOrNull(getLabel());
+  PrintOrNull(getDebugLoc());
+  O << ")";
+}
+
 } // end namespace llvm
 
