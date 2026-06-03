@@ -794,6 +794,12 @@ void printMBB(raw_ostream &OS, MFPrintState &State,
     OS << "\n";
   bool IsInBundle = false;
   for (const MachineInstr &MI : MBB.instrs()) {
+    for (const DbgMachineRecord &MR : MI.getDbgRecordRange()) {
+      OS.indent(4);
+      MR.print(OS, State.MST, false);
+      OS << "\n";
+    }
+
     if (IsInBundle && !MI.isInsideBundle()) {
       OS.indent(2) << "}\n";
       IsInBundle = false;

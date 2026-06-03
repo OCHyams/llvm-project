@@ -809,7 +809,8 @@ void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
       M->printAsOperand(O, MST, Mod);
   };
 
-  O << "#dbg_instr_ref";
+  // XXX Can't use # because that's a yaml comment!
+  O << "!dbg_instr_ref";
   O << "(";
   if (isRef()) {
     interleave(
@@ -851,7 +852,7 @@ void DbgMachineLabelRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
       M->printAsOperand(O, MST, Mod);
   };
 
-  O << "#dbg_label";
+  O << "!dbg_label";
   O << "(";
   PrintOrNull(getLabel());
   PrintOrNull(getDebugLoc());

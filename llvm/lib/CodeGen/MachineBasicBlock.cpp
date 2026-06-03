@@ -361,6 +361,7 @@ void MachineBasicBlock::print(raw_ostream &OS, const SlotIndexes *Indexes,
 void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
                               const SlotIndexes *Indexes,
                               bool IsStandalone) const {
+  errs() << "MachineBasicBlock::print\n";
   const MachineFunction *MF = getParent();
   if (!MF) {
     OS << "Can't print out MachineBasicBlock because parent MachineFunction"
@@ -440,8 +441,11 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
 
   bool IsInBundle = false;
   for (const MachineInstr &MI : instrs()) {
-    for (const DbgMachineRecord &MR : MI.getDbgRecordRange())
+    for (const DbgMachineRecord &MR : MI.getDbgRecordRange()) {
+      OS.indent(4);
       MR.print(OS, MST, false);
+      OS << "\n";
+    }
 
     if (Indexes && PrintSlotIndexes) {
       if (Indexes->hasIndex(MI))
