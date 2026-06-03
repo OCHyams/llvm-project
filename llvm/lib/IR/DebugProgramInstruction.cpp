@@ -763,6 +763,31 @@ DbgMachineVariableRecord::createDMVRPHI(Register R, DILocalVariable *Variable,
   return NewThing;
 }
 
+// errr can this templateify also or is that too far
+void DbgMachineRecord::print(raw_ostream &O, bool IsForDebug) const {
+  switch (RecordKind) {
+  case ValueKind:
+    cast<DbgMachineVariableRecord>(this)->print(O, IsForDebug);
+    return;
+  case LabelKind:
+    cast<DbgMachineLabelRecord>(this)->print(O, IsForDebug);
+    return;
+  };
+  llvm_unreachable("unsupported DbgRecord kind");
+}
+
+void DbgMachineRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
+                             bool IsForDebug) const {
+  switch (RecordKind) {
+  case ValueKind:
+    cast<DbgMachineVariableRecord>(this)->print(O, MST, IsForDebug);
+    return;
+  case LabelKind:
+    cast<DbgMachineLabelRecord>(this)->print(O, MST, IsForDebug);
+    return;
+  };
+  llvm_unreachable("unsupported DbgRecord kind");
+}
 void DbgMachineVariableRecord::print(raw_ostream &O, bool IsForDebug) const {
   const MachineFunction *MF = getFunction();
   const Function *F = &MF->getFunction();
