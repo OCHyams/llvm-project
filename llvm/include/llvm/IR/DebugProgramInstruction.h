@@ -56,7 +56,6 @@
 #include "llvm/IR/SymbolTableListTraits.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
-
 #include "llvm/CodeGen/MachineInstr.h"
 
 namespace llvm {
