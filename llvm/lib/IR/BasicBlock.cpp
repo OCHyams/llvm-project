@@ -692,88 +692,6 @@ void BasicBlock::flushTerminatorDbgRecords() {
   deleteTrailingDbgRecords();
 }
 
-void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
-                                 BasicBlock::iterator First,
-                                 BasicBlock::iterator Last) {
-  /* Do a quick normalisation before calling the real splice implementation. We
-     might be operating on a degenerate basic block that has no instructions
-     in it, a legitimate transient state. In that case, Dest will be end() and
-     any DbgRecords temporarily stored in the TrailingDbgRecords map in
-     LLVMContext. We might illustrate it thus:
-
-                         Dest
-                           |
-     this-block:    ~~~~~~~~
-      Src-block:            ++++B---B---B---B:::C
-                                |               |
-                               First           Last
-
-     However: does the caller expect the "~" DbgRecords to end up before or
-     after the spliced segment? This is communciated in the "Head" bit of Dest,
-     which signals whether the caller called begin() or end() on this block.
-
-     If the head bit is set, then all is well, we leave DbgRecords trailing just
-     like how dbg.value instructions would trail after instructions spliced to
-     the beginning of this block.
-
-     If the head bit isn't set, then try to jam the "~" DbgRecords onto the
-     front of the First instruction, then splice like normal, which joins the
-     "~" DbgRecords with the "+" DbgRecords. However if the "+" DbgRecords are
-     supposed to be left behind in Src, then:
-      * detach the "+" DbgRecords,
-      * move the "~" DbgRecords onto First,
-      * splice like normal,
-      * replace the "+" DbgRecords onto the Last position.
-     Complicated, but gets the job done. */
-
-  // If we're inserting at end(), and not in front of dangling DbgRecords, then
-  // move the DbgRecords onto "First". They'll then be moved naturally in the
-  // splice process.
-  DbgMarker *MoreDanglingDbgRecords = nullptr;
-  DbgMarker *OurTrailingDbgRecords = getTrailingDbgRecords();
-  if (Dest == end() && !Dest.getHeadBit() && OurTrailingDbgRecords) {
-    // Are the "+" DbgRecords not supposed to move? If so, detach them
-    // temporarily.
-    if (!First.getHeadBit() && First->hasDbgRecords()) {
-      MoreDanglingDbgRecords = Src->getMarker(First);
-      MoreDanglingDbgRecords->removeFromParent();
-    }
-
-    if (First->hasDbgRecords()) {
-      // Place them at the front, it would look like this:
-      //            Dest
-      //              |
-      // this-block:
-      // Src-block: ~~~~~~~~++++B---B---B---B:::C
-      //                        |               |
-      //                       First           Last
-      First->adoptDbgRecords(this, end(), true);
-    } else {
-      // No current marker, create one and absorb in. (FIXME: we can avoid an
-      // allocation in the future).
-      DbgMarker *CurMarker = Src->createMarker(&*First);
-      CurMarker->absorbDebugValues(*OurTrailingDbgRecords, false);
-      OurTrailingDbgRecords->eraseFromParent();
-    }
-    deleteTrailingDbgRecords();
-    First.setHeadBit(true);
-  }
-
-  // Call the main debug-info-splicing implementation.
-  spliceDebugInfoImpl(this, Dest, Src, First, Last);
-
-  // Do we have some "+" DbgRecords hanging around that weren't supposed to
-  // move, and we detached to make things easier?
-  if (!MoreDanglingDbgRecords)
-    return;
-
-  // FIXME: we could avoid an allocation here sometimes. (adoptDbgRecords
-  // requires an iterator).
-  DbgMarker *LastMarker = Src->createMarker(Last);
-  LastMarker->absorbDebugValues(*MoreDanglingDbgRecords, true);
-  MoreDanglingDbgRecords->eraseFromParent();
-}
-
 void BasicBlock::splice(iterator Dest, BasicBlock *Src, iterator First,
                         iterator Last) {
 #ifdef EXPENSIVE_CHECKS
@@ -790,7 +708,7 @@ void BasicBlock::splice(iterator Dest, BasicBlock *Src, iterator First,
     return;
   }
 
-  spliceDebugInfo(Dest, Src, First, Last);
+  spliceDebugInfo(this, Dest, Src, First, Last);
 
   // And move the instructions.
   getInstList().splice(Dest, Src->getInstList(), First, Last);
