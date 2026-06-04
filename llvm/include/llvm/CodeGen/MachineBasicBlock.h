@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineFunctionAnalysisManager.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBundleIterator.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/MC/LaneBitmask.h"
 #include "llvm/Support/BranchProbability.h"
@@ -1173,8 +1174,21 @@ public:
   /// instructions to move.
   void splice(iterator Where, MachineBasicBlock *Other,
               iterator From, iterator To) {
+    // Lots of horrible special casing for empty transfers: the dbg.values
+    // between two positions could be spliced in dbg.value mode.
+    if (From == To)
+      spliceDebugInfoEmptyBlock(this, Where.getInstrIterator(), Other,
+                                From.getInstrIterator(), To.getInstrIterator(),
+                                Other->instr_begin(), Other->instr_end());
+    else
+      spliceDebugInfo(this, Where.getInstrIterator(), Other,
+                      From.getInstrIterator(), To.getInstrIterator(),
+                      instr_end(), Other->instr_end());
+
     Insts.splice(Where.getInstrIterator(), Other->Insts,
                  From.getInstrIterator(), To.getInstrIterator());
+
+    flushTerminatorDbgRecords();
   }
 
   /// This method unlinks 'this' from the containing function, and returns it,

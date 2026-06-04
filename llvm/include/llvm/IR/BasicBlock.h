@@ -775,10 +775,10 @@ template <> struct DenseMapInfo<BasicBlock::iterator> {
 /// activity. In the DbgRecord debug-info representation, debug-info is not
 /// in instructions, and so it does not automatically move from one block
 /// to another.
-template <typename BlockT>
-void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
-                     BlockT *Src, typename BlockT::iterator First,
-                     typename BlockT::iterator Last) {
+template <typename BlockT, typename IteratorT>
+void spliceDebugInfo(BlockT *DestBB, IteratorT Dest, BlockT *Src,
+                     IteratorT First, IteratorT Last, IteratorT DstE,
+                     IteratorT SrcE) {
   /* Do a quick normalisation before calling the real splice implementation. We
      might be operating on a degenerate basic block that has no instructions
      in it, a legitimate transient state. In that case, Dest will be end() and
@@ -832,7 +832,7 @@ void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
       // Src-block: ~~~~~~~~++++B---B---B---B:::C
       //                        |               |
       //                       First           Last
-      First->adoptDbgRecords(DestBB, DestBB->end(), true);
+      First->adoptDbgRecords(DestBB, DstE, true);
     } else {
       // No current marker, create one and absorb in. (FIXME: we can avoid an
       // allocation in the future).
@@ -845,7 +845,7 @@ void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
   }
 
   // Call the main debug-info-splicing implementation.
-  spliceDebugInfoImpl(DestBB, Dest, Src, First, Last);
+  spliceDebugInfoImpl(DestBB, Dest, Src, First, Last, DstE, SrcE);
 
   // Do we have some "+" DbgRecords hanging around that weren't supposed to
   // move, and we detached to make things easier?
@@ -854,7 +854,7 @@ void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
 
   // FIXME: we could avoid an allocation here sometimes. (adoptDbgRecords
   // requires an iterator).
-  DbgMarker *LastMarker = Src->createMarker(Last);
+  auto *LastMarker = Src->createMarker(Last);
   LastMarker->absorbDebugValues(*MoreDanglingDbgRecords, true);
   MoreDanglingDbgRecords->eraseFromParent();
 }
@@ -866,10 +866,15 @@ void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
 /// BasicBlock and MachineBasicBlock. Consider using the relevant block's splice
 /// directly rather than calling this; it is not expected for this to be called
 /// outside of splice implementations.
-template <typename BlockT>
-void spliceDebugInfoEmptyBlock(BlockT *DestBB, typename BlockT::iterator Dest,
-                               BlockT *Src, typename BlockT::iterator First,
-                               typename BlockT::iterator Last) {
+/// XXX: Can't use typename BlockT::iterator instead of IteratorT because MBB
+/// MachineBasicBlock::iterator is bundle it.
+/// XXX: SrcBegin/SrcEnd needed because MBB::end() is bundle it.
+/// XXX this is stupid and I should fix it. note MachineInsr::adoptDbgRecords
+/// takes an instr_iterator (not mbb::iterator)
+template <typename BlockT, typename IteratorT>
+void spliceDebugInfoEmptyBlock(BlockT *DestBB, IteratorT Dest, BlockT *Src,
+                               IteratorT First, IteratorT Last, IteratorT SrcB,
+                               IteratorT SrcE) {
   // Imagine the folowing:
   //
   //   bb1:
@@ -898,7 +903,7 @@ void spliceDebugInfoEmptyBlock(BlockT *DestBB, typename BlockT::iterator Dest,
     if (!SrcTrailingDbgRecords)
       return;
 
-    Dest->adoptDbgRecords(Src, Src->end(), InsertAtHead);
+    Dest->adoptDbgRecords(Src, SrcE, InsertAtHead);
     // adoptDbgRecords should have released the trailing DbgRecords.
     assert(!Src->getTrailingDbgRecords());
     return;
@@ -907,7 +912,7 @@ void spliceDebugInfoEmptyBlock(BlockT *DestBB, typename BlockT::iterator Dest,
   // There are instructions in this block; if the First iterator was
   // with begin() / getFirstInsertionPt() then the caller intended debug-info
   // at the start of the block to be transferred. Return otherwise.
-  if (Src->empty() || First != Src->begin() || !ReadFromHead)
+  if (Src->empty() || First != SrcB || !ReadFromHead)
     return;
 
   // Is there actually anything to transfer?
@@ -925,10 +930,10 @@ void spliceDebugInfoEmptyBlock(BlockT *DestBB, typename BlockT::iterator Dest,
 /// BasicBlock and MachineBasicBlock. Consider using the relevant block's splice
 /// directly rather than calling this; it is not expected for this to be called
 /// outside of splice implementations.
-template <typename BlockT>
-void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
-                         BlockT *Src, typename BlockT::iterator First,
-                         typename BlockT::iterator Last) {
+template <typename BlockT, typename IteratorT>
+void spliceDebugInfoImpl(BlockT *DestBB, IteratorT Dest, BlockT *Src,
+                         IteratorT First, IteratorT Last, IteratorT DstE,
+                         IteratorT SrcE) {
   // Find out where to _place_ these dbg.values; if InsertAtHead is specified,
   // this will be at the start of Dest's debug value range, otherwise this is
   // just Dest's marker.
@@ -937,7 +942,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
   // Use this flag to signal the abnormal case, where we don't want to copy the
   // DbgRecords ahead of the "Last" position.
   bool ReadFromTail = !Last.getTailBit();
-  bool LastIsEnd = (Last == Src->end());
+  bool LastIsEnd = (Last == SrcE);
 
   /*
     Here's an illustration of what we're about to do. We have two blocks, this
@@ -1004,7 +1009,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
   // around.
   auto *DestMarker = DestBB->getMarker(Dest);
   if (DestMarker) {
-    if (Dest == DestBB->end()) {
+    if (Dest == DstE) {
       assert(DestMarker == DestBB->getTrailingDbgRecords());
       DestBB->deleteTrailingDbgRecords();
     } else {
@@ -1017,7 +1022,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
   if (ReadFromTail && Src->getMarker(Last)) {
     auto *FromLast = Src->getMarker(Last);
     if (LastIsEnd) {
-      if (Dest == DestBB->end()) {
+      if (Dest == DstE) {
         // Abosrb the trailing markers from Src.
         assert(FromLast == Src->getTrailingDbgRecords());
         DestBB->createMarker(Dest)->absorbDebugValues(*FromLast, true);
@@ -1039,7 +1044,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
   // move their markers onto Last. They remain in the Src block. No action
   // needed.
   if (!ReadFromHead && First->hasDbgRecords()) {
-    if (Last != Src->end()) {
+    if (Last != SrcE) {
       Last->adoptDbgRecords(Src, First, true);
     } else {
       auto *OntoLast = Src->createMarker(Last);

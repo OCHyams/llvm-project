@@ -1429,6 +1429,7 @@ public:
   iterator_range<simple_ilist<DbgMachineRecord>::iterator> getDbgRecordRange() const {
     return llvm::getDbgRecordRange(DebugMarker);
   }
+  bool hasDbgRecords() const { return !getDbgRecordRange().empty(); }
 
   bool isJumpTableDebugInfo() const {
     return getOpcode() == TargetOpcode::JUMP_TABLE_DEBUG_INFO;

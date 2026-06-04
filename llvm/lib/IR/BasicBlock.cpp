@@ -704,11 +704,12 @@ void BasicBlock::splice(iterator Dest, BasicBlock *Src, iterator First,
   // Lots of horrible special casing for empty transfers: the dbg.values between
   // two positions could be spliced in dbg.value mode.
   if (First == Last) {
-    spliceDebugInfoEmptyBlock(this, Dest, Src, First, Last);
+    spliceDebugInfoEmptyBlock(this, Dest, Src, First, Last, Src->begin(),
+                              Src->end());
     return;
   }
 
-  spliceDebugInfo(this, Dest, Src, First, Last);
+  spliceDebugInfo(this, Dest, Src, First, Last, end(), Src->end());
 
   // And move the instructions.
   getInstList().splice(Dest, Src->getInstList(), First, Last);
