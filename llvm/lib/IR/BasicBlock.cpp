@@ -811,7 +811,7 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
   }
 
   // Call the main debug-info-splicing implementation.
-  spliceDebugInfoImpl(Dest, Src, First, Last);
+  spliceDebugInfoImpl(this, Dest, Src, First, Last);
 
   // Do we have some "+" DbgRecords hanging around that weren't supposed to
   // move, and we detached to make things easier?
@@ -825,7 +825,8 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
   MoreDanglingDbgRecords->eraseFromParent();
 }
 
-void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
+void BasicBlock::spliceDebugInfoImpl(BasicBlock *DestBB,
+                                     BasicBlock::iterator Dest, BasicBlock *Src,
                                      BasicBlock::iterator First,
                                      BasicBlock::iterator Last) {
   // Find out where to _place_ these dbg.values; if InsertAtHead is specified,
@@ -902,10 +903,10 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
   // Detach the marker at Dest -- this lets us move the "====" DbgRecords
   // around.
   DbgMarker *DestMarker = nullptr;
-  if ((DestMarker = getMarker(Dest))) {
-    if (Dest == end()) {
-      assert(DestMarker == getTrailingDbgRecords());
-      deleteTrailingDbgRecords();
+  if ((DestMarker = DestBB->getMarker(Dest))) {
+    if (Dest == DestBB->end()) {
+      assert(DestMarker == DestBB->getTrailingDbgRecords());
+      DestBB->deleteTrailingDbgRecords();
     } else {
       DestMarker->removeFromParent();
     }
@@ -916,10 +917,10 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
   if (ReadFromTail && Src->getMarker(Last)) {
     DbgMarker *FromLast = Src->getMarker(Last);
     if (LastIsEnd) {
-      if (Dest == end()) {
+      if (Dest == DestBB->end()) {
         // Abosrb the trailing markers from Src.
         assert(FromLast == Src->getTrailingDbgRecords());
-        createMarker(Dest)->absorbDebugValues(*FromLast, true);
+        DestBB->createMarker(Dest)->absorbDebugValues(*FromLast, true);
         FromLast->eraseFromParent();
         Src->deleteTrailingDbgRecords();
       } else {
@@ -929,7 +930,7 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
       assert(!Src->getTrailingDbgRecords());
     } else {
       // FIXME: can we use adoptDbgRecords here to reduce allocations?
-      DbgMarker *OntoDest = createMarker(Dest);
+      DbgMarker *OntoDest = DestBB->createMarker(Dest);
       OntoDest->absorbDebugValues(*FromLast, true);
     }
   }
@@ -953,7 +954,7 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
     if (InsertAtHead) {
       // Insert them at the end of the DbgRecords at Dest. The "::::" DbgRecords
       // might be in front of them.
-      DbgMarker *NewDestMarker = createMarker(Dest);
+      DbgMarker *NewDestMarker = DestBB->createMarker(Dest);
       NewDestMarker->absorbDebugValues(*DestMarker, false);
     } else {
       // Insert them right at the start of the range we moved, ahead of First
@@ -962,7 +963,7 @@ void BasicBlock::spliceDebugInfoImpl(BasicBlock::iterator Dest, BasicBlock *Src,
       // did not generate the iterator with begin() / getFirstInsertionPt(),
       // meaning any trailing debug-info at the end of the block would
       // "normally" have been pushed in front of "First". We move it there now.
-      DbgMarker *FirstMarker = createMarker(First);
+      DbgMarker *FirstMarker = DestBB->createMarker(First);
       FirstMarker->absorbDebugValues(*DestMarker, true);
     }
     DestMarker->eraseFromParent();

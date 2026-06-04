@@ -560,9 +560,10 @@ private:
   void spliceDebugInfo(BasicBlock::iterator ToIt, BasicBlock *FromBB,
                        BasicBlock::iterator FromBeginIt,
                        BasicBlock::iterator FromEndIt);
-  void spliceDebugInfoImpl(BasicBlock::iterator ToIt, BasicBlock *FromBB,
-                           BasicBlock::iterator FromBeginIt,
-                           BasicBlock::iterator FromEndIt);
+  static void spliceDebugInfoImpl(BasicBlock *DestBB, BasicBlock::iterator ToIt,
+                                  BasicBlock *FromBB,
+                                  BasicBlock::iterator FromBeginIt,
+                                  BasicBlock::iterator FromEndIt);
 
   enum {
     HasAddressTaken = 1 << 0,
