@@ -813,8 +813,9 @@ void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
   // If we're inserting at end(), and not in front of dangling DbgRecords, then
   // move the DbgRecords onto "First". They'll then be moved naturally in the
   // splice process.
-  DbgMarker *MoreDanglingDbgRecords = nullptr;
-  DbgMarker *OurTrailingDbgRecords = DestBB->getTrailingDbgRecords();
+  auto *OurTrailingDbgRecords = DestBB->getTrailingDbgRecords();
+  // FIXME: too gross?
+  decltype(OurTrailingDbgRecords) MoreDanglingDbgRecords = nullptr;
   if (Dest == DestBB->end() && !Dest.getHeadBit() && OurTrailingDbgRecords) {
     // Are the "+" DbgRecords not supposed to move? If so, detach them
     // temporarily.
@@ -835,7 +836,7 @@ void spliceDebugInfo(BlockT *DestBB, typename BlockT::iterator Dest,
     } else {
       // No current marker, create one and absorb in. (FIXME: we can avoid an
       // allocation in the future).
-      DbgMarker *CurMarker = Src->createMarker(&*First);
+      auto *CurMarker = Src->createMarker(&*First);
       CurMarker->absorbDebugValues(*OurTrailingDbgRecords, false);
       OurTrailingDbgRecords->eraseFromParent();
     }
@@ -893,7 +894,7 @@ void spliceDebugInfoEmptyBlock(BlockT *DestBB, typename BlockT::iterator Dest,
   // occur when a block is optimised away and the terminator has been moved
   // somewhere else.
   if (Src->empty()) {
-    DbgMarker *SrcTrailingDbgRecords = Src->getTrailingDbgRecords();
+    auto *SrcTrailingDbgRecords = Src->getTrailingDbgRecords();
     if (!SrcTrailingDbgRecords)
       return;
 
@@ -1001,8 +1002,8 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
 
   // Detach the marker at Dest -- this lets us move the "====" DbgRecords
   // around.
-  DbgMarker *DestMarker = nullptr;
-  if ((DestMarker = DestBB->getMarker(Dest))) {
+  auto *DestMarker = DestBB->getMarker(Dest);
+  if (DestMarker) {
     if (Dest == DestBB->end()) {
       assert(DestMarker == DestBB->getTrailingDbgRecords());
       DestBB->deleteTrailingDbgRecords();
@@ -1014,7 +1015,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
   // If we're moving the tail range of DbgRecords (":::"), absorb them into the
   // front of the DbgRecords at Dest.
   if (ReadFromTail && Src->getMarker(Last)) {
-    DbgMarker *FromLast = Src->getMarker(Last);
+    auto *FromLast = Src->getMarker(Last);
     if (LastIsEnd) {
       if (Dest == DestBB->end()) {
         // Abosrb the trailing markers from Src.
@@ -1029,7 +1030,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
       assert(!Src->getTrailingDbgRecords());
     } else {
       // FIXME: can we use adoptDbgRecords here to reduce allocations?
-      DbgMarker *OntoDest = DestBB->createMarker(Dest);
+      auto *OntoDest = DestBB->createMarker(Dest);
       OntoDest->absorbDebugValues(*FromLast, true);
     }
   }
@@ -1041,8 +1042,8 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
     if (Last != Src->end()) {
       Last->adoptDbgRecords(Src, First, true);
     } else {
-      DbgMarker *OntoLast = Src->createMarker(Last);
-      DbgMarker *FromFirst = Src->createMarker(First);
+      auto *OntoLast = Src->createMarker(Last);
+      auto *FromFirst = Src->createMarker(First);
       // Always insert at front of Last.
       OntoLast->absorbDebugValues(*FromFirst, true);
     }
@@ -1053,7 +1054,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
     if (InsertAtHead) {
       // Insert them at the end of the DbgRecords at Dest. The "::::" DbgRecords
       // might be in front of them.
-      DbgMarker *NewDestMarker = DestBB->createMarker(Dest);
+      auto *NewDestMarker = DestBB->createMarker(Dest);
       NewDestMarker->absorbDebugValues(*DestMarker, false);
     } else {
       // Insert them right at the start of the range we moved, ahead of First
@@ -1062,7 +1063,7 @@ void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
       // did not generate the iterator with begin() / getFirstInsertionPt(),
       // meaning any trailing debug-info at the end of the block would
       // "normally" have been pushed in front of "First". We move it there now.
-      DbgMarker *FirstMarker = DestBB->createMarker(First);
+      auto *FirstMarker = DestBB->createMarker(First);
       FirstMarker->absorbDebugValues(*DestMarker, true);
     }
     DestMarker->eraseFromParent();
