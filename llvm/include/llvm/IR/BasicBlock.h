@@ -546,13 +546,6 @@ private:
     return &BasicBlock::InstList;
   }
 
-  /// Dedicated function for splicing debug-info: when we have an empty
-  /// splice (i.e. zero instructions), the caller may still intend any
-  /// debug-info in between the two "positions" to be spliced.
-  void spliceDebugInfoEmptyBlock(BasicBlock::iterator ToIt, BasicBlock *FromBB,
-                                 BasicBlock::iterator FromBeginIt,
-                                 BasicBlock::iterator FromEndIt);
-
   /// Perform any debug-info specific maintenence for the given splice
   /// activity. In the DbgRecord debug-info representation, debug-info is not
   /// in instructions, and so it does not automatically move from one block
@@ -785,6 +778,65 @@ template <> struct DenseMapInfo<BasicBlock::iterator> {
     return LHS == RHS && LHS.getHeadBit() == RHS.getHeadBit();
   }
 };
+
+/// Dedicated function for splicing debug-info: when we have an empty
+/// splice (i.e. zero instructions), the caller may still intend any
+/// debug-info in between the two "positions" to be spliced. It is templated to
+/// provide support to both
+/// BasicBlock and MachineBasicBlock. Consider using the relevant block's splice
+/// directly rather than calling this; it is not expected for this to be called
+/// outside of splice implementations.
+template <typename BlockT>
+void spliceDebugInfoEmptyBlock(BlockT *DestBB, typename BlockT::iterator Dest,
+                               BlockT *Src, typename BlockT::iterator First,
+                               typename BlockT::iterator Last) {
+  // Imagine the folowing:
+  //
+  //   bb1:
+  //     dbg.value(...
+  //     ret i32 0
+  //
+  // If an optimisation pass attempts to splice the contents of the block from
+  // BB1->begin() to BB1->getTerminator(), then the dbg.value will be
+  // transferred to the destination.
+  // However, in the "new" DbgRecord format for debug-info, that range is empty:
+  // begin() returns an iterator to the terminator, as there will only be a
+  // single instruction in the block. We must piece together from the bits set
+  // in the iterators whether there was the intention to transfer any debug
+  // info.
+
+  assert(First == Last);
+  bool InsertAtHead = Dest.getHeadBit();
+  bool ReadFromHead = First.getHeadBit();
+
+  // If the source block is completely empty, including no terminator, then
+  // transfer any trailing DbgRecords that are still hanging around. This can
+  // occur when a block is optimised away and the terminator has been moved
+  // somewhere else.
+  if (Src->empty()) {
+    DbgMarker *SrcTrailingDbgRecords = Src->getTrailingDbgRecords();
+    if (!SrcTrailingDbgRecords)
+      return;
+
+    Dest->adoptDbgRecords(Src, Src->end(), InsertAtHead);
+    // adoptDbgRecords should have released the trailing DbgRecords.
+    assert(!Src->getTrailingDbgRecords());
+    return;
+  }
+
+  // There are instructions in this block; if the First iterator was
+  // with begin() / getFirstInsertionPt() then the caller intended debug-info
+  // at the start of the block to be transferred. Return otherwise.
+  if (Src->empty() || First != Src->begin() || !ReadFromHead)
+    return;
+
+  // Is there actually anything to transfer?
+  if (!First->hasDbgRecords())
+    return;
+
+  DestBB->createMarker(Dest)->absorbDebugValues(*First->DebugMarker,
+                                                InsertAtHead);
+}
 
 /// This is a utility to perform any debug-info specific maintenence for the
 /// given splice activity. In the DbgRecord debug-info representation,
