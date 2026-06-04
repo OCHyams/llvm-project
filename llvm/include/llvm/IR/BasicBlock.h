@@ -786,10 +786,17 @@ template <> struct DenseMapInfo<BasicBlock::iterator> {
   }
 };
 
-template <typename DbgRecordT, typename BlockT = typename DbgRecordT::BlockT,
-          typename BlockIteratorT = typename DbgRecordT::BlockT::iterator>
-void spliceDebugInfoImpl(BlockT *DestBB, BlockIteratorT Dest, BlockT *Src,
-                         BlockIteratorT First, BlockIteratorT Last) {
+/// This is a utility to perform any debug-info specific maintenence for the
+/// given splice activity. In the DbgRecord debug-info representation,
+/// debug-info is not in instructions, and so it does not automatically move
+/// from one block to another. It is templated to provide support to both
+/// BasicBlock and MachineBasicBlock. Consider using the relevant block's splice
+/// directly rather than calling this; it is not expected for this to be called
+/// outside of splice implementations.
+template <typename BlockT>
+void spliceDebugInfoImpl(BlockT *DestBB, typename BlockT::iterator Dest,
+                         BlockT *Src, typename BlockT::iterator First,
+                         typename BlockT::iterator Last) {
   // Find out where to _place_ these dbg.values; if InsertAtHead is specified,
   // this will be at the start of Dest's debug value range, otherwise this is
   // just Dest's marker.

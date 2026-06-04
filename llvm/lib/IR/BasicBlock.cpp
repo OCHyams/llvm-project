@@ -811,7 +811,7 @@ void BasicBlock::spliceDebugInfo(BasicBlock::iterator Dest, BasicBlock *Src,
   }
 
   // Call the main debug-info-splicing implementation.
-  spliceDebugInfoImpl<DbgRecord>(this, Dest, Src, First, Last);
+  spliceDebugInfoImpl(this, Dest, Src, First, Last);
 
   // Do we have some "+" DbgRecords hanging around that weren't supposed to
   // move, and we detached to make things easier?
