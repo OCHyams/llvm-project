@@ -699,7 +699,7 @@ public:
   void setLabel(DILabel *NewLabel) { Label = NewLabel; }
   DILabel *getLabel() const { return Label.get(); }
   MDNode *getRawLabel() const { return Label.getAsMDNode(); };
-
+  LLVM_ABI MachineInstr *createDebugInstr(MachineInstr *InsertBefore) const;
   /// Support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const DbgMachineRecord *E) {
     return E->getRecordKind() == LabelKind;
@@ -742,6 +742,7 @@ public:
                   DIExpression *Expression, const DILocation *DI);
 
   // XXX -- storage for _arrays_ of variadic DBG_INSTR_REFs?
+  LLVM_ABI MachineInstr *createDebugInstr(MachineInstr *InsertBefore) const;
 
   bool isValue() const { return Type == MachineLocationType::Value; }
   bool isRef() const { return Type == MachineLocationType::Ref; }

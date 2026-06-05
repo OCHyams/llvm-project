@@ -1957,3 +1957,11 @@ DbgMachineMarker *MachineBasicBlock::createMarker(iterator It) {
   return DM;
 }
 
+void MachineBasicBlock::convertFromDbgRecords() {
+  for (auto &MI : instrs()) {
+    for (auto &MDR : make_early_inc_range(MI.getDbgRecordRange())) {
+      MDR.createDebugInstr(&MI);
+      MDR.eraseFromParent();
+    }
+  }
+}

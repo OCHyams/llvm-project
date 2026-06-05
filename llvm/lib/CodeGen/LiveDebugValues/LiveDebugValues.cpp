@@ -134,6 +134,10 @@ bool LiveDebugValuesLegacy::runOnMachineFunction(MachineFunction &MF) {
 
 bool LiveDebugValues::run(MachineFunction &MF,
                           bool ShouldEmitDebugEntryValues) {
+  // XXX fold !dbg_instr_refs back into the instruction stream at this point
+  for (MachineBasicBlock &MBB : MF)
+    MBB.convertFromDbgRecords();
+
   bool InstrRefBased = MF.useDebugInstrRef();
   // Allow the user to force selection of InstrRef LDV.
   InstrRefBased |= ForceInstrRefLDV;

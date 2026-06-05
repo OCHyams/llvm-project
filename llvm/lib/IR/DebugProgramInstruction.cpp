@@ -8,11 +8,15 @@
 
 #include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -523,18 +527,15 @@ bool DbgVariableRecord::isKillAddress() const {
 
 
 void DbgMachineRecord::deleteRecord() {
-abort();
-#if 0
   switch (RecordKind) {
   case ValueKind:
-    delete cast<DbgVariableRecord>(this);
+    delete cast<DbgMachineVariableRecord>(this);
     return;
   case LabelKind:
-    delete cast<DbgLabelRecord>(this);
+    delete cast<DbgMachineLabelRecord>(this);
     return;
   }
   llvm_unreachable("unsupported DbgRecord kind");
-#endif
 }
 
 DbgMachineRecord *DbgMachineRecord::clone() const {
@@ -857,6 +858,41 @@ void DbgMachineLabelRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   PrintOrNull(getLabel());
   PrintOrNull(getDebugLoc());
   O << ")";
+}
+
+MachineInstr *
+DbgMachineRecord::createDebugInstr(MachineInstr *InsertBefore) const {
+  switch (RecordKind) {
+  case DbgMachineRecord::ValueKind:
+    return cast<DbgMachineVariableRecord>(this)->createDebugInstr(InsertBefore);
+  case DbgMachineRecord::LabelKind:
+    return cast<DbgMachineLabelRecord>(this)->createDebugInstr(InsertBefore);
+  default:
+    llvm_unreachable("unknown DbgMachineRecord kind");
+  }
+}
+
+MachineInstr *
+DbgMachineVariableRecord::createDebugInstr(MachineInstr *InsertBefore) const {
+  assert(isRef() && "oops, only refs supported");
+  MachineFunction *MF = const_cast<MachineFunction *>(getFunction());
+  const MCInstrDesc &RefII =
+      MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_INSTR_REF);
+
+  SmallVector<MachineOperand> MOs;
+  for (auto Ref : Refs)
+    MOs.push_back(MachineOperand::CreateDbgInstrRef(Ref.first, Ref.second));
+
+  auto *DbgMI = BuildMI(*MF, getDebugLoc(), RefII, false, MOs, getVariable(),
+                        getExpression())
+                    .getInstr();
+  InsertBefore->getParent()->insert(InsertBefore->getIterator(), DbgMI);
+  return DbgMI;
+}
+
+MachineInstr *
+DbgMachineLabelRecord::createDebugInstr(MachineInstr *InsertBefore) const {
+  llvm_unreachable("oops");
 }
 
 } // end namespace llvm
