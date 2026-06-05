@@ -1069,6 +1069,7 @@ public:
   void insert(iterator I, IT S, IT E) {
     assert((I == end() || I->getParent() == this) &&
            "iterator points outside of basic block");
+    assert(false && "och?");
     Insts.insert(I.getInstrIterator(), S, E);
   }
 
@@ -1078,7 +1079,29 @@ public:
            "iterator points outside of basic block");
     assert(!MI->isBundledWithPred() && !MI->isBundledWithSucc() &&
            "Cannot insert instruction with bundle flags");
-    return Insts.insert(I.getInstrIterator(), MI);
+    auto It = Insts.insert(I.getInstrIterator(), MI);
+    // We've inserted MI: if InsertAtHead is set then it comes before any
+    // DbgRecords attached to InsertPos. But if it's not set, then any
+    // DbgRecords should now come before MI.
+
+    // xxx bundles don't get head/tail bit
+    // bool InsertAtHead = I.getHeadBit();
+    // if (!InsertAtHead) {
+    DbgMachineMarker *SrcMarker = getMarker(I.getInstrIterator());
+    if (SrcMarker && !SrcMarker->empty()) {
+      // See corresponding comment in Instruction::insertBefore, having an
+      // intermingling of PHIs and debug records is de-normal.
+      assert(!MI->isPHI() && "Inserting PHI after debug-records!");
+      MI->adoptDbgRecords(this, I.getInstrIterator(), false);
+    }
+    //}
+
+    // If we're inserting a terminator, check if we need to flush out
+    // TrailingDbgRecords. Inserting instructions at the end of an incomplete
+    // block is handled by the code block above.
+    if (MI->isTerminator())
+      flushTerminatorDbgRecords();
+    return It;
   }
 
   /// Insert MI into the instruction list after I.
@@ -1087,7 +1110,21 @@ public:
            "iterator points outside of basic block");
     assert(!MI->isBundledWithPred() && !MI->isBundledWithSucc() &&
            "Cannot insert instruction with bundle flags");
-    return Insts.insertAfter(I.getInstrIterator(), MI);
+    auto It = Insts.insertAfter(I.getInstrIterator(), MI);
+    DbgMachineMarker *SrcMarker = getMarker(I.getInstrIterator());
+    if (SrcMarker && !SrcMarker->empty()) {
+      // See corresponding comment in Instruction::insertBefore, having an
+      // intermingling of PHIs and debug records is de-normal.
+      assert(!MI->isPHI() && "Inserting PHI after debug-records!");
+      MI->adoptDbgRecords(this, I.getInstrIterator(), false);
+    }
+    //}
+    // If we're inserting a terminator, check if we need to flush out
+    // TrailingDbgRecords. Inserting instructions at the end of an incomplete
+    // block is handled by the code block above.
+    if (MI->isTerminator())
+      flushTerminatorDbgRecords();
+    return It;
   }
 
   /// If I is bundled then insert MI into the instruction list after the end of
