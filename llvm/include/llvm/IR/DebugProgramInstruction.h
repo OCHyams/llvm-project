@@ -50,13 +50,15 @@
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/iterator.h"
+#include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/IR/DbgVariableFragmentInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/SymbolTableListTraits.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/Support/ErrorHandling.h"
 
 namespace llvm {
 
@@ -706,6 +708,84 @@ public:
   }
 };
 
+#if 0 // XXX err, we could have something like this which is half the size of
+      // DbgOperand
+class DbgMachineOperand {
+private:
+  /// Contents union - This contains the payload for the various operand types.
+  union ContentsUnion {
+    ContentsUnion() {}
+    const ConstantFP *CFP;   // For MO_FPImmediate.
+    const ConstantInt *CI;   // For MO_CImmediate. Integers > 64bit.
+    int64_t ImmVal;          // For MO_Immediate.
+    std::pair<unsigned, unsigned> InstrRef;
+  } Contents;
+
+  enum DbgMachineOperandType : unsigned {
+    DMO_Immediate,         ///< Immediate operand
+    DMO_CImmediate,        ///< Immediate >64bit operand
+    DMO_FPImmediate,       ///< Floating-point immediate operand
+    DMO_InstrRef,
+    DMO_Undef,
+  } OpKind: 8;
+public:
+  /// getType - Returns the MachineOperandType for this operand.
+  ///
+  DbgMachineOperandType getType() const { return (DbgMachineOperandType)OpKind; }
+  bool isInstrRef() const  { return OpKind == DMO_InstrRef;}
+  bool isDbgUndef() const  { return OpKind == DMO_Undef;}
+  /// isImm - Tests if this is a MO_Immediate operand.
+  bool isImm() const { return OpKind == DMO_Immediate; }
+  /// isCImm - Test if this is a MO_CImmediate operand.
+  bool isCImm() const { return OpKind == DMO_CImmediate; }
+  /// isFPImm - Tests if this is a MO_FPImmediate operand.
+  bool isFPImm() const { return OpKind == DMO_FPImmediate; }
+
+  int64_t getImm() const {
+    assert(isImm() && "Wrong MachineOperand accessor");
+    return Contents.ImmVal;
+  }
+
+  const ConstantInt *getCImm() const {
+    assert(isCImm() && "Wrong MachineOperand accessor");
+    return Contents.CI;
+  }
+
+  const ConstantFP *getFPImm() const {
+    assert(isFPImm() && "Wrong MachineOperand accessor");
+    return Contents.CFP;
+  }
+
+  std::pair<unsigned, unsigned> getInstrRef() const {
+    assert(isInstrRef());
+    return Contents.InstrRef;
+  }
+
+  MachineOperand ToMachineOperand() const {
+
+  }
+
+  DbgMachineOperand(const MachineOperand &MO) {
+    //assert(MO.isImm() || MO.isCImm() || MO.isFPImm() || (MO.isReg() && )
+    if (MO.isImm()) {
+      OpKind = DMO_Immediate;
+      Contents.ImmVal = MO.getImm();
+    } else if (MO.isCImm()) {
+      OpKind = DMO_CImmediate;
+      Contents.CI = MO.getCImm();
+    } else if (MO.isFPImm()) {
+      OpKind = DMO_FPImmediate;
+      Contents.CFP = MO.getFPImm();
+    } else if (MO.isReg() && MO.getReg()) {
+    } else {
+      llvm_unreachable("unexpected MachineOperand kind");
+    }
+
+
+  }
+};
+#endif
+
 class DbgMachineVariableRecord : public DbgMachineRecord {
 public:
   enum class MachineLocationType : uint8_t {
@@ -725,17 +805,18 @@ public:
 
   // Correctness before memory usage: Register for DBG_VALUE, DBG_PHI,
   // Vector for DBG_INSTR_REFs.
-  Register Reg;
-  SmallVector<std::pair<unsigned, unsigned>, 1> Refs;
+  Register Reg; // xxx remove?
+  // Supported typs: imm, cimm, fpimm, reg=0, instrref.
+  // We can cut sizeof in half by introducing a custom DbgMachineOperand (32 -> 16 bytes).
+  SmallVector<MachineOperand, 1> MOs;
 
   LLVM_ABI static DbgMachineVariableRecord *
   createDMVRValue(Register R, DILocalVariable *Variable,
                   DIExpression *Expression, const DILocation *DI);
 
   LLVM_ABI static DbgMachineVariableRecord *
-  createDMVRRef(ArrayRef<std::pair<unsigned, unsigned>>,
-                          DILocalVariable *DV,
-                          DIExpression *Expr, const DILocation *DI);
+  createDMVRRef(ArrayRef<MachineOperand>, DILocalVariable *DV,
+                DIExpression *Expr, const DILocation *DI);
 
   LLVM_ABI static DbgMachineVariableRecord *
   createDMVRPHI(Register R, DILocalVariable *Variable,

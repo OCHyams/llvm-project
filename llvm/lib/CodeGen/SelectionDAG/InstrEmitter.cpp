@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/StackMaps.h"
@@ -30,6 +31,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetMachine.h"
+#include <cstdint>
 using namespace llvm;
 
 #define DEBUG_TYPE "instr-emitter"
@@ -839,7 +841,6 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
     Expr = DIExpression::convertToVariadicExpression(Expr);
 
   SmallVector<MachineOperand> MOs;
-  SmallVector<std::pair<unsigned, unsigned>> Refs;
 
   // It may not be immediately possible to identify the MachineInstr that
   // defines a VReg, it can depend for example on the order blocks are
@@ -859,7 +860,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
           /* SubReg */ 0, /* isDebug */ true));
     } else {
       // Otherwise, uh, record some "special" values.
-      Refs.push_back(std::make_pair(R, UINT_MAX));
+      MOs.push_back(MachineOperand::CreateDbgInstrRef(R, UINT_MAX));
     }
   };
 
@@ -903,7 +904,6 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
 
       DefMI = &*MRI->def_instr_begin(VReg);
     } else {
-llvm_unreachable("I thought we were getting rid of these?");
       assert(DbgOperand.getKind() == SDDbgOperand::CONST);
       MOs.push_back(GetMOForConstDbgOp(DbgOperand));
       continue;
@@ -928,26 +928,18 @@ llvm_unreachable("I thought we were getting rid of these?");
 
     // Make the DBG_INSTR_REF refer to that instruction, and that operand.
     unsigned InstrNum = DefMI->getDebugInstrNum();
-    if (!UsingDDDISel) {
-      MOs.push_back(MachineOperand::CreateDbgInstrRef(InstrNum, OperandIdx));
-    } else {
-      assert(OperandIdx != UINT_MAX);
-      Refs.push_back(std::make_pair(InstrNum, OperandIdx));
-    }
+    MOs.push_back(MachineOperand::CreateDbgInstrRef(InstrNum, OperandIdx));
   }
 
   // If we haven't created a valid MachineOperand for every DbgOp, abort and
   // produce an undef DBG_VALUE.
-  if (!UsingDDDISel && MOs.size() != OpCount)
-    return EmitDbgNoLocation(SD);
-  if (UsingDDDISel && Refs.size() != OpCount)
+  if (MOs.size() != OpCount)
     return EmitDbgNoLocation(SD);
 
-  if (!UsingDDDISel) {
-    return BuildMI(*MF, DL, RefII, false, MOs, Var, Expr);
-  } else {
-    return DbgMachineVariableRecord::createDMVRRef(Refs, cast<DILocalVariable>(Var), (DIExpression*)Expr, DL);
-  }
+  if (UsingDDDISel)
+    return DbgMachineVariableRecord::createDMVRRef(
+        MOs, cast<DILocalVariable>(Var), (DIExpression *)Expr, DL);
+  return BuildMI(*MF, DL, RefII, false, MOs, Var, Expr);
 }
 
 MachineInstr *InstrEmitter::EmitDbgNoLocation(SDDbgValue *SD) {

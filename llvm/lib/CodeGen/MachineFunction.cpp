@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/PseudoSourceValueManager.h"
@@ -1320,16 +1321,20 @@ void MachineFunction::finalizeDebugInstrRefs() {
           continue;
         if (!VarRec->isRef())
           continue;
-        for (auto &P : VarRec->Refs) {
-          if (P.second != UINT_MAX)
+        for (auto &MO : VarRec->MOs) {
+          if (!MO.isDbgInstrRef())
+            continue;
+          auto OpIdxX = MO.getInstrRefOpIndex();
+          if (OpIdxX != UINT_MAX)
             continue;
           // It's a vreg, try to resolve.
-          auto lol = finalizeDebugInstrRefRef(P.first, ArgDbgPHIs);
+          auto InsIdx = MO.getInstrRefInstrIndex();
+          auto lol = finalizeDebugInstrRefRef(InsIdx, ArgDbgPHIs);
           if (!lol) {
             MakeUndefDbgRec(VarRec);
             break;
           }
-          P = *lol;
+          MO = MachineOperand::CreateDbgInstrRef(lol->first, lol->second);
         }
       }
 

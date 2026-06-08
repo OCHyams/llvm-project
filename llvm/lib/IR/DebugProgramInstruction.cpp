@@ -747,10 +747,17 @@ DbgMachineVariableRecord::createDMVRValue(Register R, DILocalVariable *Variable,
 }
 
 DbgMachineVariableRecord *
-DbgMachineVariableRecord::createDMVRRef(ArrayRef<std::pair<unsigned, unsigned>> Refs,
-           DILocalVariable *DV, DIExpression *Expr, const DILocation *DI) {
+DbgMachineVariableRecord::createDMVRRef(ArrayRef<MachineOperand> MOs,
+                                        DILocalVariable *DV, DIExpression *Expr,
+                                        const DILocation *DI) {
+  assert(all_of(MOs,
+                [](const MachineOperand &MO) {
+                  return MO.isImm() || MO.isCImm() || MO.isFPImm() ||
+                         (MO.isReg() && !MO.getReg()) || MO.isDbgInstrRef();
+                }) &&
+         "Unexpected MachineOperand type");
   auto *NewThing = new DbgMachineVariableRecord(DV, Expr, DI);
-  NewThing->Refs.insert(NewThing->Refs.begin(), Refs.begin(), Refs.end());
+  NewThing->MOs.insert(NewThing->MOs.begin(), MOs.begin(), MOs.end());
   NewThing->Type = MachineLocationType::Ref;
   return NewThing;
 }
@@ -814,9 +821,7 @@ void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   O << "!dbg_instr_ref";
   O << "(";
   if (isRef()) {
-    interleave(
-        Refs, [&](auto R) { O << "(" << R.first << ", " << R.second << ")"; },
-        [&]() { O << ", "; });
+    interleave(MOs, [&](MachineOperand MO) { O << MO; }, [&]() { O << ", "; });
     O << ", ";
     PrintOrNull(getVariable());
     O << ", ";
@@ -878,10 +883,6 @@ DbgMachineVariableRecord::createDebugInstr(MachineInstr *InsertBefore) const {
   MachineFunction *MF = const_cast<MachineFunction *>(getFunction());
   const MCInstrDesc &RefII =
       MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_INSTR_REF);
-
-  SmallVector<MachineOperand> MOs;
-  for (auto Ref : Refs)
-    MOs.push_back(MachineOperand::CreateDbgInstrRef(Ref.first, Ref.second));
 
   auto *DbgMI = BuildMI(*MF, getDebugLoc(), RefII, false, MOs, getVariable(),
                         getExpression())
