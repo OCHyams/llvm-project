@@ -1494,11 +1494,13 @@ static void unbundleSingleMI(MachineInstr *MI) {
 
 MachineBasicBlock::instr_iterator
 MachineBasicBlock::erase(MachineBasicBlock::instr_iterator I) {
+  I->handleMarkerRemoval();
   unbundleSingleMI(&*I);
   return Insts.erase(I);
 }
 
 MachineInstr *MachineBasicBlock::remove_instr(MachineInstr *MI) {
+  MI->handleMarkerRemoval();
   unbundleSingleMI(MI);
   MI->clearFlag(MachineInstr::BundledPred);
   MI->clearFlag(MachineInstr::BundledSucc);

@@ -1152,11 +1152,14 @@ public:
   /// If the instruction is part of a bundle, the other instructions in the
   /// bundle will still be bundled after removing the single instruction.
   instr_iterator erase_instr(MachineInstr *I) {
+    I->handleMarkerRemoval();
     return erase(instr_iterator(I));
   }
 
   /// Remove a range of instructions from the instruction list and delete them.
   iterator erase(iterator I, iterator E) {
+    for (auto &II : llvm::make_range(I, E))
+      II.handleMarkerRemoval();
     return Insts.erase(I.getInstrIterator(), E.getInstrIterator());
   }
 
@@ -1164,6 +1167,7 @@ public:
   ///
   /// If I points to a bundle of instructions, they are all erased.
   iterator erase(iterator I) {
+    I->handleMarkerRemoval();
     return erase(I, std::next(I));
   }
 
@@ -1172,6 +1176,7 @@ public:
   /// If I is the head of a bundle of instructions, the whole bundle will be
   /// erased.
   iterator erase(MachineInstr *I) {
+    I->handleMarkerRemoval();
     return erase(iterator(I));
   }
 
@@ -1181,6 +1186,7 @@ public:
   /// This function can not be used to remove bundled instructions, use
   /// remove_instr to remove individual instructions from a bundle.
   MachineInstr *remove(MachineInstr *I) {
+    I->handleMarkerRemoval();
     assert(!I->isBundled() && "Cannot remove bundled instructions");
     return Insts.remove(instr_iterator(I));
   }
