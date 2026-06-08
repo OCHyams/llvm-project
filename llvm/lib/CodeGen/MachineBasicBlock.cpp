@@ -1919,6 +1919,8 @@ void MachineBasicBlock::flushTerminatorDbgRecords() {
   // DbgRecords in front of the terminator.
 
   // If there's no terminator, there's nothing to do.
+  if (getFirstTerminator() == end())
+    return;
   MachineInstr *Term = &*getFirstTerminator();
   if (!Term)
     return;
