@@ -1069,8 +1069,10 @@ public:
   void insert(iterator I, IT S, IT E) {
     assert((I == end() || I->getParent() == this) &&
            "iterator points outside of basic block");
-    assert(false && "och?");
-    Insts.insert(I.getInstrIterator(), S, E);
+    // Insts.insert(I.getInstrIterator(), S, E);
+    //  XXX slowtime, do better?
+    for (auto It : llvm::make_range(S, E))
+      insert(I, It);
   }
 
   /// Insert MI into the instruction list before I.
