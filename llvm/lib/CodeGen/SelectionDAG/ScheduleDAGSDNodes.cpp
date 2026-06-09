@@ -19,6 +19,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
@@ -27,12 +28,14 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/MemoryModelRelaxationAnnotations.h"
 #include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include <variant>
 using namespace llvm;
 
 #define DEBUG_TYPE "pre-RA-sched"
@@ -734,10 +737,12 @@ void ScheduleDAGSDNodes::VerifyScheduledSequence(bool isBottomUp) {
 #endif // NDEBUG
 
 /// ProcessSDDbgValues - Process SDDbgValues associated with this node.
-static void
-ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
-                   SmallVectorImpl<std::pair<unsigned, MachineInstr*> > &Orders,
-                   InstrEmitter::VRBaseMapType &VRBaseMap, unsigned Order) {
+static void ProcessSDDbgValues(
+    SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
+    SmallVectorImpl<
+        std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>>
+        &Orders,
+    InstrEmitter::VRBaseMapType &VRBaseMap, unsigned Order) {
   if (!N->getHasDebugValue())
     return;
 
@@ -782,6 +787,9 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
       DbgMachineMarker *Marker = BB->createMarker(InsertPos);
       // Insert this at the end.
       Marker->insertDbgRecord(DMVR, false);
+
+      // xxx ... ???
+      Orders.push_back({DVOrder, DMVR});
     }
   }
 }
@@ -789,11 +797,13 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
 // ProcessSourceNode - Process nodes with source order numbers. These are added
 // to a vector which EmitSchedule uses to determine how to insert dbg_value
 // instructions in the right order.
-static void
-ProcessSourceNode(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
-                  InstrEmitter::VRBaseMapType &VRBaseMap,
-                  SmallVectorImpl<std::pair<unsigned, MachineInstr *>> &Orders,
-                  SmallSet<Register, 8> &Seen, MachineInstr *NewInsn) {
+static void ProcessSourceNode(
+    SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
+    InstrEmitter::VRBaseMapType &VRBaseMap,
+    SmallVectorImpl<
+        std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>>
+        &Orders,
+    SmallSet<Register, 8> &Seen, MachineInstr *NewInsn) {
   unsigned Order = N->getIROrder();
   if (!Order || Seen.count(Order)) {
     // Process any valid SDDbgValues even if node does not have any order
@@ -861,7 +871,10 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
   InstrEmitter Emitter(DAG->getTarget(), BB, InsertPos);
   InstrEmitter::VRBaseMapType VRBaseMap;
   SmallDenseMap<SUnit *, Register, 16> CopyVRBaseMap;
-  SmallVector<std::pair<unsigned, MachineInstr*>, 32> Orders;
+  // xxx och: only need the variant while both modes exist in the same input
+  SmallVector<
+      std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>, 32>
+      Orders;
   SmallSet<Register, 8> Seen;
   bool HasDbg = DAG->hasDebugValues();
 
@@ -1013,7 +1026,11 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     unsigned LastOrder = 0;
     for (unsigned i = 0, e = Orders.size(); i != e && DI != DE; ++i) {
       unsigned Order = Orders[i].first;
-      MachineInstr *MI = Orders[i].second;
+      // xxx och: only need the variant while both modes exist in the same input
+      MachineInstr *MI =
+          std::holds_alternative<MachineInstr *>(Orders[i].second)
+              ? std::get<MachineInstr *>(Orders[i].second)
+              : std::get<DbgMachineRecord *>(Orders[i].second)->getInstruction();
       // Insert all SDDbgValue's whose order(s) are before "Order".
       assert(MI);
       for (; DI != DE; ++DI) {
@@ -1091,7 +1108,11 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     LastOrder = 0;
     for (const auto &InstrOrder : Orders) {
       unsigned Order = InstrOrder.first;
-      MachineInstr *MI = InstrOrder.second;
+      // xxx och: only need the variant while both modes exist in the same input
+      MachineInstr *MI =
+          std::holds_alternative<MachineInstr *>(InstrOrder.second)
+              ? std::get<MachineInstr *>(InstrOrder.second)
+              : std::get<DbgMachineRecord *>(InstrOrder.second)->getInstruction();
       if (!MI)
         continue;
 
