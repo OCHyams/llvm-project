@@ -896,5 +896,16 @@ DbgMachineLabelRecord::createDebugInstr(MachineInstr *InsertBefore) const {
   llvm_unreachable("oops");
 }
 
+void convertToDbgRecords(ArrayRef<MachineInstr *> Instrs) {
+  for (auto &MI : Instrs) {
+    assert(MI->isDebugRef());
+    DbgMachineVariableRecord::createDMVRRef(
+        MI->debug_operands(),
+        const_cast<DILocalVariable *>(MI->getDebugVariable()),
+        const_cast<DIExpression *>(MI->getDebugExpression()),
+        MI->getDebugLoc());
+  }
+}
+
 } // end namespace llvm
 

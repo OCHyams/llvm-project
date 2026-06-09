@@ -1011,6 +1011,8 @@ auto DbgRecordBase<InstT, BlockT, FuncT, MarkerT, CRTP>::getInstruction() const 
   return Marker->MarkedInstr;
 }
 
+// Bit of a hack, needs solidifying
+void convertToDbgRecords(ArrayRef<MachineInstr *> Instrs);
 } // namespace llvm
 
 #endif // LLVM_IR_DEBUGPROGRAMINSTRUCTION_H

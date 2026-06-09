@@ -15,6 +15,7 @@
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SparseBitVector.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/iterator_range.h"
@@ -1415,6 +1416,7 @@ public:
   DbgMachineMarker *createMarker(iterator I);
 
   void convertFromDbgRecords();
+  void convertToDbgRecords();
 };
 
 LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const MachineBasicBlock &MBB);

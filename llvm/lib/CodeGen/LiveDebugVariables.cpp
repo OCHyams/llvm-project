@@ -636,6 +636,8 @@ class LiveDebugVariables::LDVImpl {
   /// their def points.
   void computeIntervals();
 
+  SmallVector<MachineInstr *> DbgInstrsFromRecords;
+
 public:
   LDVImpl(LiveIntervals *LIS) : LIS(LIS) {}
 
@@ -656,6 +658,7 @@ public:
            "Dbg values are not emitted in LDV");
     EmitDone = false;
     ModifiedMF = false;
+    DbgInstrsFromRecords.clear();
   }
 
   /// Map virtual register to an equivalence class.
@@ -1275,6 +1278,11 @@ bool LiveDebugVariables::LDVImpl::runOnMachineFunction(MachineFunction &mf,
   TRI = mf.getSubtarget().getRegisterInfo();
   LLVM_DEBUG(dbgs() << "********** COMPUTING LIVE DEBUG VARIABLES: "
                     << mf.getName() << " **********\n");
+
+  // XXX First, convert from records, as otherwise ordering is going to get
+  // all messed up while we have both kinds.
+  for (auto &MBB : mf)
+    MBB.convertFromDbgRecords();
 
   bool Changed = collectDebugValues(mf, InstrRef);
   computeIntervals();

@@ -1964,8 +1964,31 @@ DbgMachineMarker *MachineBasicBlock::createMarker(iterator It) {
 void MachineBasicBlock::convertFromDbgRecords() {
   for (auto &MI : instrs()) {
     for (auto &MDR : make_early_inc_range(MI.getDbgRecordRange())) {
-      MDR.createDebugInstr(&MI);
+      MachineInstr *Inst = MDR.createDebugInstr(&MI);
       MDR.eraseFromParent();
+    }
+  }
+}
+
+void MachineBasicBlock::convertToDbgRecords() {
+  for (auto It = instr_begin(); It != instr_end(); ++It) {
+    if (!It->isDebugRef())
+      continue;
+    auto NextNonRef = It;
+    while (NextNonRef != end() && NextNonRef->isDebugRef())
+      ++NextNonRef;
+
+    while (It != NextNonRef) {
+      MachineInstr *MI = &*It;
+      It++;
+      auto *DMVR = DbgMachineVariableRecord::createDMVRRef(
+          MI->debug_operands(),
+          const_cast<DILocalVariable *>(MI->getDebugVariable()),
+          const_cast<DIExpression *>(MI->getDebugExpression()),
+          MI->getDebugLoc());
+      DbgMachineMarker *Marker = createMarker(NextNonRef);
+      Marker->insertDbgRecord(DMVR, false);
+      MI->eraseFromParent();
     }
   }
 }
