@@ -477,6 +477,15 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     OS.indent(2) << "; Irreducible loop header weight: " << *IrrLoopHeaderWeight
                  << '\n';
   }
+
+  if (auto *M =
+          const_cast<MachineBasicBlock *>(this)->getTrailingDbgRecords()) {
+    for (const DbgMachineRecord &MR : M->StoredDbgRecords) {
+      OS.indent(4);
+      MR.print(OS, MST, false);
+      OS << "\n";
+    }
+  }
 }
 
 /// Print the basic block's name as:

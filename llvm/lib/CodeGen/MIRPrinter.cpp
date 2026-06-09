@@ -814,6 +814,14 @@ void printMBB(raw_ostream &OS, MFPrintState &State,
   }
   if (IsInBundle)
     OS.indent(2) << "}\n";
+
+  if (auto *M = const_cast<MachineBasicBlock &>(MBB).getTrailingDbgRecords()) {
+    for (const DbgMachineRecord &MR : M->StoredDbgRecords) {
+      OS.indent(4);
+      MR.print(OS, State.MST, false);
+      OS << "\n";
+    }
+  }
 }
 
 static void printMI(raw_ostream &OS, MFPrintState &State,
