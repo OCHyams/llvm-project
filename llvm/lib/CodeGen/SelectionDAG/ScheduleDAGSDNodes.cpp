@@ -1032,7 +1032,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
               ? std::get<MachineInstr *>(Orders[i].second)
               : std::get<DbgMachineRecord *>(Orders[i].second)->getInstruction();
       // Insert all SDDbgValue's whose order(s) are before "Order".
-      assert(MI);
+      // assert(MI);
       for (; DI != DE; ++DI) {
         if ((*DI)->getOrder() < LastOrder || (*DI)->getOrder() >= Order)
           break;
@@ -1052,7 +1052,18 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           else {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
-            MachineBasicBlock::iterator Pos = MI;
+            MachineBasicBlock::instr_iterator Pos;
+            if (MI)
+              Pos = MI->getIterator();
+            else {
+              // MI is only nullptr if we've got trailing records
+              DbgMachineMarker *M =
+                  std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();
+              auto *MBB = M->getParent();
+              assert(MBB->getTrailingDbgRecords() == M);
+              Pos = MBB->end().getInstrIterator();
+              Pos.setHeadBit(true); // insert before the trailing records.
+            }
             MI->getParent()->insert(Pos, NewDbgMI);
           }
         } else {
@@ -1065,7 +1076,18 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           else {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
-            MachineBasicBlock::iterator Pos = MI;
+            MachineBasicBlock::instr_iterator Pos;
+            if (MI)
+              Pos = MI->getIterator();
+            else {
+              // MI is only nullptr if we've got trailing records
+              DbgMachineMarker *M =
+                  std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();
+              auto *MBB = M->getParent();
+              assert(MBB->getTrailingDbgRecords() == M);
+              Pos = MBB->end().getInstrIterator();
+              Pos.setHeadBit(true); // insert before the trailing records.
+            }
             Marker = MI->getParent()->createMarker(&*Pos);
           }
 
