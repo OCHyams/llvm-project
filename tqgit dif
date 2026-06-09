@@ -1,0 +1,111 @@
+
+[38;5;11m'' llvm/lib/CodeGen/SelectionDAG/ScheduleDAGSDNodes.cpp[0m
+[34m──────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+
+[34m───────────────────────────[0m[34m┐[0m
+[1;38;5;231m [38;5;203mextern[38;5;231m [38;5;81mbool[38;5;231m UsingDDDISel; [0m[34m│[0m
+[34m───────────────────────────[0m[34m┘[0m
+[34m[38;5;238m 44 [34m⋮[38;5;238m 44 [34m│[0m 
+[34m[38;5;238m 45 [34m⋮[38;5;238m 45 [34m│[0m STATISTIC(LoadsClustered, "Number of loads clustered together");
+[34m[38;5;238m 46 [34m⋮[38;5;238m 46 [34m│[0m 
+[34m[38;5;88m    [34m⋮[38;5;28m 47 [34m│[1;32m+using OrderList = SmallVector<[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 48 [34m│[1;32m+    std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>, 32>;[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 49 [34m│[1;32m+[0m
+[34m[38;5;238m 47 [34m⋮[38;5;238m 50 [34m│[0m // This allows the latency-based scheduler to notice high latency instructions
+[34m[38;5;238m 48 [34m⋮[38;5;238m 51 [34m│[0m // without a target itinerary. The choice of number here has more to do with
+[34m[38;5;238m 49 [34m⋮[38;5;238m 52 [34m│[0m // balancing scheduler heuristics than with the actual machine latency.
+
+[34m─────────────────────────────────────────────────────────────────────[0m[34m┐[0m
+[1;38;5;231m [38;5;81mvoid[38;5;231m ScheduleDAGSDNodes::[38;5;149mVerifyScheduledSequence[38;5;231m([38;5;81mbool[38;5;231m [38;5;208misBottomUp[38;5;231m) { [0m[34m│[0m
+[34m─────────────────────────────────────────────────────────────────────[0m[34m┘[0m
+[34m[38;5;238m 737[34m⋮[38;5;238m 740[34m│[0m #endif // NDEBUG
+[34m[38;5;238m 738[34m⋮[38;5;238m 741[34m│[0m 
+[34m[38;5;238m 739[34m⋮[38;5;238m 742[34m│[0m /// ProcessSDDbgValues - Process SDDbgValues associated with this node.
+[34m[38;5;88m 740[34m⋮[38;5;28m    [34m│[1;31m-static void ProcessSDDbgValues([0m
+[34m[38;5;88m 741[34m⋮[38;5;28m    [34m│[1;31m-    [48;5;52mSDNode[0m[1;31m [48;5;52m*N,[0m[1;31m [48;5;52mSelectionDAG[0m[1;31m [48;5;52m*DAG,[0m[1;31m InstrEmitter &Emitter,[0m
+[34m[38;5;88m 742[34m⋮[38;5;28m    [34m│[1;31m-    SmallVectorImpl<[0m
+[34m[38;5;88m 743[34m⋮[38;5;28m    [34m│[1;31m-        std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>>[0m
+[34m[38;5;88m 744[34m⋮[38;5;28m    [34m│[1;31m-        [48;5;52m&[0m[1;31mOrder[48;5;52ms,[0m
+[34m[38;5;88m 745[34m⋮[38;5;28m    [34m│[1;31m-    InstrEmitter::VRBaseMapType &VRBaseMap, unsigned Order) {[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 743[34m│[1;32m+static void ProcessSDDbgValues([48;5;22mSDNode *N, SelectionDAG *DAG,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 744[34m│[1;32m+       [48;5;22m                       [0m[1;32m InstrEmitter &Emitter,[48;5;22m OrderList &Orders,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 745[34m│[1;32m+                               InstrEmitter::VRBaseMapType &VRBaseMap,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 746[34m│[1;32m+        [48;5;22m                       unsigned [0m[1;32mOrder[48;5;22m) {[0m
+[34m[38;5;238m 746[34m⋮[38;5;238m 747[34m│[0m   if (!N->getHasDebugValue())
+[34m[38;5;238m 747[34m⋮[38;5;238m 748[34m│[0m     return;
+[34m[38;5;238m 748[34m⋮[38;5;238m 749[34m│[0m 
+
+[34m─────────────────────────────────[0m[34m┐[0m
+[1;38;5;231m [38;5;203mstatic[38;5;231m [38;5;81mvoid[38;5;231m [38;5;149mProcessSDDbgValues[38;5;231m( [0m[34m│[0m
+[34m─────────────────────────────────[0m[34m┘[0m
+[34m[38;5;238m 797[34m⋮[38;5;238m 798[34m│[0m // ProcessSourceNode - Process nodes with source order numbers. These are added
+[34m[38;5;238m 798[34m⋮[38;5;238m 799[34m│[0m // to a vector which EmitSchedule uses to determine how to insert dbg_value
+[34m[38;5;238m 799[34m⋮[38;5;238m 800[34m│[0m // instructions in the right order.
+[34m[38;5;88m 800[34m⋮[38;5;28m    [34m│[1;31m-static void ProcessSourceNode([0m
+[34m[38;5;88m 801[34m⋮[38;5;28m    [34m│[1;31m-    [48;5;52mSDNode[0m[1;31m [48;5;52m*N,[0m[1;31m [48;5;52mSelectionDAG[0m[1;31m [48;5;52m*DAG,[0m[1;31m InstrEmitter &Emitter,[0m
+[34m[38;5;88m 802[34m⋮[38;5;28m    [34m│[1;31m-    InstrEmitter::VRBaseMapType &VRBaseMap,[0m
+[34m[38;5;88m 803[34m⋮[38;5;28m    [34m│[1;31m-    SmallVectorImpl<[0m
+[34m[38;5;88m 804[34m⋮[38;5;28m    [34m│[1;31m-        std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>>[0m
+[34m[38;5;88m 805[34m⋮[38;5;28m    [34m│[1;31m-        &Orders,[0m
+[34m[38;5;88m 806[34m⋮[38;5;28m    [34m│[1;31m-    SmallSet<Register, 8> &Seen,[48;5;52m MachineInstr *NewInsn) {[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 801[34m│[1;32m+static void ProcessSourceNode([48;5;22mSDNode *N, SelectionDAG *DAG,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 802[34m│[1;32m+       [48;5;22m                      [0m[1;32m InstrEmitter &Emitter,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 803[34m│[1;32m+    [48;5;22m                          [0m[1;32mInstrEmitter::VRBaseMapType &VRBaseMap,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 804[34m│[1;32m+    [48;5;22m                          OrderList &Orders, [0m[1;32mSmallSet<Register, 8> &Seen,[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 805[34m│[1;32m+                              MachineInstr *NewInsn) {[0m
+[34m[38;5;238m 807[34m⋮[38;5;238m 806[34m│[0m   unsigned Order = N->getIROrder();
+[34m[38;5;238m 808[34m⋮[38;5;238m 807[34m│[0m   if (!Order || Seen.count(Order)) {
+[34m[38;5;238m 809[34m⋮[38;5;238m 808[34m│[0m     // Process any valid SDDbgValues even if node does not have any order
+
+[34m────────────────────────────────────────────────────────[0m[34m┐[0m
+[1;38;5;231m EmitSchedule(MachineBasicBlock::iterator [38;5;203m&[38;5;231mInsertPos) { [0m[34m│[0m
+[34m────────────────────────────────────────────────────────[0m[34m┘[0m
+[34m[38;5;238m 872[34m⋮[38;5;238m 871[34m│[0m   InstrEmitter::VRBaseMapType VRBaseMap;
+[34m[38;5;238m 873[34m⋮[38;5;238m 872[34m│[0m   SmallDenseMap<SUnit *, Register, 16> CopyVRBaseMap;
+[34m[38;5;238m 874[34m⋮[38;5;238m 873[34m│[0m   // xxx och: only need the variant while both modes exist in the same input
+[34m[38;5;88m 875[34m⋮[38;5;28m    [34m│[1;31m-  SmallVector<[0m
+[34m[38;5;88m 876[34m⋮[38;5;28m    [34m│[1;31m-      std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>, 32>[0m
+[34m[38;5;88m 877[34m⋮[38;5;28m    [34m│[1;31m-  [48;5;52m   [0m[1;31m Orders;[0m
+[34m[38;5;88m    [34m⋮[38;5;28m 874[34m│[1;32m+  [48;5;22mOrderList[0m[1;32m Orders;[0m
+[34m[38;5;238m 878[34m⋮[38;5;238m 875[34m│[0m   SmallSet<Register, 8> Seen;
+[34m[38;5;238m 879[34m⋮[38;5;238m 876[34m│[0m   bool HasDbg = DAG->hasDebugValues();
+[34m[38;5;238m 880[34m⋮[38;5;238m 877[34m│[0m 
+
+[34m────────────────────────────────────────────────────────[0m[34m┐[0m
+[1;38;5;231m EmitSchedule(MachineBasicBlock::iterator [38;5;203m&[38;5;231mInsertPos) { [0m[34m│[0m
+[34m────────────────────────────────────────────────────────[0m[34m┘[0m
+[34m[38;5;238m1043[34m⋮[38;5;238m1040[34m│[0m 
+[34m[38;5;238m1044[34m⋮[38;5;238m1041[34m│[0m         if (std::holds_alternative<MachineInstr*>(DbgMI)) {
+[34m[38;5;238m1045[34m⋮[38;5;238m1042[34m│[0m           MachineInstr *NewDbgMI = std::get<MachineInstr*>(DbgMI);
+[34m[38;5;88m1046[34m⋮[38;5;28m    [34m│[1;31m-          if (!MI)[0m
+[34m[38;5;88m1047[34m⋮[38;5;28m    [34m│[1;31m-            continue;[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1043[34m│[1;32m+          [48;5;22m// [0m[1;32mif (!MI)[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1044[34m│[1;32m+          //   continue; previously we asserted this, and now it's handled[0m
+[34m[38;5;238m1048[34m⋮[38;5;238m1045[34m│[0m 
+[34m[38;5;238m1049[34m⋮[38;5;238m1046[34m│[0m           if (!LastOrder)
+[34m[38;5;238m1050[34m⋮[38;5;238m1047[34m│[0m             // Insert to start of the BB (after PHIs).
+
+[34m────────────────────────────────────────────────────────[0m[34m┐[0m
+[1;38;5;231m EmitSchedule(MachineBasicBlock::iterator [38;5;203m&[38;5;231mInsertPos) { [0m[34m│[0m
+[34m────────────────────────────────────────────────────────[0m[34m┘[0m
+[34m[38;5;238m1056[34m⋮[38;5;238m1053[34m│[0m             if (MI)
+[34m[38;5;238m1057[34m⋮[38;5;238m1054[34m│[0m               Pos = MI->getIterator();
+[34m[38;5;238m1058[34m⋮[38;5;238m1055[34m│[0m             else {
+[34m[38;5;88m    [34m⋮[38;5;28m1056[34m│[1;32m+              //. xxx this and below doesn't acutally work --[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1057[34m│[1;32m+              //DbgMachineMarker::getParent() requires linked instr.[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1058[34m│[1;32m+[0m
+[34m[38;5;238m1059[34m⋮[38;5;238m1059[34m│[0m               // MI is only nullptr if we've got trailing records
+[34m[38;5;88m1060[34m⋮[38;5;28m    [34m│[1;31m-              DbgMachineMarker *M =[0m
+[34m[38;5;88m1061[34m⋮[38;5;28m    [34m│[1;31m-                  std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();[0m
+[34m[38;5;88m1062[34m⋮[38;5;28m    [34m│[1;31m-              auto *MBB = M->getParent();[0m
+[34m[38;5;88m1063[34m⋮[38;5;28m    [34m│[1;31m-              assert(MBB->getTrailingDbgRecords() == M);[0m
+[34m[38;5;88m1064[34m⋮[38;5;28m    [34m│[1;31m-              Pos = MBB->end().getInstrIterator();[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1060[34m│[1;32m+              [48;5;22m// [0m[1;32mDbgMachineMarker *M =[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1061[34m│[1;32m+              [48;5;22m//[0m[1;32m    std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1062[34m│[1;32m+              [48;5;22m// [0m[1;32mauto *MBB = M->getParent();[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1063[34m│[1;32m+              [48;5;22m// [0m[1;32massert(MBB->getTrailingDbgRecords() == M);[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1064[34m│[1;32m+[0m
+[34m[38;5;88m    [34m⋮[38;5;28m1065[34m│[1;32m+              [48;5;22m// [0m[1;32mPos = MBB->end().getInstrIterator();[0m
+[34m[38;5;238m1065[34m⋮[38;5;238m1066[34m│[0m               Pos.setHeadBit(true); // insert before the trailing records.
+[34m[38;5;238m1066[34m⋮[38;5;238m1067[34m│[0m             }
+[34m[38;5;238m1067[34m⋮[38;5;238m1068[34m│[0m             MI->getParent()->insert(Pos, NewDbgMI);

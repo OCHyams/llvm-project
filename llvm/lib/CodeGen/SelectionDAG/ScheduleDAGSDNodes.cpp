@@ -44,6 +44,9 @@ extern bool UsingDDDISel;
 
 STATISTIC(LoadsClustered, "Number of loads clustered together");
 
+using OrderList = SmallVector<
+    std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>, 32>;
+
 // This allows the latency-based scheduler to notice high latency instructions
 // without a target itinerary. The choice of number here has more to do with
 // balancing scheduler heuristics than with the actual machine latency.
@@ -737,12 +740,10 @@ void ScheduleDAGSDNodes::VerifyScheduledSequence(bool isBottomUp) {
 #endif // NDEBUG
 
 /// ProcessSDDbgValues - Process SDDbgValues associated with this node.
-static void ProcessSDDbgValues(
-    SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
-    SmallVectorImpl<
-        std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>>
-        &Orders,
-    InstrEmitter::VRBaseMapType &VRBaseMap, unsigned Order) {
+static void ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG,
+                               InstrEmitter &Emitter, OrderList &Orders,
+                               InstrEmitter::VRBaseMapType &VRBaseMap,
+                               unsigned Order) {
   if (!N->getHasDebugValue())
     return;
 
@@ -797,13 +798,11 @@ static void ProcessSDDbgValues(
 // ProcessSourceNode - Process nodes with source order numbers. These are added
 // to a vector which EmitSchedule uses to determine how to insert dbg_value
 // instructions in the right order.
-static void ProcessSourceNode(
-    SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
-    InstrEmitter::VRBaseMapType &VRBaseMap,
-    SmallVectorImpl<
-        std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>>
-        &Orders,
-    SmallSet<Register, 8> &Seen, MachineInstr *NewInsn) {
+static void ProcessSourceNode(SDNode *N, SelectionDAG *DAG,
+                              InstrEmitter &Emitter,
+                              InstrEmitter::VRBaseMapType &VRBaseMap,
+                              OrderList &Orders, SmallSet<Register, 8> &Seen,
+                              MachineInstr *NewInsn) {
   unsigned Order = N->getIROrder();
   if (!Order || Seen.count(Order)) {
     // Process any valid SDDbgValues even if node does not have any order
@@ -872,9 +871,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
   InstrEmitter::VRBaseMapType VRBaseMap;
   SmallDenseMap<SUnit *, Register, 16> CopyVRBaseMap;
   // xxx och: only need the variant while both modes exist in the same input
-  SmallVector<
-      std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>, 32>
-      Orders;
+  OrderList Orders;
   SmallSet<Register, 8> Seen;
   bool HasDbg = DAG->hasDebugValues();
 
@@ -1043,8 +1040,8 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
 
         if (std::holds_alternative<MachineInstr*>(DbgMI)) {
           MachineInstr *NewDbgMI = std::get<MachineInstr*>(DbgMI);
-          if (!MI)
-            continue;
+          // if (!MI)
+          //   continue; previously we asserted this, and now it's handled
 
           if (!LastOrder)
             // Insert to start of the BB (after PHIs).
@@ -1056,6 +1053,8 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             if (MI)
               Pos = MI->getIterator();
             else {
+              //. xxx this and below doesn't acutally work --
+              // DbgMachineMarker::getParent() requires linked instr.
               // MI is only nullptr if we've got trailing records
               DbgMachineMarker *M =
                   std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();
