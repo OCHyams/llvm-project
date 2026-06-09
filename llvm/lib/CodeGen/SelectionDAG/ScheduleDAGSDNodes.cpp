@@ -44,8 +44,14 @@ extern bool UsingDDDISel;
 
 STATISTIC(LoadsClustered, "Number of loads clustered together");
 
-using OrderList = SmallVector<
-    std::pair<unsigned, std::variant<MachineInstr *, DbgMachineRecord *>>, 32>;
+struct DanglingDbg {
+  unsigned Order;
+  std::variant<MachineInstr *, DbgMachineRecord *> Dbg;
+
+  bool operator<(const DanglingDbg &Other) const { return Order < Other.Order; }
+};
+
+using OrderList = SmallVector<DanglingDbg, 32>;
 
 // This allows the latency-based scheduler to notice high latency instructions
 // without a target itinerary. The choice of number here has more to do with
@@ -1011,7 +1017,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     // Sort the source order instructions and use the order to insert debug
     // values. Use stable_sort so that DBG_VALUEs are inserted in the same order
     // regardless of the host's implementation fo std::sort.
-    llvm::stable_sort(Orders, less_first());
+    llvm::stable_sort(Orders);
     std::stable_sort(DAG->DbgBegin(), DAG->DbgEnd(),
                      [](const SDDbgValue *LHS, const SDDbgValue *RHS) {
                        return LHS->getOrder() < RHS->getOrder();
@@ -1022,12 +1028,12 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     // Now emit the rest according to source order.
     unsigned LastOrder = 0;
     for (unsigned i = 0, e = Orders.size(); i != e && DI != DE; ++i) {
-      unsigned Order = Orders[i].first;
+      unsigned Order = Orders[i].Order;
       // xxx och: only need the variant while both modes exist in the same input
       MachineInstr *MI =
-          std::holds_alternative<MachineInstr *>(Orders[i].second)
-              ? std::get<MachineInstr *>(Orders[i].second)
-              : std::get<DbgMachineRecord *>(Orders[i].second)->getInstruction();
+          std::holds_alternative<MachineInstr *>(Orders[i].Dbg)
+              ? std::get<MachineInstr *>(Orders[i].Dbg)
+              : std::get<DbgMachineRecord *>(Orders[i].Dbg)->getInstruction();
       // Insert all SDDbgValue's whose order(s) are before "Order".
       // assert(MI);
       for (; DI != DE; ++DI) {
@@ -1057,7 +1063,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
               // DbgMachineMarker::getParent() requires linked instr.
               // MI is only nullptr if we've got trailing records
               DbgMachineMarker *M =
-                  std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();
+                  std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
               auto *MBB = M->getParent();
               assert(MBB->getTrailingDbgRecords() == M);
               Pos = MBB->end().getInstrIterator();
@@ -1081,7 +1087,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             else {
               // MI is only nullptr if we've got trailing records
               DbgMachineMarker *M =
-                  std::get<DbgMachineRecord *>(Orders[i].second)->getMarker();
+                  std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
               auto *MBB = M->getParent();
               assert(MBB->getTrailingDbgRecords() == M);
               Pos = MBB->end().getInstrIterator();
@@ -1128,12 +1134,12 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     // Now emit the rest according to source order.
     LastOrder = 0;
     for (const auto &InstrOrder : Orders) {
-      unsigned Order = InstrOrder.first;
+      unsigned Order = InstrOrder.Order;
       // xxx och: only need the variant while both modes exist in the same input
       MachineInstr *MI =
-          std::holds_alternative<MachineInstr *>(InstrOrder.second)
-              ? std::get<MachineInstr *>(InstrOrder.second)
-              : std::get<DbgMachineRecord *>(InstrOrder.second)->getInstruction();
+          std::holds_alternative<MachineInstr *>(InstrOrder.Dbg)
+              ? std::get<MachineInstr *>(InstrOrder.Dbg)
+              : std::get<DbgMachineRecord *>(InstrOrder.Dbg)->getInstruction();
       if (!MI)
         continue;
 
