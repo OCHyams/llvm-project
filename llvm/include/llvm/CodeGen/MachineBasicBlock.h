@@ -366,8 +366,16 @@ public:
   const MachineInstr &front()       const { return Insts.front(); }
   const MachineInstr &back()        const { return *--end();      }
 
-  instr_iterator                instr_begin()       { return Insts.begin();  }
-  const_instr_iterator          instr_begin() const { return Insts.begin();  }
+  instr_iterator instr_begin() {
+    auto Begin = Insts.begin();
+    Begin.setHeadBit(true);
+    return Begin;
+  }
+  const_instr_iterator instr_begin() const {
+    auto Begin = Insts.begin();
+    Begin.setHeadBit(true);
+    return Begin;
+  }
   instr_iterator                  instr_end()       { return Insts.end();    }
   const_instr_iterator            instr_end() const { return Insts.end();    }
   reverse_instr_iterator       instr_rbegin()       { return Insts.rbegin(); }

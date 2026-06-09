@@ -1467,6 +1467,7 @@ ReoptimizeBlock:
           DuplicateDbg.eraseFromParent();
         }
       }
+
       PrevBB.splice(PrevBB.end(), MBB, MBB->begin(), MBB->end());
       PrevBB.removeSuccessor(PrevBB.succ_begin());
       assert(PrevBB.succ_empty());
