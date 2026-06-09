@@ -47,6 +47,7 @@ STATISTIC(LoadsClustered, "Number of loads clustered together");
 struct DanglingDbg {
   unsigned Order;
   std::variant<MachineInstr *, DbgMachineRecord *> Dbg;
+  MachineBasicBlock *Parent;
 
   bool operator<(const DanglingDbg &Other) const { return Order < Other.Order; }
 };
@@ -786,7 +787,7 @@ static void ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG,
       MachineInstr *MI = std::get<MachineInstr*>(DbgMI);
       if (!MI)
         continue;
-      Orders.push_back({DVOrder, MI});
+      Orders.push_back({DVOrder, MI, BB});
       BB->insert(InsertPos, MI);
     } else {
       // It's a DDD record!
@@ -796,7 +797,7 @@ static void ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG,
       Marker->insertDbgRecord(DMVR, false);
 
       // xxx ... ???
-      Orders.push_back({DVOrder, DMVR});
+      Orders.push_back({DVOrder, DMVR, BB});
     }
   }
 }
@@ -823,7 +824,7 @@ static void ProcessSourceNode(SDNode *N, SelectionDAG *DAG,
   // all.
   if (NewInsn) {
     Seen.insert(Order);
-    Orders.push_back({Order, NewInsn});
+    Orders.push_back({Order, NewInsn, NewInsn->getParent()});
   }
 
   // Even if no instruction was generated, a Value may have become defined via
@@ -1062,14 +1063,14 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
               //. xxx this and below doesn't acutally work --
               // DbgMachineMarker::getParent() requires linked instr.
               // MI is only nullptr if we've got trailing records
-              DbgMachineMarker *M =
-                  std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
-              auto *MBB = M->getParent();
-              assert(MBB->getTrailingDbgRecords() == M);
-              Pos = MBB->end().getInstrIterator();
+              // DbgMachineMarker *M =
+              //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
+              // auto *MBB = M->getParent();
+              // assert(MBB->getTrailingDbgRecords() == M);
+              Pos = Orders[i].Parent->end().getInstrIterator();
               Pos.setHeadBit(true); // insert before the trailing records.
             }
-            MI->getParent()->insert(Pos, NewDbgMI);
+            Orders[i].Parent->insert(Pos, NewDbgMI);
           }
         } else {
           // It's a DDD record!
@@ -1085,15 +1086,15 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             if (MI)
               Pos = MI->getIterator();
             else {
-              // MI is only nullptr if we've got trailing records
-              DbgMachineMarker *M =
-                  std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
-              auto *MBB = M->getParent();
-              assert(MBB->getTrailingDbgRecords() == M);
-              Pos = MBB->end().getInstrIterator();
+              // // MI is only nullptr if we've got trailing records
+              // DbgMachineMarker *M =
+              //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
+              // auto *MBB = M->getParent();
+              // assert(MBB->getTrailingDbgRecords() == M);
+              Pos = Orders[i].Parent->end().getInstrIterator();
               Pos.setHeadBit(true); // insert before the trailing records.
             }
-            Marker = MI->getParent()->createMarker(&*Pos);
+            Marker = Orders[i].Parent->createMarker(&*Pos);
           }
 
           // Insert this at the end.
