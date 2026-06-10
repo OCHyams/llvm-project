@@ -1628,9 +1628,14 @@ static void performSink(MachineInstr &MI, MachineBasicBlock &SuccToSinkTo,
 
   // Move the instruction.
   MachineBasicBlock *ParentBlock = MI.getParent();
-  SuccToSinkTo.splice(InsertPos, ParentBlock, MI,
-                      ++MachineBasicBlock::iterator(MI));
-
+  {
+    auto Next = std::next(MI.getIterator());
+    Next.setTailBit(true); // Don't drag debug info with.
+    // xx can we do this with the other slice overload wherer we pass in no end
+    // it? should that set tail bit false?
+    SuccToSinkTo.splice(InsertPos, ParentBlock, MI, Next);
+  }
+  // XXX will have do to something here for dbg_values to maintain badness
   // Sink a copy of debug users to the insert position. Mark the original
   // DBG_VALUE location as 'undef', indicating that any earlier variable
   // location should be terminated as we've optimised away the value at this
