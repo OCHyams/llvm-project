@@ -1361,6 +1361,33 @@ void MachineFunction::finalizeDebugInstrRefs() {
       if (!IsValidRef)
         MakeUndefDbgValue(MI);
     }
+
+    // gotta handle trailing records too, which are not a transient state for
+    // MIR sadly. :(
+    if (DbgMachineMarker *Tail = MBB.getTrailingDbgRecords())
+      for (DbgMachineRecord &DbgMRec : Tail->StoredDbgRecords) {
+        DbgMachineVariableRecord *VarRec =
+            dyn_cast<DbgMachineVariableRecord>(&DbgMRec);
+        if (!VarRec)
+          continue;
+        if (!VarRec->isRef())
+          continue;
+        for (auto &MO : VarRec->MOs) {
+          if (!MO.isDbgInstrRef())
+            continue;
+          auto OpIdxX = MO.getInstrRefOpIndex();
+          if (OpIdxX != UINT_MAX)
+            continue;
+          // It's a vreg, try to resolve.
+          auto InsIdx = MO.getInstrRefInstrIndex();
+          auto lol = finalizeDebugInstrRefRef(InsIdx, ArgDbgPHIs);
+          if (!lol) {
+            MakeUndefDbgRec(VarRec);
+            break;
+          }
+          MO = MachineOperand::CreateDbgInstrRef(lol->first, lol->second);
+        }
+      }
   }
 }
 
