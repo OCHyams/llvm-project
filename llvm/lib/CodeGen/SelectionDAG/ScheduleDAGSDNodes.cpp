@@ -1014,6 +1014,9 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
   // order sequence.
   if (HasDbg) {
     MachineBasicBlock::iterator BBBegin = BB->getFirstNonPHI();
+    BBBegin.setHeadBit(false); // the insert position is stable, even after
+    // other insertions, so insert _after_ those dbg records not before, to
+    // match existing behaviour.
 
     // Sort the source order instructions and use the order to insert debug
     // values. Use stable_sort so that DBG_VALUEs are inserted in the same order

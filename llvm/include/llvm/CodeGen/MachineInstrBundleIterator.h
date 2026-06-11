@@ -281,6 +281,9 @@ public:
   /// same node.  Converting the endpoint iterators in a range will give a
   /// different range; for range operations, use the explicit conversions.
   reverse_iterator getReverse() const { return MII.getReverse(); }
+
+  void setHeadBit(bool V) { MII.setHeadBit(V); }
+  void setTailBit(bool V) { MII.setTailBit(V); }
 };
 
 } // end namespace llvm
