@@ -213,6 +213,9 @@ MachineBasicBlock::iterator
 MachineBasicBlock::SkipPHIsAndLabels(MachineBasicBlock::iterator I) {
   const TargetInstrInfo *TII = getParent()->getSubtarget().getInstrInfo();
 
+  bool HeadBit = I.getHeadBit();
+  bool TailBit = I.getTailBit();
+
   iterator E = end();
   while (I != E && (I->isPHI() || I->isPosition() ||
                     TII->isBasicBlockPrologue(*I)))
@@ -221,6 +224,9 @@ MachineBasicBlock::SkipPHIsAndLabels(MachineBasicBlock::iterator I) {
   // inside the bundle.
   assert((I == E || !I->isInsideBundle()) &&
          "First non-phi / non-label instruction is inside a bundle!");
+
+  I.setHeadBit(HeadBit);
+  I.setTailBit(TailBit);
   return I;
 }
 

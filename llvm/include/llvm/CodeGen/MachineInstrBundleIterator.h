@@ -284,6 +284,8 @@ public:
 
   void setHeadBit(bool V) { MII.setHeadBit(V); }
   void setTailBit(bool V) { MII.setTailBit(V); }
+  bool getHeadBit() const { return MII.getHeadBit(); }
+  bool getTailBit() const { return MII.getHeadBit(); }
 };
 
 } // end namespace llvm

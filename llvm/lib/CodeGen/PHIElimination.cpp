@@ -364,6 +364,8 @@ void PHIEliminationImpl::LowerPHINode(MachineBasicBlock &MBB,
   ++NumLowered;
 
   MachineBasicBlock::iterator AfterPHIsIt = std::next(LastPHIIt);
+  // After PHIs and before 1st debug records.
+  AfterPHIsIt.setHeadBit(true);
 
   // Unlink the PHI node from the basic block, but don't delete the PHI yet.
   MachineInstr *MPhi = MBB.remove(&*MBB.begin());
