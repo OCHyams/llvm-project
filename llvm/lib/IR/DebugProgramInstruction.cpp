@@ -808,7 +808,8 @@ void DbgMachineVariableRecord::print(raw_ostream &O, bool IsForDebug) const {
 void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
                                      bool IsForDebug) const {
   // XXX errr, when are we an instr ref and when are we a dbg_value
-  const Module *Mod = getFunction()->getFunction().getParent();
+  const Module *Mod =
+      getInstruction() ? getFunction()->getFunction().getParent() : nullptr;
 
   auto PrintOrNull = [&](Metadata *M) {
     if (!M)
