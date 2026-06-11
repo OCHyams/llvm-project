@@ -841,6 +841,8 @@ public:
   LLVM_ABI void print(raw_ostream &ROS, ModuleSlotTracker &MST,
                       bool IsForDebug) const;
 
+  ArrayRef<MachineOperand> getDebugOperands() const { return MOs; }
+
   /// Support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const DbgMachineRecord *E) {
     return E->getRecordKind() == ValueKind;

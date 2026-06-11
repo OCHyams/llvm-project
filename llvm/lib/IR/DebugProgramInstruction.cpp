@@ -888,7 +888,8 @@ DbgMachineVariableRecord::createDebugInstr(MachineInstr *InsertBefore) const {
   auto *DbgMI = BuildMI(*MF, getDebugLoc(), RefII, false, MOs, getVariable(),
                         getExpression())
                     .getInstr();
-  InsertBefore->getParent()->insert(InsertBefore->getIterator(), DbgMI);
+  if (InsertBefore)
+    InsertBefore->getParent()->insert(InsertBefore->getIterator(), DbgMI);
   return DbgMI;
 }
 

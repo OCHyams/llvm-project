@@ -1977,6 +1977,38 @@ void MachineBasicBlock::convertFromDbgRecords() {
       MDR.eraseFromParent();
     }
   }
+
+  if (DbgMachineMarker *Tail = getTrailingDbgRecords()) {
+    const MCInstrDesc &RefII = getParent()->getSubtarget().getInstrInfo()->get(
+        TargetOpcode::DBG_INSTR_REF);
+
+    // range based for loop is asserting on derefing a sentinel?! ah...
+    // inserting the MachineInstrs shuffles the trailing marker around! (this
+    // must be inefficient xxx)
+    SmallVector<MachineInstr *> ToInsert;
+    while (!getTrailingDbgRecords()->empty()) {
+      auto It = getTrailingDbgRecords()->StoredDbgRecords.begin();
+      DbgMachineRecord *DR = &*It;
+
+      {
+        auto *MDR = cast<DbgMachineVariableRecord>(DR);
+        assert(MDR->isRef() && "xxx");
+        // xxx createDebugInstr overload without need for linked instr/parent
+        auto *MI = BuildMI(*getParent(), MDR->getDebugLoc(), RefII, false,
+                           MDR->getDebugOperands(), MDR->getRawVariable(),
+                           MDR->getRawExpression())
+                       .getInstr();
+        ToInsert.push_back(MI);
+      }
+
+      getTrailingDbgRecords()->StoredDbgRecords.erase(It);
+      DR->deleteRecord();
+    }
+
+    insert(end(), ToInsert.begin(), ToInsert.end());
+    getTrailingDbgRecords()->dropDbgRecords();
+    deleteTrailingDbgRecords();
+  }
 }
 
 void MachineBasicBlock::convertToDbgRecords() {
