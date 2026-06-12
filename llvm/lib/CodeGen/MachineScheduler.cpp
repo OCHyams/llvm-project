@@ -556,6 +556,10 @@ bool MachineSchedulerImpl::run(MachineFunction &Func, const TargetMachine &TM,
   LIS = &Analyses.LIS;
   MBFI = &Analyses.MBFI;
 
+  // XXX hack because placeDebugValues is awkward.
+  for (auto &MBB : Func)
+    MBB.convertFromDbgRecords();
+
   if (VerifyScheduling) {
     LLVM_DEBUG(LIS->dump());
     const char *MSchedBanner = "Before machine scheduling.";
@@ -579,6 +583,9 @@ bool MachineSchedulerImpl::run(MachineFunction &Func, const TargetMachine &TM,
     else
       MF->verify(*MFAM, MSchedBanner, &errs());
   }
+
+  for (auto &MBB : Func)
+    MBB.convertToDbgRecords();
   return true;
 }
 
