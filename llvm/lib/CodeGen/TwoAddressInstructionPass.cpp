@@ -1063,6 +1063,7 @@ bool TwoAddressInstructionImpl::rescheduleMIBelowKill(
   // Move debug info as well.
   while (Begin != MBB->begin() && std::prev(Begin)->isDebugInstr())
     --Begin;
+  Begin.setHeadBit(true); // Include records too.
 
   nmi = End;
   MachineBasicBlock::iterator InsertPos = KillPos;
