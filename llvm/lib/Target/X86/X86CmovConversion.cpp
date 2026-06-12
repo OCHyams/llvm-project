@@ -699,8 +699,11 @@ void X86CmovConversionImpl::convertCmovInstsToBranches(
   }
 
   // Transfer the remainder of BB and its successor edges to SinkMBB.
-  SinkMBB->splice(SinkMBB->begin(), MBB,
-                  std::next(MachineBasicBlock::iterator(LastCMOV)), MBB->end());
+  {
+    auto FromIt = std::next(MachineBasicBlock::iterator(LastCMOV));
+    FromIt.setHeadBit(true); // Bring debug info along too.
+    SinkMBB->splice(SinkMBB->begin(), MBB, FromIt, MBB->end());
+  }
   SinkMBB->transferSuccessorsAndUpdatePHIs(MBB);
 
   // Add the false and sink blocks as its successors.
