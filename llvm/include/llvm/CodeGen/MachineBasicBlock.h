@@ -391,6 +391,11 @@ public:
     return const_instr_range(instr_begin(), instr_end());
   }
 
+  iterator begin(bool BeforeDbgRecs) {
+    auto It = instr_begin();
+    It.setHeadBit(BeforeDbgRecs);
+    return It;
+  }
   iterator                begin()       { return instr_begin();  }
   const_iterator          begin() const { return instr_begin();  }
   iterator                end  ()       { return instr_end();    }

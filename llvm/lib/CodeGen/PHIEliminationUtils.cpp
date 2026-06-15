@@ -35,7 +35,7 @@ llvm::findPHICopyInsertPoint(MachineBasicBlock* MBB, MachineBasicBlock* SuccMBB,
                              Register SrcReg) {
   // Handle the trivial case trivially.
   if (MBB->empty())
-    return MBB->begin();
+    return MBB->begin(false); // don't insert before dbg recs.
 
   // Usually, we just want to insert the copy before the first terminator
   // instruction. However, for the edge going to a landing pad, we must insert
