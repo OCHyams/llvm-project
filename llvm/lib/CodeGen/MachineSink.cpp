@@ -1620,9 +1620,10 @@ static void performSink(MachineInstr &MI, MachineBasicBlock &SuccToSinkTo,
   // If we cannot find a location to use (merge with), then we erase the debug
   // location to prevent debug-info driven tools from potentially reporting
   // wrong location information.
-  if (!SuccToSinkTo.empty() && InsertPos != SuccToSinkTo.end())
-    MI.setDebugLoc(DebugLoc::getMergedLocation(MI.getDebugLoc(),
-                                               InsertPos->getDebugLoc()));
+  auto DbgLocIt = skipDebugInstructionsForward(InsertPos, SuccToSinkTo.end());
+  if (!SuccToSinkTo.empty() && DbgLocIt != SuccToSinkTo.end())
+    MI.setDebugLoc(
+        DebugLoc::getMergedLocation(MI.getDebugLoc(), DbgLocIt->getDebugLoc()));
   else
     MI.setDebugLoc(DebugLoc());
 
