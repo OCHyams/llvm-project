@@ -2693,7 +2693,10 @@ void DwarfDebug::findForceIsStmtInstrs(const MachineFunction *MF) {
   for (auto &MBB : *const_cast<MachineFunction *>(MF)) {
     if (MBB.empty() || MBB.pred_empty())
       continue;
-    for (auto &MI : MBB) {
+    auto It = MBB.getFirstNonDebugInstr();
+    auto End = MBB.end();
+    for (; It != End; It = next_nodbg(It, End)) {
+      MachineInstr &MI = *It;
       if (MI.getDebugLoc() && MI.getDebugLoc()->getLine()) {
         PredMBBsToExamine.insert_range(MBB.predecessors());
         PotentialIsStmtMBBInstrs.insert({&MBB, &MI});
