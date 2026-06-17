@@ -1060,9 +1060,11 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
             MachineBasicBlock::instr_iterator Pos;
-            if (MI)
+            if (MI) {
               Pos = MI->getIterator();
-            else {
+              if (std::holds_alternative<DbgMachineRecord *>(Orders[i].Dbg))
+                Pos.setHeadBit(true);
+            } else {
               //. xxx this and below doesn't acutally work --
               // DbgMachineMarker::getParent() requires linked instr.
               // MI is only nullptr if we've got trailing records
@@ -1086,9 +1088,11 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
             MachineBasicBlock::instr_iterator Pos;
-            if (MI)
+            if (MI) {
               Pos = MI->getIterator();
-            else {
+              if (std::holds_alternative<DbgMachineRecord *>(Orders[i].Dbg))
+                Pos.setHeadBit(true);
+            } else {
               // // MI is only nullptr if we've got trailing records
               // DbgMachineMarker *M =
               //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
