@@ -1979,15 +1979,12 @@ DbgMachineMarker *MachineBasicBlock::createMarker(iterator It) {
 void MachineBasicBlock::convertFromDbgRecords() {
   for (auto &MI : instrs()) {
     for (auto &MDR : make_early_inc_range(MI.getDbgRecordRange())) {
-      MachineInstr *Inst = MDR.createDebugInstr(&MI);
+      MDR.createDebugInstr(&MI);
       MDR.eraseFromParent();
     }
   }
 
-  if (DbgMachineMarker *Tail = getTrailingDbgRecords()) {
-    const MCInstrDesc &RefII = getParent()->getSubtarget().getInstrInfo()->get(
-        TargetOpcode::DBG_INSTR_REF);
-
+  if (getTrailingDbgRecords()) {
     // range based for loop is asserting on derefing a sentinel?! ah...
     // inserting the MachineInstrs shuffles the trailing marker around! (this
     // must be inefficient xxx)
@@ -1995,28 +1992,9 @@ void MachineBasicBlock::convertFromDbgRecords() {
     while (!getTrailingDbgRecords()->empty()) {
       auto It = getTrailingDbgRecords()->StoredDbgRecords.begin();
       DbgMachineRecord *DR = &*It;
-
       auto *MDR = cast<DbgMachineVariableRecord>(DR);
-      MachineInstr *MI = nullptr;
-      if (MDR->isRef()) {
 
-        // xxx createDebugInstr overload without need for linked instr/parent
-        MI = BuildMI(*getParent(), MDR->getDebugLoc(), RefII, false,
-                     MDR->getDebugOperands(), MDR->getRawVariable(),
-                     MDR->getRawExpression())
-                 .getInstr();
-      } else if (MDR->isValue()) {
-        // despite current name this is just an undef
-        // xxx createDebugInstr overload without need for linked instr/parent
-        const MCInstrDesc &Desc =
-            getParent()->getSubtarget().getInstrInfo()->get(
-                TargetOpcode::DBG_VALUE);
-        MI = BuildMI(*getParent(), MDR->getDebugLoc(), Desc, false, 0u,
-                     MDR->getRawVariable(), MDR->getRawExpression())
-                 .getInstr();
-      } else {
-        llvm_unreachable("xxx, unhandled dbgrec");
-      }
+      MachineInstr *MI = MDR->createDebugInstr(getParent());
 
       ToInsert.push_back(MI);
       getTrailingDbgRecords()->StoredDbgRecords.erase(It);

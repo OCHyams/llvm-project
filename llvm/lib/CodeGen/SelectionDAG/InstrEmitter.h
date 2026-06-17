@@ -134,8 +134,8 @@ public:
   MachineInstr *EmitDbgValueList(SDDbgValue *SD, VRBaseMapType &VRBaseMap);
 
   /// Emit a DBG_VALUE from the operands to SDDbgValue.
-  MachineInstr *EmitDbgValueFromSingleOp(SDDbgValue *SD,
-                                         VRBaseMapType &VRBaseMap);
+  std::variant<MachineInstr *, DbgMachineRecord *>
+  EmitDbgValueFromSingleOp(SDDbgValue *SD, VRBaseMapType &VRBaseMap);
 
   /// Generate machine instruction for a dbg_label node.
   MachineInstr *EmitDbgLabel(SDDbgLabel *SD);

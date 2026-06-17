@@ -978,9 +978,10 @@ InstrEmitter::EmitDbgValueList(SDDbgValue *SD,
   return &*MIB;
 }
 
-MachineInstr *
+std::variant<MachineInstr *, DbgMachineRecord *>
 InstrEmitter::EmitDbgValueFromSingleOp(SDDbgValue *SD,
                                        VRBaseMapType &VRBaseMap) {
+
   MDNode *Var = SD->getVariable();
   DIExpression *Expr = SD->getExpression();
   DebugLoc DL = SD->getDebugLoc();
@@ -997,6 +998,19 @@ InstrEmitter::EmitDbgValueFromSingleOp(SDDbgValue *SD,
     if (auto *C = dyn_cast<ConstantInt>(V)) {
       std::tie(Expr, C) = Expr->constantFold(C);
       LocationOps[0] = SDDbgOperand::fromConst(C);
+    }
+  }
+
+  if (UsingDDDISel) {
+    SDDbgOperand DbgOp = LocationOps[0];
+    // eventually this should be an assert! (frameix come this way atm)?
+    if (DbgOp.getKind() == SDDbgOperand::CONST) {
+      MachineOperand MO = GetMOForConstDbgOp(DbgOp);
+      if (MO.isReg()) // xxxx unify these create functions
+        return DbgMachineVariableRecord::createDMVRValue(
+            0, cast<DILocalVariable>(Var), (DIExpression *)Expr, DL);
+      return DbgMachineVariableRecord::createDMVRRef(
+          MO, cast<DILocalVariable>(Var), (DIExpression *)Expr, DL);
     }
   }
 

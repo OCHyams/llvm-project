@@ -884,27 +884,43 @@ DbgMachineRecord::createDebugInstr(MachineInstr *InsertBefore) const {
 }
 
 MachineInstr *
-DbgMachineVariableRecord::createDebugInstr(MachineInstr *InsertBefore) const {
-  MachineFunction *MF = const_cast<MachineFunction *>(getFunction());
-
-  MachineInstr *DbgMI = nullptr;
+DbgMachineVariableRecord::createDebugInstr(MachineFunction *MF) const {
+  assert(MF && "no function?");
   if (isRef()) {
+    // consts are DBG_VALUEs currently! possibly still worth them having their
+    // own tag then xxx xxx err what about new made undefs, can that happen?
+    if (all_of(MOs, [](const MachineOperand &MO) {
+          return MO.isImm() || MO.isCImm() || MO.isFPImm();
+        })) {
+      assert(MOs.size() == 1 && "hopefully this is all that we support");
+      const MCInstrDesc &Desc =
+          MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_VALUE);
+      return BuildMI(*MF, getDebugLoc(), Desc, false, MOs, getVariable(),
+                     getExpression());
+    }
 
     const MCInstrDesc &Desc =
         MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_INSTR_REF);
-    DbgMI = BuildMI(*MF, getDebugLoc(), Desc, false, MOs, getVariable(),
-                    getExpression())
-                .getInstr();
-  } else if (isValue()) {
+    return BuildMI(*MF, getDebugLoc(), Desc, false, MOs, getVariable(),
+                   getExpression());
+  }
+
+  if (isValue()) {
     // Undef only! xxx rename isValue
     const MCInstrDesc &Desc =
         MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_VALUE);
-    DbgMI = BuildMI(*MF, getDebugLoc(), Desc, false, 0u, getVariable(),
-                    getExpression())
-                .getInstr();
-  } else {
-    llvm_unreachable("oops, not supported yet!");
+    return BuildMI(*MF, getDebugLoc(), Desc, false, 0u, getVariable(),
+                   getExpression());
   }
+
+  assert(false && "oops, not supported yet!");
+  return nullptr;
+}
+
+MachineInstr *
+DbgMachineVariableRecord::createDebugInstr(MachineInstr *InsertBefore) const {
+  MachineFunction *MF = const_cast<MachineFunction *>(getFunction());
+  MachineInstr *DbgMI = createDebugInstr(MF);
   assert(DbgMI);
   if (InsertBefore)
     InsertBefore->getParent()->insert(InsertBefore->getIterator(), DbgMI);
@@ -917,6 +933,7 @@ DbgMachineLabelRecord::createDebugInstr(MachineInstr *InsertBefore) const {
 }
 
 void convertToDbgRecords(ArrayRef<MachineInstr *> Instrs) {
+  assert(false && "don't think we use this");
   for (auto &MI : Instrs) {
     if (MI->isDebugRef()) {
       DbgMachineVariableRecord::createDMVRRef(
