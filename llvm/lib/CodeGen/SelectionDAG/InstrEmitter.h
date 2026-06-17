@@ -127,7 +127,8 @@ public:
   std::variant<MachineInstr *, DbgMachineRecord *> EmitDbgInstrRef(SDDbgValue *SD, VRBaseMapType &VRBaseMap);
 
   /// Emit a DBG_VALUE $noreg, indicating a variable has no location.
-  MachineInstr *EmitDbgNoLocation(SDDbgValue *SD);
+  std::variant<MachineInstr *, DbgMachineRecord *>
+  EmitDbgNoLocation(SDDbgValue *SD);
 
   /// Emit a DBG_VALUE_LIST from the operands to SDDbgValue.
   MachineInstr *EmitDbgValueList(SDDbgValue *SD, VRBaseMapType &VRBaseMap);

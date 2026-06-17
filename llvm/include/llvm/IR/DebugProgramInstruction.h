@@ -789,9 +789,9 @@ public:
 class DbgMachineVariableRecord : public DbgMachineRecord {
 public:
   enum class MachineLocationType : uint8_t {
-    Value, // i.e. DBG_VALUE,
-    Ref,   // i.e. DBG_INSTR_REF
-    PHI    // i.e. DBG_PHI. I suspect we can't fly with this?
+    ValueUndef, // i.e. DBG_VALUE,
+    Ref,        // i.e. DBG_INSTR_REF
+    PHI         // i.e. DBG_PHI. I suspect we can't fly with this?
   };
   MachineLocationType Type;
 
@@ -825,7 +825,7 @@ public:
   // XXX -- storage for _arrays_ of variadic DBG_INSTR_REFs?
   LLVM_ABI MachineInstr *createDebugInstr(MachineInstr *InsertBefore) const;
 
-  bool isValue() const { return Type == MachineLocationType::Value; }
+  bool isValue() const { return Type == MachineLocationType::ValueUndef; }
   bool isRef() const { return Type == MachineLocationType::Ref; }
   bool isPHI() const { return Type == MachineLocationType::PHI; }
 

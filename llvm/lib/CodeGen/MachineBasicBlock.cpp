@@ -1996,17 +1996,29 @@ void MachineBasicBlock::convertFromDbgRecords() {
       auto It = getTrailingDbgRecords()->StoredDbgRecords.begin();
       DbgMachineRecord *DR = &*It;
 
-      {
-        auto *MDR = cast<DbgMachineVariableRecord>(DR);
-        assert(MDR->isRef() && "xxx");
+      auto *MDR = cast<DbgMachineVariableRecord>(DR);
+      MachineInstr *MI = nullptr;
+      if (MDR->isRef()) {
+
         // xxx createDebugInstr overload without need for linked instr/parent
-        auto *MI = BuildMI(*getParent(), MDR->getDebugLoc(), RefII, false,
-                           MDR->getDebugOperands(), MDR->getRawVariable(),
-                           MDR->getRawExpression())
-                       .getInstr();
-        ToInsert.push_back(MI);
+        MI = BuildMI(*getParent(), MDR->getDebugLoc(), RefII, false,
+                     MDR->getDebugOperands(), MDR->getRawVariable(),
+                     MDR->getRawExpression())
+                 .getInstr();
+      } else if (MDR->isValue()) {
+        // despite current name this is just an undef
+        // xxx createDebugInstr overload without need for linked instr/parent
+        const MCInstrDesc &Desc =
+            getParent()->getSubtarget().getInstrInfo()->get(
+                TargetOpcode::DBG_VALUE);
+        MI = BuildMI(*getParent(), MDR->getDebugLoc(), Desc, false, 0u,
+                     MDR->getRawVariable(), MDR->getRawExpression())
+                 .getInstr();
+      } else {
+        llvm_unreachable("xxx, unhandled dbgrec");
       }
 
+      ToInsert.push_back(MI);
       getTrailingDbgRecords()->StoredDbgRecords.erase(It);
       DR->deleteRecord();
     }

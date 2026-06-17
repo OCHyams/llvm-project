@@ -741,8 +741,8 @@ DbgMachineVariableRecord *
 DbgMachineVariableRecord::createDMVRValue(Register R, DILocalVariable *Variable,
                   DIExpression *Expression, const DILocation *DI) {
   auto *NewThing = new DbgMachineVariableRecord(Variable, Expression, DI);
-  NewThing->Reg = R;
-  NewThing->Type = MachineLocationType::Value;
+  assert(R == 0 && "Only undefs");
+  NewThing->Type = MachineLocationType::ValueUndef;
   return NewThing;
 }
 
@@ -819,9 +819,9 @@ void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   };
 
   // XXX Can't use # because that's a yaml comment!
-  O << "!dbg_instr_ref";
-  O << "(";
   if (isRef()) {
+    O << "!dbg_instr_ref";
+    O << "(";
     interleave(MOs, [&](MachineOperand MO) { O << MO; }, [&]() { O << ", "; });
     O << ", ";
     PrintOrNull(getVariable());
@@ -831,8 +831,13 @@ void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
     O << "DBG_PHI";
   } else {
     assert(isValue());
-    O << "DBG_VALUE";
+    O << "!dbg_undef";
+    O << "(";
+    PrintOrNull(getVariable());
+    O << ", ";
+    PrintOrNull(getExpression());
   }
+  // XXX dbg_const
 
   O << ", ";
   PrintOrNull(getDebugLoc());
@@ -880,14 +885,27 @@ DbgMachineRecord::createDebugInstr(MachineInstr *InsertBefore) const {
 
 MachineInstr *
 DbgMachineVariableRecord::createDebugInstr(MachineInstr *InsertBefore) const {
-  assert(isRef() && "oops, only refs supported");
   MachineFunction *MF = const_cast<MachineFunction *>(getFunction());
-  const MCInstrDesc &RefII =
-      MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_INSTR_REF);
 
-  auto *DbgMI = BuildMI(*MF, getDebugLoc(), RefII, false, MOs, getVariable(),
-                        getExpression())
-                    .getInstr();
+  MachineInstr *DbgMI = nullptr;
+  if (isRef()) {
+
+    const MCInstrDesc &Desc =
+        MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_INSTR_REF);
+    DbgMI = BuildMI(*MF, getDebugLoc(), Desc, false, MOs, getVariable(),
+                    getExpression())
+                .getInstr();
+  } else if (isValue()) {
+    // Undef only! xxx rename isValue
+    const MCInstrDesc &Desc =
+        MF->getSubtarget().getInstrInfo()->get(TargetOpcode::DBG_VALUE);
+    DbgMI = BuildMI(*MF, getDebugLoc(), Desc, false, 0u, getVariable(),
+                    getExpression())
+                .getInstr();
+  } else {
+    llvm_unreachable("oops, not supported yet!");
+  }
+  assert(DbgMI);
   if (InsertBefore)
     InsertBefore->getParent()->insert(InsertBefore->getIterator(), DbgMI);
   return DbgMI;
@@ -900,12 +918,21 @@ DbgMachineLabelRecord::createDebugInstr(MachineInstr *InsertBefore) const {
 
 void convertToDbgRecords(ArrayRef<MachineInstr *> Instrs) {
   for (auto &MI : Instrs) {
-    assert(MI->isDebugRef());
-    DbgMachineVariableRecord::createDMVRRef(
-        MI->debug_operands(),
-        const_cast<DILocalVariable *>(MI->getDebugVariable()),
-        const_cast<DIExpression *>(MI->getDebugExpression()),
-        MI->getDebugLoc());
+    if (MI->isDebugRef()) {
+      DbgMachineVariableRecord::createDMVRRef(
+          MI->debug_operands(),
+          const_cast<DILocalVariable *>(MI->getDebugVariable()),
+          const_cast<DIExpression *>(MI->getDebugExpression()),
+          MI->getDebugLoc());
+    } else if (MI->isUndefDebugValue()) {
+      // note this canonicalizes variadics to non-variadics
+      DbgMachineVariableRecord::createDMVRValue(
+          0, const_cast<DILocalVariable *>(MI->getDebugVariable()),
+          const_cast<DIExpression *>(MI->getDebugExpression()),
+          MI->getDebugLoc());
+    } else {
+      llvm_unreachable("oops, unexpected dbg rec type");
+    }
   }
 }
 

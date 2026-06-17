@@ -1308,8 +1308,9 @@ void MachineFunction::finalizeDebugInstrRefs() {
   };
 
   auto MakeUndefDbgRec = [&](DbgMachineVariableRecord *DMI) {
-    DMI->Type = DbgMachineVariableRecord::MachineLocationType::Value;
-    DMI->Reg = 0;
+    DMI->Type = DbgMachineVariableRecord::MachineLocationType::ValueUndef;
+    DMI->MOs.clear();
+    // xxx DMI->Reg = 0;
   };
 
   DenseMap<Register, DebugInstrOperandPair> ArgDbgPHIs;

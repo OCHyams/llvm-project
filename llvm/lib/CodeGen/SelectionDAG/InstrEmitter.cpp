@@ -27,6 +27,8 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugProgramInstruction.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PseudoProbe.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -942,7 +944,13 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
   return BuildMI(*MF, DL, RefII, false, MOs, Var, Expr);
 }
 
-MachineInstr *InstrEmitter::EmitDbgNoLocation(SDDbgValue *SD) {
+std::variant<MachineInstr *, DbgMachineRecord *>
+InstrEmitter::EmitDbgNoLocation(SDDbgValue *SD) {
+  if (UsingDDDISel)
+    return DbgMachineVariableRecord::createDMVRValue(
+        0U, cast<DILocalVariable>(SD->getVariable()), SD->getExpression(),
+        SD->getDebugLoc());
+
   // An invalidated SDNode must generate an undef DBG_VALUE: although the
   // original value is no longer computed, earlier DBG_VALUEs live ranges
   // must not leak into later code.
