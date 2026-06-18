@@ -1087,6 +1087,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           if (!LastOrder) {
             // Insert to start of the BB (after PHIs).
             Marker = BB->createMarker(BBBegin);
+            Marker->insertDbgRecord(DMVR, false);
           } else {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
