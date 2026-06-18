@@ -1964,6 +1964,8 @@ bool MachineSinking::SinkInstruction(MachineInstr &MI, bool &SawStore,
   // this is a gnochange bug right here!
   MachineBasicBlock::iterator InsertPos =
       SuccToSinkTo->SkipPHIsLabelsAndDebug(SuccToSinkTo->begin());
+  InsertPos.setHeadBit(
+      false); // since we're skipping debug info,don't insert ahead of it
   if (blockPrologueInterferes(SuccToSinkTo, InsertPos, MI, TRI, TII, MRI)) {
     LLVM_DEBUG(dbgs() << " *** Not sinking: prologue interference\n");
     return false;
