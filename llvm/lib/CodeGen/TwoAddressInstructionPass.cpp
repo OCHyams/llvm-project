@@ -1081,6 +1081,7 @@ bool TwoAddressInstructionImpl::rescheduleMIBelowKill(
   }
 
   // Copies following MI may have been moved as well.
+  InsertPos.setHeadBit(true); // hmm? :)
   MBB->splice(InsertPos, MBB, Begin, End);
   DistanceMap.erase(DI);
 
