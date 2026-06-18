@@ -1956,8 +1956,14 @@ bool MachineSinking::SinkInstruction(MachineInstr &MI, bool &SawStore,
   }
 
   // Determine where to insert into. Skip phi nodes.
+  // I think old behaviour is bad, and it's much easier to update it also.
+  // why didn't it skip debug before, I wonder if intentional...
+  // no tests seem to fail, so I assume it was a simple mistake
+  // perhaps all SkipPHIsLabels should be SkipPHIsLabelsAndDebug
+  // ahead of this change, if there's no good reason. Whatever the case,
+  // this is a gnochange bug right here!
   MachineBasicBlock::iterator InsertPos =
-      SuccToSinkTo->SkipPHIsAndLabels(SuccToSinkTo->begin());
+      SuccToSinkTo->SkipPHIsLabelsAndDebug(SuccToSinkTo->begin());
   if (blockPrologueInterferes(SuccToSinkTo, InsertPos, MI, TRI, TII, MRI)) {
     LLVM_DEBUG(dbgs() << " *** Not sinking: prologue interference\n");
     return false;
