@@ -1223,8 +1223,12 @@ public:
   /// If From points to a bundle of instructions, the whole bundle is moved.
   void splice(iterator Where, MachineBasicBlock *Other, iterator From) {
     // The range splice() doesn't allow noop moves, but this one does.
-    if (Where != From)
-      splice(Where, Other, From, std::next(From));
+    if (Where != From) {
+      // Single iterator moves don't drag along the following records.
+      auto To = std::next(From);
+      To.setTailBit(true);
+      splice(Where, Other, From, To);
+    }
   }
 
   /// Take a block of instructions from MBB 'Other' in the range [From, To),
