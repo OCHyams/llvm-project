@@ -1033,11 +1033,6 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     unsigned LastOrder = 0;
     for (unsigned i = 0, e = Orders.size(); i != e && DI != DE; ++i) {
       unsigned Order = Orders[i].Order;
-      // xxx och: only need the variant while both modes exist in the same input
-      MachineInstr *MI =
-          std::holds_alternative<MachineInstr *>(Orders[i].Dbg)
-              ? std::get<MachineInstr *>(Orders[i].Dbg)
-              : std::get<DbgMachineRecord *>(Orders[i].Dbg)->getInstruction();
       // Insert all SDDbgValue's whose order(s) are before "Order".
       // assert(MI);
       for (; DI != DE; ++DI) {
@@ -1053,13 +1048,20 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           // if (!MI)
           //   continue; previously we asserted this, and now it's handled
 
-          if (!LastOrder)
+          if (!LastOrder) {
             // Insert to start of the BB (after PHIs).
             BB->insert(BBBegin, NewDbgMI);
-          else {
+          } else {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
             MachineBasicBlock::instr_iterator Pos;
+            // xxx och: only need the variant while both modes exist in the same
+            // input
+            MachineInstr *MI =
+                std::holds_alternative<MachineInstr *>(Orders[i].Dbg)
+                    ? std::get<MachineInstr *>(Orders[i].Dbg)
+                    : std::get<DbgMachineRecord *>(Orders[i].Dbg)
+                          ->getInstruction();
             if (MI) {
               Pos = MI->getIterator();
               if (std::holds_alternative<DbgMachineRecord *>(Orders[i].Dbg))
@@ -1082,31 +1084,33 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           DbgMachineRecord *DMVR = std::get<DbgMachineRecord*>(DbgMI);
           DbgMachineMarker *Marker;
           bool InsertAtHead = false;
-          if (!LastOrder)
+          if (!LastOrder) {
             // Insert to start of the BB (after PHIs).
             Marker = BB->createMarker(BBBegin);
-          else {
+          } else {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
-            MachineBasicBlock::instr_iterator Pos;
-            if (MI) {
-              Pos = MI->getIterator();
-              if (std::holds_alternative<DbgMachineRecord *>(Orders[i].Dbg))
-                InsertAtHead = true;
+            // xxx och: only need the variant while both modes exist in the same
+            // input
+            // Insert before an instruction.
+            if (std::holds_alternative<MachineInstr *>(Orders[i].Dbg)) {
+              MachineInstr *MI = std::get<MachineInstr *>(Orders[i].Dbg);
+              if (MI) {
+                Marker = Orders[i].Parent->createMarker(MI);
+                Marker->insertDbgRecord(DMVR, false);
+              } else {
+                auto End = Orders[i].Parent->end().getInstrIterator();
+                End.setHeadBit(true); // insert before the trailing records.
+                Marker = Orders[i].Parent->createMarker(End);
+                Marker->insertDbgRecord(DMVR, InsertAtHead);
+              }
             } else {
-              // // MI is only nullptr if we've got trailing records
-              // DbgMachineMarker *M =
-              //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
-              // auto *MBB = M->getParent();
-              // assert(MBB->getTrailingDbgRecords() == M);
-              // err surely this is borked?
-              Pos = Orders[i].Parent->end().getInstrIterator();
-              Pos.setHeadBit(true); // insert before the trailing records.
-              InsertAtHead = true;
+              // Simply insert before the dbg rec.
+              DbgMachineRecord *Pos =
+                  std::get<DbgMachineRecord *>(Orders[i].Dbg);
+              DMVR->insertBefore(Pos);
             }
-            Marker = Orders[i].Parent->createMarker(&*Pos);
           }
-          Marker->insertDbgRecord(DMVR, InsertAtHead);
         }
       }
       LastOrder = Order;
