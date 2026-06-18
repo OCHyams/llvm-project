@@ -1052,32 +1052,40 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             // Insert to start of the BB (after PHIs).
             BB->insert(BBBegin, NewDbgMI);
           } else {
-            // Insert at the instruction, which may be in a different
-            // block, if the block was split by a custom inserter.
-            MachineBasicBlock::instr_iterator Pos;
-            // xxx och: only need the variant while both modes exist in the same
-            // input
-            MachineInstr *MI =
-                std::holds_alternative<MachineInstr *>(Orders[i].Dbg)
-                    ? std::get<MachineInstr *>(Orders[i].Dbg)
-                    : std::get<DbgMachineRecord *>(Orders[i].Dbg)
-                          ->getInstruction();
-            if (MI) {
-              Pos = MI->getIterator();
-              if (std::holds_alternative<DbgMachineRecord *>(Orders[i].Dbg))
-                Pos.setHeadBit(true);
+            if (std::holds_alternative<MachineInstr *>(Orders[i].Dbg)) {
+              MachineInstr *MI = std::get<MachineInstr *>(Orders[i].Dbg);
+
+              // Insert at the instruction, which may be in a different
+              // block, if the block was split by a custom inserter.
+              MachineBasicBlock::instr_iterator Pos;
+              if (MI) {
+                Pos = MI->getIterator();
+              } else {
+                //. xxx this and below doesn't acutally work --
+                // DbgMachineMarker::getParent() requires linked instr.
+                // MI is only nullptr if we've got trailing records
+                // DbgMachineMarker *M =
+                //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
+                // auto *MBB = M->getParent();
+                // assert(MBB->getTrailingDbgRecords() == M);
+                Pos = Orders[i].Parent->end().getInstrIterator();
+                Pos.setHeadBit(true); // insert before the trailing records.
+              }
+              Orders[i].Parent->insert(Pos, NewDbgMI);
             } else {
-              //. xxx this and below doesn't acutally work --
-              // DbgMachineMarker::getParent() requires linked instr.
-              // MI is only nullptr if we've got trailing records
-              // DbgMachineMarker *M =
-              //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
-              // auto *MBB = M->getParent();
-              // assert(MBB->getTrailingDbgRecords() == M);
-              Pos = Orders[i].Parent->end().getInstrIterator();
-              Pos.setHeadBit(true); // insert before the trailing records.
+              // Simply insert before the dbg rec.
+              DbgMachineRecord *Pos =
+                  std::get<DbgMachineRecord *>(Orders[i].Dbg);
+              // This is somewhat mega-gross is Pos is trailing... don't bother
+              // with that?
+              // eventually we shoudl be able to assert false on this path,
+              // as we wouldn't expect mixed records/non-recrds
+              assert(Pos->getInstruction() && "oh no");
+              auto It = Pos->getInstruction()->getIterator();
+              It.setHeadBit(true);
+              Orders[i].Parent->insert(It, NewDbgMI);
+              Orders[i].Parent->reinsertInstInDbgRecords(NewDbgMI, Pos);
             }
-            Orders[i].Parent->insert(Pos, NewDbgMI);
           }
         } else {
           // It's a DDD record!

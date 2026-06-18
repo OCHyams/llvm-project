@@ -1425,6 +1425,10 @@ public:
   DbgMachineMarker *createMarker(MachineInstr *I);
   DbgMachineMarker *createMarker(iterator I);
 
+  // XXX we may only need this during transitionary period
+  // to insert tricksy old debug instructions between debug records.
+  void reinsertInstInDbgRecords(MachineInstr *I, DbgMachineRecord *Before);
+
   void convertFromDbgRecords();
   void convertToDbgRecords();
 };

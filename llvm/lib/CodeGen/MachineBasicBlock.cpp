@@ -1976,6 +1976,62 @@ DbgMachineMarker *MachineBasicBlock::createMarker(iterator It) {
   return DM;
 }
 
+void MachineBasicBlock::reinsertInstInDbgRecords(MachineInstr *I,
+                                                 DbgMachineRecord *Before) {
+  // "I" was originally removed from a position where it was
+  // immediately in front of Pos. Any DbgRecords on that position then "fell
+  // down" onto Pos. "I" has been re-inserted at the front of that wedge of
+  // DbgRecords, shuffle them around to represent the original positioning. To
+  // illustrate:
+  //
+  //   Instructions:  I1---I---I0
+  //       DbgRecords:    DDD DDD
+  //
+  // Instruction "I" removed,
+  //
+  //   Instructions:  I1------I0
+  //       DbgRecords:    DDDDDD
+  //                       ^Pos
+  //
+  // Instruction "I" re-inserted (now):
+  //
+  //   Instructions:  I1---I------I0
+  //       DbgRecords:        DDDDDD
+  //                           ^Pos
+  //
+  // After this method completes:
+  //
+  //   Instructions:  I1---I---I0
+  //       DbgRecords:    DDD DDD
+
+  // XXX errr shld we templateatize this one also
+  assert(Before && I);
+  // This happens if there were no DbgRecords on I0. Are there now DbgRecords
+  // there?
+
+  // auto *NextMarker = getNextMarker(I);
+  //   if (!NextMarker)
+  //     return;
+  //   if (NextMarker->StoredDbgRecords.empty())
+  //     return;
+  //   // There are DbgMarkers there now -- they fell down from "I".
+  //   auto *ThisMarker = createMarker(I);
+  //   ThisMarker->absorbDebugValues(*NextMarker, false);
+  //   return;
+  // }
+
+  // Is there even a range of DbgRecords to move?
+  auto *DM = Before->getMarker();
+  auto Range = make_range(DM->StoredDbgRecords.begin(), Before->getIterator());
+  if (Range.begin() == Range.end())
+    return;
+
+  // Otherwise: splice.
+  auto *ThisMarker = createMarker(I);
+  assert(ThisMarker->StoredDbgRecords.empty());
+  ThisMarker->absorbDebugValues(Range, *DM, true);
+}
+
 void MachineBasicBlock::convertFromDbgRecords() {
   for (auto &MI : instrs()) {
     for (auto &MDR : make_early_inc_range(MI.getDbgRecordRange())) {
