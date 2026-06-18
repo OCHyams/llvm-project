@@ -1081,6 +1081,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           // It's a DDD record!
           DbgMachineRecord *DMVR = std::get<DbgMachineRecord*>(DbgMI);
           DbgMachineMarker *Marker;
+          bool InsertAtHead = false;
           if (!LastOrder)
             // Insert to start of the BB (after PHIs).
             Marker = BB->createMarker(BBBegin);
@@ -1091,21 +1092,21 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
             if (MI) {
               Pos = MI->getIterator();
               if (std::holds_alternative<DbgMachineRecord *>(Orders[i].Dbg))
-                Pos.setHeadBit(true);
+                InsertAtHead = true;
             } else {
               // // MI is only nullptr if we've got trailing records
               // DbgMachineMarker *M =
               //     std::get<DbgMachineRecord *>(Orders[i].Dbg)->getMarker();
               // auto *MBB = M->getParent();
               // assert(MBB->getTrailingDbgRecords() == M);
+              // err surely this is borked?
               Pos = Orders[i].Parent->end().getInstrIterator();
               Pos.setHeadBit(true); // insert before the trailing records.
+              InsertAtHead = true;
             }
             Marker = Orders[i].Parent->createMarker(&*Pos);
           }
-
-          // Insert this at the end.
-          Marker->insertDbgRecord(DMVR, false);
+          Marker->insertDbgRecord(DMVR, InsertAtHead);
         }
       }
       LastOrder = Order;
