@@ -1903,7 +1903,8 @@ bool TwoAddressInstructionImpl::run() {
     SrcRegMap.clear();
     DstRegMap.clear();
     Processed.clear();
-    for (MachineBasicBlock::iterator mi = MBB->begin(), me = MBB->end();
+    // headbit=false because skip-dbg-instrs check below.
+    for (MachineBasicBlock::iterator mi = MBB->begin(false), me = MBB->end();
          mi != me; ) {
       MachineBasicBlock::iterator nmi = std::next(mi);
       // Skip debug instructions.
