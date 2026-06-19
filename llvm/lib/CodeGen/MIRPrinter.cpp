@@ -74,9 +74,7 @@ static cl::opt<bool> SimplifyMIR(
 static cl::opt<bool> PrintLocations("mir-debug-loc", cl::Hidden, cl::init(true),
                                     cl::desc("Print MIR debug-locations"));
 
-static cl::opt<bool>
-    ConvertDDDForPrint("print-as-dbg-instrs", cl::Hidden, cl::init(false),
-                       cl::desc("Print debug records as debug instructions"));
+extern bool ConvertDDDForPrint;
 
 namespace {
 

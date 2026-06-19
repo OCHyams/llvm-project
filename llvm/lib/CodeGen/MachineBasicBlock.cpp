@@ -49,6 +49,11 @@ static cl::opt<bool> PrintSlotIndexes(
              "SlotIndexes when available"),
     cl::init(true), cl::Hidden);
 
+bool ConvertDDDForPrint;
+static cl::opt<bool, true> ConvertDDDForPrintOpt(
+    "print-as-dbg-instrs", cl::Hidden, cl::location(ConvertDDDForPrint),
+    cl::init(false), cl::desc("Print debug records as debug instructions"));
+
 MachineBasicBlock::MachineBasicBlock(MachineFunction &MF, const BasicBlock *B)
     : BB(B), Number(-1), xParent(&MF) {
   Insts.Parent = this;
@@ -367,13 +372,15 @@ void MachineBasicBlock::print(raw_ostream &OS, const SlotIndexes *Indexes,
 void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
                               const SlotIndexes *Indexes,
                               bool IsStandalone) const {
-  errs() << "MachineBasicBlock::print\n";
   const MachineFunction *MF = getParent();
   if (!MF) {
     OS << "Can't print out MachineBasicBlock because parent MachineFunction"
        << " is null\n";
     return;
   }
+
+  if (ConvertDDDForPrint)
+    const_cast<MachineBasicBlock *>(this)->convertFromDbgRecords();
 
   if (Indexes && PrintSlotIndexes)
     OS << Indexes->getMBBStartIdx(this) << '\t';
@@ -492,6 +499,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
       OS << "\n";
     }
   }
+
+  if (ConvertDDDForPrint)
+    const_cast<MachineBasicBlock *>(this)->convertToDbgRecords();
 }
 
 /// Print the basic block's name as:
