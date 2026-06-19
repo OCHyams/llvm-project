@@ -74,6 +74,10 @@ static cl::opt<bool> SimplifyMIR(
 static cl::opt<bool> PrintLocations("mir-debug-loc", cl::Hidden, cl::init(true),
                                     cl::desc("Print MIR debug-locations"));
 
+static cl::opt<bool>
+    ConvertDDDForPrint("print-as-dbg-instrs", cl::Hidden, cl::init(false),
+                       cl::desc("Print debug records as debug instructions"));
+
 namespace {
 
 /// This structure describes how to print out stack object references.
@@ -743,6 +747,11 @@ static void printMIOperand(raw_ostream &OS, MFPrintState &State,
 
 void printMBB(raw_ostream &OS, MFPrintState &State,
               const MachineBasicBlock &MBB) {
+  if (ConvertDDDForPrint) {
+    auto &B = const_cast<MachineBasicBlock &>(MBB);
+    B.convertFromDbgRecords();
+  }
+
   assert(MBB.getNumber() >= 0 && "Invalid MBB number");
   MBB.printName(OS,
                 MachineBasicBlock::PrintNameIr |
@@ -821,6 +830,13 @@ void printMBB(raw_ostream &OS, MFPrintState &State,
       MR.print(OS, State.MST, false);
       OS << "\n";
     }
+  }
+
+  if (ConvertDDDForPrint) {
+    // xxx, we also could just change how we print them to look like instrs,
+    // rather than convert.
+    auto &B = const_cast<MachineBasicBlock &>(MBB);
+    B.convertToDbgRecords();
   }
 }
 
