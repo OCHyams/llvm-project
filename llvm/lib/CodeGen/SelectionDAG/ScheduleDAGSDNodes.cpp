@@ -1101,6 +1101,10 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
               // But if we've already emitted a record to the top of block,
               // insert after that.
               DMVR->insertAfter(TopOfBlock);
+              // Simulate insert-before at a point which may have been
+              // mid-list. We can't just use insert-before at that point,
+              // because it may have also been the start of the list.
+              TopOfBlock = DMVR;
             } else {
               Marker = BB->createMarker(BBBegin);
               Marker->insertDbgRecord(DMVR, true);
