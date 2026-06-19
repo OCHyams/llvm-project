@@ -1035,6 +1035,9 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
       unsigned Order = Orders[i].Order;
       // Insert all SDDbgValue's whose order(s) are before "Order".
       // assert(MI);
+
+      DbgMachineRecord *TopOfBlock = nullptr;
+
       for (; DI != DE; ++DI) {
         if ((*DI)->getOrder() < LastOrder || (*DI)->getOrder() >= Order)
           break;
@@ -1094,8 +1097,15 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
           bool InsertAtHead = false;
           if (!LastOrder) {
             // Insert to start of the BB (after PHIs).
-            Marker = BB->createMarker(BBBegin);
-            Marker->insertDbgRecord(DMVR, false);
+            if (TopOfBlock) {
+              // But if we've already emitted a record to the top of block,
+              // insert after that.
+              DMVR->insertAfter(TopOfBlock);
+            } else {
+              Marker = BB->createMarker(BBBegin);
+              Marker->insertDbgRecord(DMVR, true);
+              TopOfBlock = DMVR;
+            }
           } else {
             // Insert at the instruction, which may be in a different
             // block, if the block was split by a custom inserter.
