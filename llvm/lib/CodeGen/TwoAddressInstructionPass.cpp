@@ -1260,6 +1260,9 @@ bool TwoAddressInstructionImpl::rescheduleKillAboveMI(
   MachineBasicBlock::iterator To = std::next(From);
   while (std::prev(From)->isDebugInstr())
     --From;
+  // above is weird but copy both debug-checking-loops.
+  InsertPos.setHeadBit(true);
+  From.setHeadBit(true);
   MBB->splice(InsertPos, MBB, From, To);
 
   nmi = std::prev(InsertPos); // Backtrack so we process the moved instr.
