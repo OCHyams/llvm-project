@@ -43,6 +43,8 @@ static cl::opt<bool, true> UsingDDDISelFlag("mir-dbg-records",
                                             cl::location(UsingDDDISel),
                                             cl::init(false));
 
+static cl::opt<bool> XXX("xxx", cl::init(true));
+
 /// MinRCSize - Smallest register class we allow when constraining virtual
 /// registers.  If satisfying all register class constraints would require
 /// using a smaller register class, emit a COPY to a new virtual register
@@ -825,10 +827,17 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
     return DbgOp.getKind() == SDDbgOperand::CONST;
   };
 
+  bool SkipInstrRef = all_of(SD->getLocationOps(), IsNonInstrRefOp);
+  if (XXX)
+    SkipInstrRef |= all_of(SD->getLocationOps(), [&](SDDbgOperand DbgOp) {
+      return IsInvalidOp(DbgOp) || IsNonInstrRefOp(DbgOp);
+    });
+  else
+    SkipInstrRef |= any_of(SD->getLocationOps(), IsInvalidOp);
+
   // If this variable location does not depend on any instructions or contains
   // all stack locations, produce it as a standard debug value instead.
-  if (all_of(SD->getLocationOps(), IsInvalidOp) ||
-      all_of(SD->getLocationOps(), IsNonInstrRefOp)) {
+  if (SkipInstrRef) {
     if (SD->isVariadic())
       return EmitDbgValueList(SD, VRBaseMap);
     return EmitDbgValueFromSingleOp(SD, VRBaseMap);

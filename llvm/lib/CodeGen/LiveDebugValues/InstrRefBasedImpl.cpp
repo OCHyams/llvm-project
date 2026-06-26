@@ -1659,7 +1659,15 @@ bool InstrRefBasedLDV::transferDebugInstrRef(MachineInstr &MI,
   SmallVector<DbgOpID> DbgOpIDs;
   for (const MachineOperand &MO : MI.debug_operands()) {
     if (!MO.isDbgInstrRef()) {
-      assert(!MO.isReg() && "DBG_INSTR_REF should not contain registers");
+      // Registers are not allowed at this point, except for frame registers
+      // which we assume are valid throughout, and for which we assume
+      // prologepilog has set up the expressions corretly.
+      // Xxx check what we do for single op frame index vars - do
+      // we assume they're valid throughout too across stack adjustments?
+      assert(
+          (!MO.isReg() || TRI->getFrameRegister(*MI.getParent()->getParent()) ==
+                              MO.getReg()) &&
+          "DBG_INSTR_REF should not contain registers");
       DbgOpID ConstOpID = DbgOpStore.insert(DbgOp(MO));
       DbgOpIDs.push_back(ConstOpID);
       continue;
