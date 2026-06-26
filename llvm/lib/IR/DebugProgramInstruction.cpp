@@ -753,7 +753,8 @@ DbgMachineVariableRecord::createDMVRRef(ArrayRef<MachineOperand> MOs,
   assert(all_of(MOs,
                 [](const MachineOperand &MO) {
                   return MO.isImm() || MO.isCImm() || MO.isFPImm() ||
-                         (MO.isReg() && !MO.getReg()) || MO.isDbgInstrRef();
+                         (MO.isReg() && !MO.getReg()) || MO.isDbgInstrRef() ||
+                         MO.isFI();
                 }) &&
          "Unexpected MachineOperand type");
   auto *NewThing = new DbgMachineVariableRecord(DV, Expr, DI);

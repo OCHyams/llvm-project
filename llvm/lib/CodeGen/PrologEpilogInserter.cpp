@@ -1396,7 +1396,7 @@ bool PEIImpl::replaceFrameIndexDebugInstr(MachineFunction &MF, MachineInstr &MI,
                                           unsigned OpIdx, int SPAdj) {
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-  if (MI.isDebugValue()) {
+  if (MI.isDebugValue() || MI.isDebugRef()) {
 
     MachineOperand &Op = MI.getOperand(OpIdx);
     assert(MI.isDebugOperand(&Op) &&

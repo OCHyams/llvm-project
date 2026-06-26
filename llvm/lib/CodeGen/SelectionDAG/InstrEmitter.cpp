@@ -815,6 +815,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
 
   // Returns true if the given operand is not a legal debug operand for a
   // DBG_INSTR_REF.
+  // xxx we're going to have to fix this (make it an all_of rather than any_of)
   auto IsInvalidOp = [](SDDbgOperand DbgOp) {
     return DbgOp.getKind() == SDDbgOperand::FRAMEIX;
   };
@@ -825,8 +826,8 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
   };
 
   // If this variable location does not depend on any instructions or contains
-  // any stack locations, produce it as a standard debug value instead.
-  if (any_of(SD->getLocationOps(), IsInvalidOp) ||
+  // all stack locations, produce it as a standard debug value instead.
+  if (all_of(SD->getLocationOps(), IsInvalidOp) ||
       all_of(SD->getLocationOps(), IsNonInstrRefOp)) {
     if (SD->isVariadic())
       return EmitDbgValueList(SD, VRBaseMap);
@@ -905,9 +906,13 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
       }
 
       DefMI = &*MRI->def_instr_begin(VReg);
-    } else {
-      assert(DbgOperand.getKind() == SDDbgOperand::CONST);
+    } else if (DbgOperand.getKind() == SDDbgOperand::CONST) {
       MOs.push_back(GetMOForConstDbgOp(DbgOperand));
+      continue;
+    } else {
+      assert(DbgOperand.getKind() == SDDbgOperand::FRAMEIX &&
+             "unexpected op kind");
+      MOs.push_back(MachineOperand::CreateFI(DbgOperand.getFrameIx()));
       continue;
     }
 
