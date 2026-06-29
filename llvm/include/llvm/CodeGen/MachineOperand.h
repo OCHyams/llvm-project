@@ -38,7 +38,7 @@ class TargetRegisterInfo;
 class hash_code;
 class raw_ostream;
 class MCSymbol;
-
+class MachineFrameInfo;
 /// MachineOperand class - Representation of each machine instruction operand.
 ///
 /// This class isn't a POD type because it has a private constructor, but its
@@ -287,8 +287,8 @@ public:
   /// Print the MachineOperand to \p os.
   /// Providing a valid \p TRI results in a more target-specific printing. If
   /// \p TRI is null, the function will try to pick it up from the parent.
-  LLVM_ABI void print(raw_ostream &os,
-                      const TargetRegisterInfo *TRI = nullptr) const;
+  LLVM_ABI void print(raw_ostream &os, const TargetRegisterInfo *TRI = nullptr,
+                      const MachineFrameInfo *MFI = nullptr) const;
 
   /// More complex way of printing a MachineOperand.
   /// \param TypeToPrint specifies the generic type to be printed on uses and
@@ -313,13 +313,14 @@ public:
   LLVM_ABI void print(raw_ostream &os, ModuleSlotTracker &MST, LLT TypeToPrint,
                       std::optional<unsigned> OpIdx, bool PrintDef,
                       bool IsStandalone, bool ShouldPrintRegisterTies,
-                      unsigned TiedOperandIdx,
-                      const TargetRegisterInfo *TRI) const;
+                      unsigned TiedOperandIdx, const TargetRegisterInfo *TRI,
+                      const MachineFrameInfo *MFI = nullptr) const;
 
   /// Same as print(os, TRI), but allows to specify the low-level type to be
   /// printed the same way the full version of print(...) does it.
   LLVM_ABI void print(raw_ostream &os, LLT TypeToPrint,
-                      const TargetRegisterInfo *TRI = nullptr) const;
+                      const TargetRegisterInfo *TRI = nullptr,
+                      const MachineFrameInfo *MFI = nullptr) const;
 
   LLVM_ABI void dump() const;
 

@@ -823,7 +823,16 @@ void DbgMachineVariableRecord::print(raw_ostream &O, ModuleSlotTracker &MST,
   if (isRef()) {
     O << "!dbg_instr_ref";
     O << "(";
-    interleave(MOs, [&](MachineOperand MO) { O << MO; }, [&]() { O << ", "; });
+    const MachineFunction *MF = getFunction();
+    interleave(
+        MOs,
+        [&](MachineOperand MO) {
+          if (MF)
+            MO.print(O, nullptr, &MF->getFrameInfo());
+          else
+            O << MO;
+        },
+        [&]() { O << ", "; });
     O << ", ";
     PrintOrNull(getVariable());
     O << ", ";

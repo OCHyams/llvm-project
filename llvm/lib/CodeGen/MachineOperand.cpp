@@ -855,19 +855,20 @@ static void printCFI(raw_ostream &OS, const MCCFIInstruction &CFI,
   }
 }
 
-void MachineOperand::print(raw_ostream &OS,
-                           const TargetRegisterInfo *TRI) const {
-  print(OS, LLT{}, TRI);
+void MachineOperand::print(raw_ostream &OS, const TargetRegisterInfo *TRI,
+                           const MachineFrameInfo *MFI) const {
+  print(OS, LLT{}, TRI, MFI);
 }
 
 void MachineOperand::print(raw_ostream &OS, LLT TypeToPrint,
-                           const TargetRegisterInfo *TRI) const {
+                           const TargetRegisterInfo *TRI,
+                           const MachineFrameInfo *MFI) const {
   tryToGetTargetInfo(*this, TRI);
   ModuleSlotTracker DummyMST(nullptr);
   print(OS, DummyMST, TypeToPrint, std::nullopt, /*PrintDef=*/false,
         /*IsStandalone=*/true,
         /*ShouldPrintRegisterTies=*/true,
-        /*TiedOperandIdx=*/0, TRI);
+        /*TiedOperandIdx=*/0, TRI, MFI);
 }
 
 void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
@@ -875,7 +876,8 @@ void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
                            bool PrintDef, bool IsStandalone,
                            bool ShouldPrintRegisterTies,
                            unsigned TiedOperandIdx,
-                           const TargetRegisterInfo *TRI) const {
+                           const TargetRegisterInfo *TRI,
+                           const MachineFrameInfo *MFI) const {
   printTargetFlags(OS, *this);
   switch (getType()) {
   case MachineOperand::MO_Register: {
@@ -958,9 +960,9 @@ void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
   case MachineOperand::MO_FrameIndex: {
     int FrameIndex = getIndex();
     bool IsFixed = false;
-    const MachineFrameInfo *MFI = nullptr;
-    if (const MachineFunction *MF = getMFIfAvailable(*this))
-      MFI = &MF->getFrameInfo();
+    if (!MFI)
+      if (const MachineFunction *MF = getMFIfAvailable(*this))
+        MFI = &MF->getFrameInfo();
     printFrameIndex(OS, FrameIndex, IsFixed, MFI);
     break;
   }
