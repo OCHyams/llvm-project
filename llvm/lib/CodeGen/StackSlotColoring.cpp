@@ -34,6 +34,7 @@
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
@@ -152,6 +153,10 @@ private:
   void ScanForSpillSlotRefs(MachineFunction &MF);
   int ColorSlot(LiveInterval *li);
   bool ColorSlots(MachineFunction &MF);
+  void RewriteDbgRecord(DbgMachineVariableRecord &DMVR,
+                        SmallVectorImpl<int> &SlotMapping, MachineFunction &MF);
+  void RewriteOperand(MachineOperand &MO, SmallVectorImpl<int> &SlotMapping,
+                      MachineFunction &MF);
   void RewriteInstruction(MachineInstr &MI, SmallVectorImpl<int> &SlotMapping,
                           MachineFunction &MF);
   bool RemoveDeadStores(MachineBasicBlock *MBB);
@@ -413,9 +418,22 @@ bool StackSlotColoring::ColorSlots(MachineFunction &MF) {
 
   // Rewrite all MO_FrameIndex operands.  Look for dead stores.
   for (MachineBasicBlock &MBB : MF) {
-    for (MachineInstr &MI : MBB)
+    for (MachineInstr &MI : MBB) {
       RewriteInstruction(MI, SlotMapping, MF);
+      // Rewrite the dbg machine records too.
+      for (auto &DMR : MI.getDbgRecordRange()) {
+        if (auto *DMVR = dyn_cast<DbgMachineVariableRecord>(&DMR))
+          RewriteDbgRecord(*DMVR, SlotMapping, MF);
+      }
+    }
     RemoveDeadStores(&MBB);
+    // Rewrite any dangling dbg machine records too.
+    if (auto *Marker = MBB.getTrailingDbgRecords()) {
+      for (auto &DMR : Marker->getDbgRecordRange()) {
+        if (auto *DMVR = dyn_cast<DbgMachineVariableRecord>(&DMR))
+          RewriteDbgRecord(*DMVR, SlotMapping, MF);
+      }
+    }
   }
 
   // Delete unused stack slots.
@@ -431,27 +449,35 @@ bool StackSlotColoring::ColorSlots(MachineFunction &MF) {
   return true;
 }
 
+void StackSlotColoring::RewriteDbgRecord(DbgMachineVariableRecord &DMVR,
+                                         SmallVectorImpl<int> &SlotMapping,
+                                         MachineFunction &MF) {
+  for (const MachineOperand &MO : DMVR.getDebugOperands())
+    RewriteOperand(const_cast<MachineOperand &>(MO), SlotMapping, MF);
+}
+
+void StackSlotColoring::RewriteOperand(MachineOperand &MO,
+                                       SmallVectorImpl<int> &SlotMapping,
+                                       MachineFunction &MF) {
+  if (!MO.isFI())
+    return;
+  int OldFI = MO.getIndex();
+  if (OldFI < 0)
+    return;
+  int NewFI = SlotMapping[OldFI];
+  if (NewFI == -1 || NewFI == OldFI)
+    return;
+  assert(MFI->getStackID(OldFI) == MFI->getStackID(NewFI));
+  MO.setIndex(NewFI);
+}
+
 /// RewriteInstruction - Rewrite specified instruction by replacing references
 /// to old frame index with new one.
 void StackSlotColoring::RewriteInstruction(MachineInstr &MI,
                                            SmallVectorImpl<int> &SlotMapping,
                                            MachineFunction &MF) {
-  // Update the operands.
-  for (MachineOperand &MO : MI.operands()) {
-    if (!MO.isFI())
-      continue;
-    int OldFI = MO.getIndex();
-    if (OldFI < 0)
-      continue;
-    int NewFI = SlotMapping[OldFI];
-    if (NewFI == -1 || NewFI == OldFI)
-      continue;
-
-    assert(MFI->getStackID(OldFI) == MFI->getStackID(NewFI));
-    MO.setIndex(NewFI);
-  }
-
-  // The MachineMemOperands have already been updated.
+  for (MachineOperand &MO : MI.operands())
+    RewriteOperand(MO, SlotMapping, MF);
 }
 
 /// RemoveDeadStores - Scan through a basic block and look for loads followed
