@@ -994,7 +994,7 @@ void StackColoring::remapInstructions(DenseMap<int, int> &SlotRemap) {
   // Remap all instructions to the new stack slots.
   std::vector<std::vector<MachineMemOperand *>> SSRefs(
       MFI->getObjectIndexEnd());
-  for (MachineBasicBlock &BB : *MF)
+  for (MachineBasicBlock &BB : *MF) {
     for (MachineInstr &I : BB) {
       // Skip lifetime markers. We'll remove them soon.
       if (I.getOpcode() == TargetOpcode::LIFETIME_START ||
@@ -1105,32 +1105,84 @@ void StackColoring::remapInstructions(DenseMap<int, int> &SlotRemap) {
       // this instruction.
       if (ReplaceMemOps)
         I.setMemRefs(*MF, NewMMOs);
+
+      for (auto &DMR : I.getDbgRecordRange()) {
+        auto *DMVR = dyn_cast<DbgMachineVariableRecord>(&DMR);
+        if (!DMVR)
+          continue;
+        for (auto &MO : DMVR->getDebugOperands()) {
+          if (!MO.isFI())
+            continue;
+          int FromSlot = MO.getIndex();
+
+          // Don't touch arguments.
+          if (FromSlot < 0)
+            continue;
+
+          // Only look at mapped slots.
+          if (!SlotRemap.count(FromSlot))
+            continue;
+
+          // Fix the machine instructions.
+          int ToSlot = SlotRemap[FromSlot];
+          const_cast<MachineOperand &>(MO).setIndex(ToSlot);
+          FixedInstr++; // previously counted debug instrs?
+        }
+      }
     }
+    // Rewrite any dangling dbg machine records too.
+    if (auto *Marker = BB.getTrailingDbgRecords()) {
+      for (auto &DMR : Marker->getDbgRecordRange()) {
+        auto *DMVR = dyn_cast<DbgMachineVariableRecord>(&DMR);
+        if (!DMVR)
+          continue;
+        for (auto &MO : DMVR->getDebugOperands()) {
+          if (!MO.isFI())
+            continue;
+          int FromSlot = MO.getIndex();
 
-  // Rewrite MachineMemOperands that reference old frame indices.
-  for (auto E : enumerate(SSRefs))
-    if (!E.value().empty()) {
-      const PseudoSourceValue *NewSV =
-          MF->getPSVManager().getFixedStack(SlotRemap.find(E.index())->second);
-      for (MachineMemOperand *Ref : E.value())
-        Ref->setValue(NewSV);
+          // Don't touch arguments.
+          if (FromSlot < 0)
+            continue;
+
+          // Only look at mapped slots.
+          if (!SlotRemap.count(FromSlot))
+            continue;
+
+          // Fix the machine instructions.
+          int ToSlot = SlotRemap[FromSlot];
+          const_cast<MachineOperand &>(MO).setIndex(ToSlot);
+          FixedInstr++; // previously counted debug instrs?
+        }
+      }
     }
+    // Rewrite MachineMemOperands that reference old frame indices.
+    for (auto E : enumerate(SSRefs))
+      if (!E.value().empty()) {
+        const PseudoSourceValue *NewSV = MF->getPSVManager().getFixedStack(
+            SlotRemap.find(E.index())->second);
+        for (MachineMemOperand *Ref : E.value())
+          Ref->setValue(NewSV);
+      }
 
-  // Update the location of C++ catch objects for the MSVC personality routine.
-  if (WinEHFuncInfo *EHInfo = MF->getWinEHFuncInfo())
-    for (WinEHTryBlockMapEntry &TBME : EHInfo->TryBlockMap)
-      for (WinEHHandlerType &H : TBME.HandlerArray)
-        if (H.CatchObj.FrameIndex != std::numeric_limits<int>::max())
-          if (auto It = SlotRemap.find(H.CatchObj.FrameIndex);
-              It != SlotRemap.end())
-            H.CatchObj.FrameIndex = It->second;
+    // Update the location of C++ catch objects for the MSVC personality
+    // routine.
+    if (WinEHFuncInfo *EHInfo = MF->getWinEHFuncInfo())
+      for (WinEHTryBlockMapEntry &TBME : EHInfo->TryBlockMap)
+        for (WinEHHandlerType &H : TBME.HandlerArray)
+          if (H.CatchObj.FrameIndex != std::numeric_limits<int>::max())
+            if (auto It = SlotRemap.find(H.CatchObj.FrameIndex);
+                It != SlotRemap.end())
+              H.CatchObj.FrameIndex = It->second;
 
-  LLVM_DEBUG(dbgs() << "Fixed " << FixedMemOp << " machine memory operands.\n");
-  LLVM_DEBUG(dbgs() << "Fixed " << FixedDbg << " debug locations.\n");
-  LLVM_DEBUG(dbgs() << "Fixed " << FixedInstr << " machine instructions.\n");
-  (void) FixedMemOp;
-  (void) FixedDbg;
-  (void) FixedInstr;
+    LLVM_DEBUG(dbgs() << "Fixed " << FixedMemOp
+                      << " machine memory operands.\n");
+    LLVM_DEBUG(dbgs() << "Fixed " << FixedDbg << " debug locations.\n");
+    LLVM_DEBUG(dbgs() << "Fixed " << FixedInstr << " machine instructions.\n");
+    (void)FixedMemOp;
+    (void)FixedDbg;
+    (void)FixedInstr;
+  }
 }
 
 void StackColoring::removeInvalidSlotRanges() {
