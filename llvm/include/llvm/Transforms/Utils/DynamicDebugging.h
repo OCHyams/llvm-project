@@ -10,6 +10,7 @@
 #define LLVM_TRANSFORMS_UTILS_DYNAMIC_DEBUGGING_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/PassManager.h"
 #include <memory>
 
 namespace llvm {
@@ -59,6 +60,12 @@ class Module;
 /// +----------------------------------------------+
 LLVM_ABI std::unique_ptr<Module>
 prepareForDynamicDebugging(Module *M, StringRef PromotionSuffix);
+
+struct DynamicDebuggingPass
+    : public OptionalPassInfoMixin<DynamicDebuggingPass> {
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
 } // namespace llvm
 
 #endif

@@ -8,6 +8,7 @@
 
 #include "llvm/Transforms/Utils/DynamicDebugging.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
@@ -16,6 +17,9 @@ using namespace llvm;
 
 std::unique_ptr<Module>
 llvm::prepareForDynamicDebugging(Module *M, StringRef PromotionSuffix) {
+  uint64_t NumFunctions = 0;
+  uint64_t NumReturnedArg = 0;
+
   using namespace llvm;
   assert(M->getNamedMetadata("llvm.dbg.cu") &&
          "Expected module with debug info");
@@ -78,6 +82,12 @@ llvm::prepareForDynamicDebugging(Module *M, StringRef PromotionSuffix) {
         OuterDef.addFnAttr("tail-pad-to-size", "5");
         OuterDef.addFnAttr("tail-pad-value", "144"); // 0x90
       }
+
+      NumFunctions++;
+      unsigned Index;
+      if (OuterDef.getAttributes().hasAttrSomewhere(Attribute::Returned,
+                                                    &Index))
+        NumReturnedArg++;
     }
 
     // Apply COMDAT grouping to the clone if OuterDef is in one.
@@ -172,5 +182,28 @@ llvm::prepareForDynamicDebugging(Module *M, StringRef PromotionSuffix) {
   // way.
   appendToCompilerUsed(*M, GlobalsToPreserve);
 
+  errs() << "Num functions: " << NumFunctions << "\n";
+  errs() << "Num with returned arg: " << NumReturnedArg << "\n";
+//  assert(!NumReturnedArg && "xxx");
+  if (NumReturnedArg)
+    errs() << "nonzero returned arg: " << NumReturnedArg << "\n";
   return UnoptM;
+}
+
+LLVM_ABI PreservedAnalyses DynamicDebuggingPass::run(Module &M, ModuleAnalysisManager &AM) {
+  errs() << "Input module:\n";
+  errs() << M << "\n";
+
+  auto Unopt = prepareForDynamicDebugging(&M, "dyn.prom");
+
+  errs() << "Verify outer:\n";
+  verifyModule(M, &errs());
+
+  errs() << "Verify inner:\n";
+  verifyModule(*Unopt, &errs());
+
+  errs() << "Inner module:\n";
+  errs() << *Unopt << "\n";
+
+  return PreservedAnalyses::none();
 }

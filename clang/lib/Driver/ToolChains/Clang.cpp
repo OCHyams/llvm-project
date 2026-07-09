@@ -4866,7 +4866,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << Args.getLastArg(options::OPT_fdynamic_debugging)->getAsString(Args)
           << T.getTriple();
-    if (D.isUsingLTO())
+    if (false/*D.isUsingLTO()*/)
       D.Diag(diag::err_drv_dyndbg_lto);
     if (DwarfFission != DwarfFissionKind::None)
       D.Diag(diag::err_drv_dyndbg_incompatible)
