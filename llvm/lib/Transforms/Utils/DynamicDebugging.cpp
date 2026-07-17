@@ -191,19 +191,8 @@ llvm::prepareForDynamicDebugging(Module *M, StringRef PromotionSuffix) {
 }
 
 LLVM_ABI PreservedAnalyses DynamicDebuggingPass::run(Module &M, ModuleAnalysisManager &AM) {
-  errs() << "Input module:\n";
-  errs() << M << "\n";
-
+  assert(!verifyModule(M, &errs()));
   auto Unopt = prepareForDynamicDebugging(&M, "dyn.prom");
-
-  errs() << "Verify outer:\n";
-  verifyModule(M, &errs());
-
-  errs() << "Verify inner:\n";
-  verifyModule(*Unopt, &errs());
-
-  errs() << "Inner module:\n";
-  errs() << *Unopt << "\n";
-
+  assert(!verifyModule(*Unopt, &errs()));
   return PreservedAnalyses::none();
 }
