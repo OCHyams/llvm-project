@@ -381,9 +381,10 @@ std::string llvm::getUniqueModuleId(Module *M) {
   return ("." + Str).str();
 }
 
-void llvm::embedBufferInModule(Module &M, MemoryBufferRef Buf,
-                               StringRef SectionName, Align Alignment,
-                               bool SectionExclude) {
+GlobalVariable *llvm::embedBufferInModule(Module &M, MemoryBufferRef Buf,
+                                          StringRef SectionName,
+                                          Align Alignment,
+                                          bool SectionExclude) {
   // Embed the memory buffer into the module.
   Constant *ModuleConstant = ConstantDataArray::get(
       M.getContext(), ArrayRef(Buf.getBufferStart(), Buf.getBufferSize()));
@@ -406,6 +407,7 @@ void llvm::embedBufferInModule(Module &M, MemoryBufferRef Buf,
                     llvm::MDNode::get(Ctx, {}));
 
   appendToCompilerUsed(M, GV);
+  return GV;
 }
 
 bool llvm::lowerGlobalIFuncUsersAsGlobalCtor(
