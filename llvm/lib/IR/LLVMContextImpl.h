@@ -995,7 +995,7 @@ template <> struct MDNodeSubsetEqualImpl<DISubprogram> {
 
   static bool isSubsetEqual(const KeyTy &LHS, const DISubprogram *RHS) {
     if (Uniquify) // new odr uniquer
-      return LHS.isKeyOf(RHS);
+      return false;
 
     return isDeclarationOfODRMember(LHS.isDefinition(), LHS.Scope,
                                     LHS.LinkageName, LHS.TemplateParams, RHS);
@@ -1003,7 +1003,7 @@ template <> struct MDNodeSubsetEqualImpl<DISubprogram> {
 
   static bool isSubsetEqual(const DISubprogram *LHS, const DISubprogram *RHS) {
     if (Uniquify) // new odr uniquer
-      return KeyTy(LHS).isKeyOf(RHS);
+      return false;
 
     return isDeclarationOfODRMember(LHS->isDefinition(), LHS->getRawScope(),
                                     LHS->getRawLinkageName(),
