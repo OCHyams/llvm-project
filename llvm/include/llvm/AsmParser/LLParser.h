@@ -19,6 +19,7 @@
 #include "llvm/AsmParser/NumberedValues.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/DebugInfoODRUniquer.h"
 #include "llvm/IR/FMF.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
@@ -189,6 +190,8 @@ namespace llvm {
         PendingDbgRecords;
     SmallVector<std::tuple<LocTy, Instruction *, TrackingMDNodeRef>>
         PendingDbgInsts;
+
+    DebugInfoODRUniquer ODRUniquer;
 
     /// Only the llvm-as tool may set this to false to bypass
     /// UpgradeDebuginfo so it can generate broken bitcode.
