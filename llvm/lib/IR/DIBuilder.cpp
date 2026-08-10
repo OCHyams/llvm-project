@@ -1108,11 +1108,19 @@ DISubprogram *DIBuilder::createMethod(
          "the compile unit.");
   // FIXME: Do we want to use different scope/lines?
   bool IsDefinition = SPFlags & DISubprogram::SPFlagDefinition;
-  auto *SP = getSubprogram(
-      /*IsDistinct=*/IsDefinition, VMContext, cast<DIScope>(Context), Name,
-      LinkageName, F, LineNo, Ty, LineNo, VTableHolder, VIndex, ThisAdjustment,
-      Flags, SPFlags, IsDefinition ? CUNode : nullptr, TParams, nullptr,
-      nullptr, ThrownTypes, nullptr, "", IsDefinition && UseKeyInstructions);
+  DISubprogram *SP = nullptr;
+  // Look up ODR type if requested.
+  if (!IsDefinition && ODRUniquer)
+    SP = ODRUniquer->getODRSubprogramDecl(Context, LinkageName, Ty,
+                                          TParams.get());
+  // Otherwise or if unable, create it.
+  if (!SP)
+    SP = getSubprogram(
+        /*IsDistinct=*/IsDefinition, VMContext, cast<DIScope>(Context), Name,
+        LinkageName, F, LineNo, Ty, LineNo, VTableHolder, VIndex,
+        ThisAdjustment, Flags, SPFlags, IsDefinition ? CUNode : nullptr,
+        TParams, nullptr, nullptr, ThrownTypes, nullptr, "",
+        IsDefinition && UseKeyInstructions);
 
   AllSubprograms.push_back(SP);
   trackIfUnresolved(SP);
