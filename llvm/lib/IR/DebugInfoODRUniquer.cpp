@@ -17,10 +17,13 @@
 using namespace llvm;
 
 bool Uniquify;
-cl::opt<bool, true> UniquifyX("new-odr-uniquer", cl::location(Uniquify), cl::init(false));
+cl::opt<bool, true> UniquifyX("new-odr-uniquer", cl::location(Uniquify),
+                              cl::init(false));
 
-
-DISubprogram *DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope, StringRef LinkageName, Metadata *Type, Metadata* TemplateParams) {
+DISubprogram *
+DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope,
+                                          StringRef LinkageName, Metadata *Type,
+                                          Metadata *TemplateParams) {
   if (!Uniquify)
     return nullptr; // using old uniqer?
 
@@ -30,7 +33,6 @@ DISubprogram *DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope, StringR
     return *R;
   return nullptr;
 }
-
 
 // DISubprogram *DebugInfoODRUniquer::getODRSubprogramDecl(DISubprogram *SP) {
 //   if (!Uniquify)
