@@ -18,7 +18,7 @@ using namespace llvm;
 
 bool Uniquify;
 cl::opt<bool, true> UniquifyX("new-odr-uniquer", cl::location(Uniquify),
-                              cl::init(false));
+                              cl::init(true));
 
 DISubprogram *
 DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope,
@@ -27,8 +27,8 @@ DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope,
   if (!Uniquify)
     return nullptr; // using old uniqer?
 
-  SPLookup SP = {Scope, LinkageName, Type, TemplateParams};
-  auto R = FnDecls.find_as(SP);
+  DISubprogramODRKey Key = {Scope, LinkageName, Type, TemplateParams};
+  auto R = FnDecls.find_as(Key);
   if (R == FnDecls.end())
     return nullptr;
 
@@ -40,9 +40,3 @@ void DebugInfoODRUniquer::addSubprogramDecl(DISubprogram *SP) {
   assert(!SP->isDefinition());
   FnDecls.insert(SP);
 }
-
-// DISubprogram *DebugInfoODRUniquer::getODRSubprogramDecl(DISubprogram *SP) {
-//   if (!Uniquify)
-//       return SP;
-//   return *FnDecls.insert(SP).first;
-// }

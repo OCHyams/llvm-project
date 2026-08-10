@@ -20,111 +20,33 @@ extern bool Uniquify;
 
 namespace llvm {
 class Metadata;
-// template <> struct MDNodeSubsetEqualImpl<DISubprogram> {
-//   using KeyTy = MDNodeKeyImpl<DISubprogram>;
 
-//   static bool isSubsetEqual(const KeyTy &LHS, const DISubprogram *RHS) {
-//     return isDeclarationOfODRMember(LHS.isDefinition(), LHS.Scope,
-//                                     LHS.LinkageName, LHS.TemplateParams,
-//                                     RHS);
-//   }
-
-//   static bool isSubsetEqual(const DISubprogram *LHS, const DISubprogram *RHS)
-//   {
-//     return isDeclarationOfODRMember(LHS->isDefinition(), LHS->getRawScope(),
-//                                     LHS->getRawLinkageName(),
-//                                     LHS->getRawTemplateParams(), RHS);
-//   }
-
-//   /// Subprograms compare equal if they declare the same function in an ODR
-//   /// type.
-//   static bool isDeclarationOfODRMember(bool IsDefinition, const Metadata
-//   *Scope,
-//                                        const MDString *LinkageName,
-//                                        const Metadata *TemplateParams,
-//                                        const DISubprogram *RHS) {
-//     // Check whether the LHS is eligible.
-//     if (IsDefinition || !Scope || !LinkageName)
-//       return false;
-
-//     auto *CT = dyn_cast_or_null<DICompositeType>(Scope);
-//     if (!CT || !CT->getRawIdentifier())
-//       return false;
-
-//     // Compare to the RHS.
-//     // FIXME: We need to compare template parameters here to avoid incorrect
-//     // collisions in mapMetadata when RF_ReuseAndMutateDistinctMDs and a
-//     // ODR-DISubprogram has a non-ODR template parameter (i.e., a
-//     // DICompositeType that does not have an identifier). Eventually we
-//     should
-//     // decouple ODR logic from uniquing logic.
-//     return IsDefinition == RHS->isDefinition() && Scope == RHS->getRawScope()
-//     &&
-//            LinkageName == RHS->getRawLinkageName() &&
-//            TemplateParams == RHS->getRawTemplateParams();
-//   }
-// };
-// template <> struct MDNodeSubsetEqualImpl<DIDerivedType> {
-//   using KeyTy = MDNodeKeyImpl<DIDerivedType>;
-
-//   static bool isSubsetEqual(const KeyTy &LHS, const DIDerivedType *RHS) {
-//     return isODRMember(LHS.Tag, LHS.Scope, LHS.Name, RHS);
-//   }
-
-//   static bool isSubsetEqual(const DIDerivedType *LHS,
-//                             const DIDerivedType *RHS) {
-//     return isODRMember(LHS->getTag(), LHS->getRawScope(), LHS->getRawName(),
-//                        RHS);
-//   }
-
-//   /// Subprograms compare equal if they declare the same function in an ODR
-//   /// type.
-//   static bool isODRMember(unsigned Tag, const Metadata *Scope,
-//                           const MDString *Name, const DIDerivedType *RHS) {
-//     // Check whether the LHS is eligible.
-//     if (Tag != dwarf::DW_TAG_member || !Name)
-//       return false;
-
-//     auto *CT = dyn_cast_or_null<DICompositeType>(Scope);
-//     if (!CT || !CT->getRawIdentifier())
-//       return false;
-
-//     // Compare to the RHS.
-//     return Tag == RHS->getTag() && Name == RHS->getRawName() &&
-//            Scope == RHS->getRawScope();
-//   }
-// };
-
-struct SPLookup {
-  // assume declaration
+/// Dense set/map find_as key for use alongside DISubprogramODRInfo to
+/// merge function declarations of ODR types.
+struct DISubprogramODRKey {
   Metadata *Scope;
   StringRef LinkageName;
   Metadata *Type;
-  Metadata *TemplateParams; // err maybe we can't drop this?xxx
+  // TODO: Can we remove TemplateParams?
+  Metadata *TemplateParams;
 
-  // SPLookup(DISubprogram *SP) :   Scope(SP->getRawScope()),
-  //                       LinkageName(SP->getRawLinkageName()),
-  //                       Type(SP->getRawType()),
-  //                       TemplateParams(SP->getRawTemplateParams()){}
+  DISubprogramODRKey(Metadata *Scope, StringRef LinkageName, Metadata *Type,
+                     Metadata *TemplateParams)
+      : Scope(Scope), LinkageName(LinkageName), Type(Type),
+        TemplateParams(TemplateParams) {}
+  DISubprogramODRKey(DISubprogram *SP)
+      : Scope(SP->getRawScope()), LinkageName(SP->getLinkageName()),
+        Type(SP->getRawType()), TemplateParams(SP->getRawTemplateParams()) {}
 };
 
-struct ODRSubprogramDeclInfo {
-  // FIXME: We can probably remove template parameters from here now.
-
-  static unsigned getHashValue(const SPLookup &SP) {
-    // xxx mayb we shouldn't hash the linkage name for speed
+/// Dense set/map info to merge function declarations of ODR types.
+struct DISubprogramODRInfo {
+  static unsigned getHashValue(const DISubprogramODRKey &SP) {
+    // xxx should we remove LinkageName for hash speed?
     return hash_combine(SP.Scope, SP.LinkageName, SP.Type, SP.TemplateParams);
   }
 
-  // xxx get rid of this / unify with above
-  static unsigned getHashValue(const DISubprogram *SP) {
-    return hash_combine(/*SP->isDefinition(),*/
-                        SP->getRawScope(), SP->getLinkageName(),
-                        SP->getRawType(), SP->getRawTemplateParams());
-  }
-
-  static bool isEqual(const SPLookup &LHS, const DISubprogram *RHS) {
-    // assume LHS declaration
+  static bool isEqual(const DISubprogramODRKey &LHS, const DISubprogram *RHS) {
     if (!LHS.Scope || LHS.LinkageName.empty())
       return false;
     auto *CT = dyn_cast_or_null<DICompositeType>(LHS.Scope);
@@ -158,23 +80,8 @@ struct ODRSubprogramDeclInfo {
 };
 
 class DebugInfoODRUniquer {
-  // struct DISubprogramODRKey {
-  //   bool IsDefinition;
-  //   Metadata *Scope;
-  //   Metadata *LinkageName;
-  //   Metadata *TemplateParams;
-  //   DISubprogramODRKey(bool IsDefinition, Metadata *Scope, Metadata
-  //   *LinkageName, Metadata *TemplateParams)
-  //     : IsDefinition(IsDefinition), Scope(Scope), LinkageName(LinkageName),
-  //     TemplateParams(TemplateParams) {}
-
-  // };
-  // definition?
-  // using DISubprogramODRKey = std::tuple<Metadata*, Metadata*, Metadata*>;
-
-  // will the win adl?
-
-  DenseSet<DISubprogram *, ODRSubprogramDeclInfo> FnDecls;
+  /// Function declarations scoped to ODR types.
+  DenseSet<DISubprogram *, DISubprogramODRInfo> FnDecls;
 
 public:
   // err I suppose we don't want to construct any unecessarily...
