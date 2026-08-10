@@ -42,6 +42,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -147,7 +148,7 @@ static bool IsObjCSynthesizedPropertyExplicitParameter(VarDecl const *VD) {
 CGDebugInfo::CGDebugInfo(CodeGenModule &CGM)
     : CGM(CGM), DebugKind(CGM.getCodeGenOpts().getDebugInfo()),
       DebugTypeExtRefs(CGM.getCodeGenOpts().DebugTypeExtRefs),
-      DBuilder(CGM.getModule()) {
+      DBuilder(CGM.getModule(), true, nullptr, &ODRUniquer) {
   CreateCompileUnit();
 }
 

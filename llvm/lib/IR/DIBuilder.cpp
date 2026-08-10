@@ -17,15 +17,19 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugInfoODRUniquer.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include <optional>
 
 using namespace llvm;
 using namespace llvm::dwarf;
 
-DIBuilder::DIBuilder(Module &m, bool AllowUnresolvedNodes, DICompileUnit *CU)
-    : M(m), VMContext(M.getContext()), CUNode(CU),
+DIBuilder::DIBuilder(Module &m, bool AllowUnresolvedNodes, DICompileUnit *CU,
+                     DebugInfoODRUniquer *ODRUniquer)
+    : M(m), VMContext(M.getContext()), CUNode(CU), ODRUniquer(ODRUniquer),
       AllowUnresolvedNodes(AllowUnresolvedNodes) {
   if (CUNode) {
     if (const auto &ETs = CUNode->getEnumTypes())
@@ -1060,7 +1064,13 @@ DISubprogram *DIBuilder::createFunction(
     DITypeArray ThrownTypes, DINodeArray Annotations, StringRef TargetFuncName,
     bool UseKeyInstructions) {
   bool IsDefinition = SPFlags & DISubprogram::SPFlagDefinition;
-  auto *Node = getSubprogram(
+  DISubprogram *Node = nullptr;
+  // Look up ODR type if requested.
+  if (!IsDefinition && ODRUniquer)
+      Node = ODRUniquer->getODRSubprogramDecl()
+  // Otherwise or if unable, create it.
+  if (!Node)
+    Node = getSubprogram(
       /*IsDistinct=*/IsDefinition, VMContext, getNonCompileUnitScope(Context),
       Name, LinkageName, File, LineNo, Ty, ScopeLine, nullptr, 0, 0, Flags,
       SPFlags, IsDefinition ? CUNode : nullptr, TParams, Decl, nullptr,

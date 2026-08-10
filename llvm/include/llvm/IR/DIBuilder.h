@@ -40,6 +40,7 @@ namespace llvm {
   class Value;
   class DbgAssignIntrinsic;
   class DbgRecord;
+  class DebugInfoODRUniquer;
 
   using DbgInstPtr = PointerUnion<Instruction *, DbgRecord *>;
 
@@ -59,6 +60,8 @@ namespace llvm {
     /// Metadata all of type DIMacroNode.
     /// DIMacroNode's with nullptr parent are DICompileUnit direct children.
     MapVector<MDNode *, SetVector<Metadata *>> AllMacrosPerParent;
+
+    DebugInfoODRUniquer *ODRUniquer = nullptr;
 
     /// Track nodes that may be unresolved.
     SmallVector<TrackingMDNodeRef, 4> UnresolvedNodes;
@@ -107,7 +110,8 @@ namespace llvm {
     ///
     /// If \p CU is given a value other than nullptr, then set \p CUNode to CU.
     LLVM_ABI explicit DIBuilder(Module &M, bool AllowUnresolved = true,
-                                DICompileUnit *CU = nullptr);
+                                DICompileUnit *CU = nullptr,
+                                DebugInfoODRUniquer *ODRUniquer = nullptr);
     DIBuilder(const DIBuilder &) = delete;
     DIBuilder &operator=(const DIBuilder &) = delete;
 

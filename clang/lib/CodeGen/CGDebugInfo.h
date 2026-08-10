@@ -28,6 +28,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoODRUniquer.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Allocator.h"
 #include <map>
@@ -64,6 +65,7 @@ class CGDebugInfo {
   CodeGenModule &CGM;
   const llvm::codegenoptions::DebugInfoKind DebugKind;
   bool DebugTypeExtRefs;
+  llvm::DebugInfoODRUniquer ODRUniquer;
   llvm::DIBuilder DBuilder;
   llvm::DICompileUnit *TheCU = nullptr;
   ModuleMap *ClangModuleMap = nullptr;
