@@ -112,16 +112,16 @@ struct ODRSubprogramDeclInfo {
   // FIXME: We can probably remove template parameters from here now.
 
   static unsigned getHashValue(const SPLookup &SP) {
+    // xxx mayb we shouldn't hash the linkage name for speed
     return hash_combine(SP.Scope, SP.LinkageName, SP.Type, SP.TemplateParams);
   }
 
-  // static unsigned getHashValue(const DISubprogram *SP) {
-  //   return hash_combine(/*SP->isDefinition(),*/
-  //                       SP->getRawScope(),
-  //                       SP->getRawLinkageName(),
-  //                       SP->getRawType(),
-  //                       SP->getRawTemplateParams());
-  // }
+  // xxx get rid of this / unify with above
+  static unsigned getHashValue(const DISubprogram *SP) {
+    return hash_combine(/*SP->isDefinition(),*/
+                        SP->getRawScope(), SP->getLinkageName(),
+                        SP->getRawType(), SP->getRawTemplateParams());
+  }
 
   static bool isEqual(const SPLookup &LHS, const DISubprogram *RHS) {
     // assume LHS declaration
@@ -182,6 +182,7 @@ public:
   // DISubprogram *getODRSubprogramDecl(DISubprogram *Decl);
   DISubprogram *getODRSubprogramDecl(Metadata *Scope, StringRef LinkageName,
                                      Metadata *Type, Metadata *TemplateParams);
+  void addSubprogramDecl(DISubprogram *SP);
 };
 
 } // namespace llvm

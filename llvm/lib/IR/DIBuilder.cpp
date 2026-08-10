@@ -1077,6 +1077,9 @@ DISubprogram *DIBuilder::createFunction(
       SPFlags, IsDefinition ? CUNode : nullptr, TParams, Decl, nullptr,
       ThrownTypes, Annotations, TargetFuncName, UseKeyInstructions);
 
+  if (!IsDefinition && ODRUniquer)
+    ODRUniquer->addSubprogramDecl(Node);
+
   AllSubprograms.push_back(Node);
   trackIfUnresolved(Node);
   return Node;
@@ -1121,6 +1124,9 @@ DISubprogram *DIBuilder::createMethod(
         ThisAdjustment, Flags, SPFlags, IsDefinition ? CUNode : nullptr,
         TParams, nullptr, nullptr, ThrownTypes, nullptr, "",
         IsDefinition && UseKeyInstructions);
+
+  if (!IsDefinition && ODRUniquer)
+    ODRUniquer->addSubprogramDecl(SP);
 
   AllSubprograms.push_back(SP);
   trackIfUnresolved(SP);

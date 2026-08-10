@@ -29,9 +29,16 @@ DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope,
 
   SPLookup SP = {Scope, LinkageName, Type, TemplateParams};
   auto R = FnDecls.find_as(SP);
-  if (R != FnDecls.end())
-    return *R;
-  return nullptr;
+  if (R == FnDecls.end())
+    return nullptr;
+
+  assert(!(*R)->isDefinition() && "definition unexpectedly ODR-uniqued");
+  return *R;
+}
+
+void DebugInfoODRUniquer::addSubprogramDecl(DISubprogram *SP) {
+  assert(!SP->isDefinition());
+  FnDecls.insert(SP);
 }
 
 // DISubprogram *DebugInfoODRUniquer::getODRSubprogramDecl(DISubprogram *SP) {
