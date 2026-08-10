@@ -50,6 +50,7 @@
 #include <utility>
 #include <vector>
 
+extern bool Uniquify;
 namespace llvm {
 
 class AttributeImpl;
@@ -993,11 +994,17 @@ template <> struct MDNodeSubsetEqualImpl<DISubprogram> {
   using KeyTy = MDNodeKeyImpl<DISubprogram>;
 
   static bool isSubsetEqual(const KeyTy &LHS, const DISubprogram *RHS) {
+    if (Uniquify) // new odr uniquer
+      return LHS.isKeyOf(RHS);
+
     return isDeclarationOfODRMember(LHS.isDefinition(), LHS.Scope,
                                     LHS.LinkageName, LHS.TemplateParams, RHS);
   }
 
   static bool isSubsetEqual(const DISubprogram *LHS, const DISubprogram *RHS) {
+    if (Uniquify) // new odr uniquer
+      return KeyTy(LHS).isKeyOf(RHS);
+
     return isDeclarationOfODRMember(LHS->isDefinition(), LHS->getRawScope(),
                                     LHS->getRawLinkageName(),
                                     LHS->getRawTemplateParams(), RHS);

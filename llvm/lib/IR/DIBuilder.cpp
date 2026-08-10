@@ -1067,7 +1067,8 @@ DISubprogram *DIBuilder::createFunction(
   DISubprogram *Node = nullptr;
   // Look up ODR type if requested.
   if (!IsDefinition && ODRUniquer)
-      Node = ODRUniquer->getODRSubprogramDecl()
+    Node = ODRUniquer->getODRSubprogramDecl(Context, LinkageName, Ty,
+                                            TParams.get());
   // Otherwise or if unable, create it.
   if (!Node)
     Node = getSubprogram(
