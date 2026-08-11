@@ -2066,7 +2066,9 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
 
     DISubprogram *SP = nullptr;
 
-    bool MaybeODR = !IsDistinct && !(SPFlags & DISubprogram::SPFlagDefinition);
+    bool MaybeODR = !IsDistinct &&
+                    !(SPFlags & DISubprogram::SPFlagDefinition) &&
+                    getMDString(Record[3]);
     if (MaybeODR)
       SP = ODRUniquer.getODRSubprogramDecl(
           getDITypeRefOrNull(Record[1]), getMDString(Record[3])->getString(),
