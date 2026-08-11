@@ -6332,7 +6332,7 @@ bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
         "missing 'distinct', required for !DISubprogram that is a Definition");
 
   Result = nullptr;
-  bool MaybeODR = !IsDistinct && SPFlags & DISubprogram::SPFlagDefinition &&
+  bool MaybeODR = !IsDistinct && !(SPFlags & DISubprogram::SPFlagDefinition) &&
                   linkageName.Val;
   if (MaybeODR)
     Result = ODRUniquer.getODRSubprogramDecl(
