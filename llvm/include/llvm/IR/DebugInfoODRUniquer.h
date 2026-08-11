@@ -26,17 +26,17 @@ class Metadata;
 struct DISubprogramODRKey {
   Metadata *Scope;
   StringRef LinkageName;
-  Metadata *Type;
+  Metadata *Type; // ??? why did I put this in here
   // TODO: Can we remove TemplateParams?
   Metadata *TemplateParams;
 
   DISubprogramODRKey(Metadata *Scope, StringRef LinkageName, Metadata *Type,
                      Metadata *TemplateParams)
-      : Scope(Scope), LinkageName(LinkageName), Type(Type),
+      : Scope(Scope), LinkageName(LinkageName), Type(nullptr),
         TemplateParams(TemplateParams) {}
   DISubprogramODRKey(DISubprogram *SP)
       : Scope(SP->getRawScope()), LinkageName(SP->getLinkageName()),
-        Type(SP->getRawType()), TemplateParams(SP->getRawTemplateParams()) {}
+        Type(nullptr), TemplateParams(SP->getRawTemplateParams()) {}
 };
 
 /// Dense set/map info to merge function declarations of ODR types.
