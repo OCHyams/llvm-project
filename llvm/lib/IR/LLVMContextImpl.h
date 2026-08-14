@@ -29,7 +29,9 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugInfoODRUniquer.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
@@ -1616,7 +1618,7 @@ public:
 #include "llvm/IR/Metadata.def"
 
   // Optional map for looking up composite types by identifier.
-  std::optional<DenseMap<const MDString *, DICompositeType *>> DITypeMap;
+  std::optional<DebugInfoODRUniquer> ODRUniquer;
 
   // MDNodes may be uniqued or not uniqued.  When they're not uniqued, they
   // aren't in the MDNodeSet, but they're still shared between objects, so no
