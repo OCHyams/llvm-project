@@ -88,7 +88,7 @@ class DebugInfoODRUniquer {
   /// Function declarations keyed by DISubprogramODRKey to unique on a subset
   /// of fields, rather than the built-in metadata uniquing which requires
   /// full structural equality.
-  DenseSet<DISubprogram *, DISubprogramODRKey> FnDecls;
+  DenseSet<DISubprogram *, DISubprogramODRInfo> FnDecls;
 
 public:
   // FIXME: Improve the interface for types.
