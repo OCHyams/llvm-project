@@ -346,6 +346,10 @@ void LLVMContext::enableDebugTypeODRUniquing() {
   pImpl->ODRUniquer.emplace();
 }
 
+DebugInfoODRUniquer *LLVMContext::getDebugTypeODRUniquer() {
+  return &*pImpl->ODRUniquer;
+}
+
 void LLVMContext::disableDebugTypeODRUniquing() { pImpl->ODRUniquer.reset(); }
 
 void LLVMContext::setDiscardValueNames(bool Discard) {
