@@ -11,5 +11,24 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DebugInfoODRUniquer.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 using namespace llvm;
+
+DISubprogram *
+DebugInfoODRUniquer::getODRSubprogramDecl(Metadata *Scope,
+                                          StringRef LinkageName, Metadata *Type,
+                                          Metadata *TemplateParams) {
+  auto R = FnDecls.find_as(
+      DISubprogramODRKey(Scope, LinkageName, Type, TemplateParams));
+  if (R == FnDecls.end())
+    return nullptr;
+  assert(!(*R)->isDefinition() && "definition unexpectedly ODR-uniqued");
+  return *R;
+}
+
+void DebugInfoODRUniquer::addSubprogramDecl(DISubprogram *SP) {
+  assert(!SP->isDefinition() &&
+         "only expect declarations DISubprogram ODR uniquing");
+  FnDecls.insert(SP);
+}
