@@ -143,6 +143,11 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<ModuleSummaryIndex> Index = std::move(ModuleAndIndex.Index);
 
+  // Verifier checks if DebugTypeODRUniquing is enabled as a proxy for if
+  // module linking is taking place, so disable it now.
+  if (!DisableDITypeMap)
+    Context.disableDebugTypeODRUniquing();
+
   if (!DisableVerify) {
     std::string ErrorStr;
     raw_string_ostream OS(ErrorStr);
