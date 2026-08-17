@@ -62,6 +62,10 @@ static cl::opt<std::string> ClDataLayout("data-layout",
                                          cl::value_desc("layout-string"),
                                          cl::init(""), cl::cat(AsCat));
 
+static cl::opt<bool>
+    DisableDITypeMap("disable-debug-info-type-map",
+                     cl::desc("Don't use a uniquing type map for debug info"));
+
 static void WriteOutputFile(const Module *M, const ModuleSummaryIndex *Index) {
   // Infer the output filename if needed.
   if (OutputFilename.empty()) {
@@ -112,6 +116,9 @@ int main(int argc, char **argv) {
   cl::HideUnrelatedOptions(AsCat);
   cl::ParseCommandLineOptions(argc, argv, "llvm .ll -> .bc assembler\n");
   LLVMContext Context;
+
+  if (!DisableDITypeMap)
+    Context.enableDebugTypeODRUniquing();
 
   // Parse the file now...
   SMDiagnostic Err;
