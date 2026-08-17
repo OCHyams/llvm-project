@@ -600,11 +600,6 @@ optMain(int argc, char **argv,
     return 1;
   }
 
-  // Verifier checks if DebugTypeODRUniquing is enabled as a proxy for if
-  // module linking is taking place, so disable it now.
-  if (!DisableDITypeMap)
-    Context.disableDebugTypeODRUniquing();
-
   // Strip debug info before running the verifier.
   if (StripDebug)
     StripDebugInfo(*M);
