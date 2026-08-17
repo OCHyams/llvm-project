@@ -143,8 +143,11 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<ModuleSummaryIndex> Index = std::move(ModuleAndIndex.Index);
 
-  // Verifier checks if DebugTypeODRUniquing is enabled as a proxy for if
-  // module linking is taking place, so disable it now.
+  // The verifier seems to use DebugTypeODRUniquing as an (inconsistent) proxy
+  // for whether module linking is taking place. To maintain previous llvm-as
+  // behaviour, don't leave DebugTypeODRUniquing "on" for the verifier.
+  // FIXME: Improve this situation, because it means opt and llvm-as have
+  // different verifier paths.
   if (!DisableDITypeMap)
     Context.disableDebugTypeODRUniquing();
 
