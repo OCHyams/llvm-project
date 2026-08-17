@@ -13,7 +13,7 @@
 !2 = !DIFile(filename: "path/to/other", directory: "/path/to/dir")
 
 ; Define an identified type with fields and functions.
-; CHECK-NEXT: !3 = !DICompositeType(tag: DW_TAG_structure_type, name: "has-uuid",{{.*}}, identifier: "uuid")
+; CHECK-NEXT: !3 = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "has-uuid",{{.*}}, identifier: "uuid")
 ; CHECK-NEXT: !4 = !DIDerivedType(tag: DW_TAG_member, name: "field1", scope: !3, file: !1
 ; CHECK-NEXT: !5 = !DIDerivedType(tag: DW_TAG_member, name: "field2", scope: !3, file: !1
 ; CHECK-NEXT: !6 = !DISubprogram(name: "foo", linkageName: "foo1", scope: !3, file: !1, type: !7, spFlags: 0)
