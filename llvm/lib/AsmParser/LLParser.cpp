@@ -6333,7 +6333,7 @@ bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
         "missing 'distinct', required for !DISubprogram that is a Definition");
 
   Result = nullptr;
-  bool MaybeODRUnique = !IsDistinct &&
+  bool MaybeODRUnique = Context.isODRUniquingDebugTypes() && !IsDistinct &&
                         !(SPFlags & DISubprogram::SPFlagDefinition) &&
                         linkageName.Val;
 
