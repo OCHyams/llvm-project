@@ -59,7 +59,7 @@ struct DISubprogramODRKey {
 /// Dense set/map info to merge function declarations of ODR types.
 struct DISubprogramODRInfo {
   static unsigned getHashValue(const DISubprogramODRKey &SP) {
-    // xxx should we remove LinkageName for hash speed?
+    // TODO: Evaluate LinkageName hash speed.
     return hash_combine(SP.Scope, SP.LinkageName, SP.TemplateParams);
   }
 
